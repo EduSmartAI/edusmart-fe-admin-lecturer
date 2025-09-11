@@ -1,26 +1,72 @@
 @import "tailwindcss";
+@import "antd/dist/reset.css";
+/* @custom-variant dark (&:where(.new-dark, .new-dark *)); */
+@custom-variant dark (&:where(.dark, .dark *));
+@layer theme, base, components, utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer utilities {
+  .dark .dark\:bg-slate-900 {
+    background-color: #111827 !important;
   }
+  .dark .dark\:bg-slate-800 {
+    background-color: #1f2937 !important;
+  }
+  .dark .dark\:text-white {
+    color: #ffffff !important;
+  }
+  @media (min-width: 2000px) {
+    .xxl\:w-\[50rem\] {
+      width: 50rem;
+    }
+  }
+  @media (min-width: 2200px) {
+    .xxl\:max-w-\[2000px\] {
+      max-width: 2000px !important;
+    }
+  }
+}
+
+@theme {
+  --color-bgContrast: #f9f9f9;
+  --breakpoint-xxl: 2600px;
+  --breakpoint-xs: 400px;
+  --breakpoint-size-1500: 1500px;
+  --breakpoint-size-1800: 1800px;
+}
+
+@layer theme {
+  .dark {
+    --color-bgContrast: #66c8b6;
+  }
+}
+
+body {
+  margin: 0;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  color: #030a14;
+}
+
+/* Force pointer cursor on Ant Design DatePicker input when read-only */
+.ant-picker input[readonly] {
+  cursor: pointer !important;
+}
+
+/* Custom animations */
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-15px);
+  }
+}
+
+.animate-float {
+  animation: float 4s ease-in-out infinite;
 }

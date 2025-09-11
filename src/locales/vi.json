@@ -1,0 +1,11 @@
+{
+  "DropdownOptions": {
+    "Latest": "Mới nhất",
+    "Oldest": "Cũ nhất",
+    "Popular": "Phổ biến"
+  },
+  "OtherEnum": {
+    "Foo": "Foo (VI)",
+    "Bar": "Bar (VI)"
+  }
+}

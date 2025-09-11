@@ -1,0 +1,81 @@
+/* modal.css */
+@import "tailwindcss";
+@custom-variant dark (&:where(.new-dark, .new-dark *));
+@layer theme, base, components, utilities;
+
+@layer components {
+  /* Cyan → Blue (mẫu cũ) */
+  .gradient-button-cyan-to-blue {
+    @apply !text-white
+      !bg-gradient-to-r !from-cyan-500 !to-blue-500
+      hover:!bg-gradient-to-bl
+      dark:!from-blue-700 dark:!to-cyan-700
+      !font-medium !rounded-lg !text-sm
+      !px-5 !py-2.5 !text-center
+      !me-2 !mb-2;
+  }
+
+  /* Purple → Pink */
+  .gradient-button-purple-to-pink {
+    @apply !text-white
+      !bg-gradient-to-r !from-purple-500 !via-pink-500 !to-pink-600
+      hover:!bg-gradient-to-br
+      dark:!from-purple-700 dark:!via-pink-700 dark:!to-pink-800
+      !font-medium !rounded-lg !text-sm
+      !px-5 !py-2.5 !text-center
+      !me-2 !mb-2;
+  }
+
+  /* Green → Yellow */
+  .gradient-button-green-to-yellow {
+    @apply !text-white
+      !bg-gradient-to-r !from-emerald-400 !via-lime-400 !to-yellow-400
+      hover:!bg-gradient-to-br
+      dark:!from-emerald-600 dark:!via-lime-600 dark:!to-yellow-600
+      !font-medium !rounded-lg !text-sm
+      !px-5 !py-2.5 !text-center
+      !me-2 !mb-2;
+  }
+
+  /* Red → Orange */
+  .gradient-button-red-to-orange {
+    @apply !text-white
+      !bg-gradient-to-r !from-red-400 !via-red-500 !to-orange-500
+      hover:!bg-gradient-to-br
+      dark:!from-red-600 dark:!via-red-700 dark:!to-orange-700
+      !font-medium !rounded-lg !text-sm
+      !px-5 !py-2.5 !text-center
+      !me-2 !mb-2;
+  }
+
+  /* Indigo → Teal */
+  .gradient-button-indigo-to-teal {
+    @apply !text-white
+      !bg-gradient-to-r !from-indigo-500 !via-teal-400 !to-teal-500
+      hover:!bg-gradient-to-br
+      dark:!from-indigo-700 dark:!via-teal-600 dark:!to-teal-700
+      !font-medium !rounded-lg !text-sm
+      !px-5 !py-2.5 !text-center
+      !me-2 !mb-2;
+  }
+
+  /* Gray → Slate (cho variant nhẹ nhàng hơn) */
+  .gradient-button-gray-to-slate {
+    @apply !text-black
+      !bg-gradient-to-r !from-gray-200 !to-slate-400
+      hover:!bg-gradient-to-br
+      dark:!from-gray-600 dark:!to-slate-600
+      !font-medium !rounded-lg !text-sm
+      !px-5 !py-2.5 !text-center
+      !me-2 !mb-2;
+  }
+}
+.ant-modal-mask {
+  background-color: rgba(0, 0, 0, 0.4) !important;
+  backdrop-filter: blur(6px);
+}
+
+/* Blur thêm cho wrapper nếu cần */
+.ant-modal-wrap {
+  backdrop-filter: blur(4px);
+}

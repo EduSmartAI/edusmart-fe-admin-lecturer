@@ -1,0 +1,10 @@
+[
+  {
+    "key": "student-service",
+    "url": "https://api.edusmart.pro.vn/swagger/index.html?urls.primaryName=Student+Service+Swagger"
+  },
+  {
+    "key": "auth-service",
+    "url": "https://api.edusmart.pro.vn/swagger/index.html?urls.primaryName=Auth+Service+Swagger"
+  }
+]
