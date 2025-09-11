@@ -1,0 +1,68 @@
+/* ===== Segmented pill switch cho Auth ===== */
+.auth-segmented {
+  --track: linear-gradient(180deg, #eef8ff, #f2f6ff);
+  --thumb: linear-gradient(135deg, #22d3ee, #3b82f6); /* teal→blue như button */
+  --muted: #64748b; /* slate-500 */
+  --shadow: 0 10px 24px rgba(59, 130, 246, 0.22);
+
+  background: var(--track);
+  border-radius: 9999px;
+  padding: 6px;
+  border: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -1px 0 rgba(15, 23, 42, 0.04);
+}
+
+/* full width + chia đều 2 option */
+.auth-segmented .ant-segmented-group {
+  width: 100%;
+}
+.auth-segmented .ant-segmented-item {
+  flex: 1 1 0;
+  justify-content: center;
+  height: 44px;
+  font-weight: 700;
+  color: var(--muted);
+  transition: color 0.2s ease;
+}
+.auth-segmented .ant-segmented-item-label {
+  line-height: 44px;
+}
+
+/* thumb (tab active) – màu đậm + nổi khối */
+.auth-segmented .ant-segmented-thumb {
+  background: var(--thumb);
+  border-radius: 9999px;
+  box-shadow:
+    var(--shadow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  transition: all 0.25s ease;
+}
+
+/* chữ của item đang active */
+.auth-segmented .ant-segmented-item-selected {
+  background: var(--thumb) !important; /* thắng màu trắng mặc định */
+  color: #fff;
+  border-radius: 9999px;
+  box-shadow:
+    0 10px 24px rgba(59, 130, 246, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.auth-segmented {
+  --thumb: linear-gradient(135deg, #14b8a6, #2563eb); /* teal-500 → blue-600 */
+}
+
+/* hover nhẹ cho item chưa active */
+.auth-segmented .ant-segmented-item:not(.ant-segmented-item-selected):hover {
+  background: rgba(59, 130, 246, 0.06);
+  border-radius: 9999px;
+}
+
+/* Dark mode */
+.dark .auth-segmented {
+  --track: rgba(255, 255, 255, 0.06);
+  --muted: rgba(255, 255, 255, 0.78);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}

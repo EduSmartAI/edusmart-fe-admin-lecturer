@@ -1,0 +1,67 @@
+/* src/components/Navbar/Navbar.module.css */
+
+.header {
+  display: flex;
+  align-items: center;
+  padding: 0 40px;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+nav {
+  padding-top: max(env(safe-area-inset-top, 20px), 20px);
+}
+.logo {
+  display: flex;
+  align-items: center;
+  margin-right: 48px;
+  text-decoration: none;
+}
+.logo img {
+  width: 32px;
+  height: 32px;
+}
+.logo span {
+  margin-left: 8px;
+  font-size: 20px;
+  font-weight: 600;
+  color: #1890ff; /* màu chủ đạo */
+}
+
+.menu {
+  flex: 1;
+  background: transparent;
+  border-bottom: none;
+}
+.menu .ant-menu-item {
+  margin: 0 16px;
+  padding: 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.65);
+}
+.menu .ant-menu-item:hover a {
+  color: #1890ff;
+}
+.menu .ant-menu-item-selected a {
+  color: #1890ff !important;
+}
+.menu .ant-menu-item-selected::after {
+  border-bottom: 2px solid #1890ff;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+}
+.username {
+  margin-right: 24px;
+  font-size: 16px;
+  color: rgba(0, 0, 0, 0.85);
+}
+.ant-btn-primary {
+  background-color: #1890ff;
+  border-color: #1890ff;
+}
