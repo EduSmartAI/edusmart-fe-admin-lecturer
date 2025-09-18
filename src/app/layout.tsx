@@ -7,6 +7,7 @@ import { ThemeProvider } from "EduSmart/Provider/ThemeProvider";
 import { AntdRegistry } from "@ant-design/nextjs-registry";
 import { ChartThemeProvider } from "EduSmart/Provider/ChartThemeProvider";
 import { NotificationProvider } from "EduSmart/Provider/NotificationProvider";
+import { App } from "antd";
 import "@ant-design/v5-patch-for-react-19";
 // import Head from "next/head";
 import GoogleProvider from "EduSmart/Provider/GoogleProvider";
@@ -95,13 +96,18 @@ export default function RootLayout({
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        suppressHydrationWarning={true}
       >
         <AntdRegistry>
           <ThemeProvider>
             <AntdThemeProvider>
               <ChartThemeProvider>
                 <NotificationProvider>
-                  <GoogleProvider>{children}</GoogleProvider>
+                  <GoogleProvider>
+                    <App>
+                      {children}
+                    </App>
+                  </GoogleProvider>
                 </NotificationProvider>
               </ChartThemeProvider>
             </AntdThemeProvider>

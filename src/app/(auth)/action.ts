@@ -13,16 +13,43 @@ export async function loginAction({
 }) {
   if (!email || !password) return { ok: false, error: "Thiếu email/password" };
   try {
-    console.log("start")
+    console.log("[loginAction] Starting login process...")
     const result = await exchangePassword(email, password);
-    console.log("end")
+    console.log("[loginAction] exchangePassword completed, result:", result)
+    
+    // Add a small delay to ensure the session is fully set
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
     const accessToken = await getAccessTokenFromCookie();
-    console.warn("result", result)
-    if(accessToken) return { ok: true, accessToken: accessToken};
-    // console.log("Bearer Access", accessToken)
-    return { ok: false, accessToken: null};
+    console.log("[loginAction] Retrieved accessToken:", accessToken ? `${accessToken.slice(0, 10)}...` : 'null')
+    
+    if(accessToken) {
+      console.log("[loginAction] Login successful!")
+      return { ok: true, accessToken: accessToken};
+    }
+    
+    // Even if we can't get the token from cookie, the login was successful
+    // This might be a timing/cookie issue, so let's check if we have a session
+    if (result && result.sid) {
+      console.log("[loginAction] Login succeeded but token retrieval failed, attempting direct token access...")
+      
+      // Try to get the token directly from the session
+      try {
+        const { loadTokens } = await import('EduSmart/lib/sessionStore');
+        const tokens = await loadTokens(result.sid);
+        if (tokens?.access) {
+          console.log("[loginAction] Successfully retrieved token from session store");
+          return { ok: true, accessToken: tokens.access };
+        }
+      } catch (sessionError) {
+        console.error("[loginAction] Session token retrieval failed:", sessionError);
+      }
+    }
+    
+    console.warn("[loginAction] No access token found despite successful exchange")
+    return { ok: false, error: "Token retrieval failed", accessToken: null};
   } catch (e: unknown) {
-    console.error("lỗi")
+    console.error("[loginAction] Login error:", e)
     const errorMessage = typeof e === "object" && e !== null && "message" in e ? (e as { message?: string }).message : undefined;
     return { ok: false, error: errorMessage ?? "Đăng nhập thất bại" };
   }

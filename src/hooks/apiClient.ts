@@ -10,8 +10,11 @@ import { useAuthStore } from "EduSmart/stores/Auth/AuthStore";
 import { useValidateStore } from "EduSmart/stores/Validate/ValidateStore";
 
 // 1) Tạo axios instance chung
+const baseURL = process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || 'https://api.edusmart.pro.vn';
+console.log('[apiClient] Using baseURL:', baseURL);
+
 const axiosInstance: AxiosInstance = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL, // ví dụ: "https://api.emoease.vn"
+  baseURL: baseURL,
 });
 
 interface RetryConfig extends AxiosRequestConfig {
@@ -107,7 +110,7 @@ const axiosFetch: typeof fetch = async (input, init = {}) => {
 };
 
 export const AuthEduClient = new AuthEduClientApi({
-  baseUrl: `${process.env.NEXT_PUBLIC_API_URL}/auth`,
+  baseUrl: `${baseURL}/auth`,
   customFetch: axiosFetch,
 });
 

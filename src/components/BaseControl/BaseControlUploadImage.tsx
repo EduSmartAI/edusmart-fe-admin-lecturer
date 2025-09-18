@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import ImgCrop from "antd-img-crop";
 import {
   Upload,
@@ -24,6 +24,7 @@ import {
   urlToBase64,
 } from "EduSmart/utils/commonFunction";
 import { useNotification } from "EduSmart/Provider/NotificationProvider";
+import { courseServiceAPI } from "EduSmart/api/api-course-service";
 
 export type FileType = Parameters<GetProp<UploadProps, "beforeUpload">>[0];
 
@@ -96,9 +97,16 @@ const BaseControlUploadImage: React.FC<ImageCropUploadProps> = ({
     setEditingFile(target);
   };
 
+  // Memoize initialFileList to prevent infinite loops when parent recreates the array
+  const memoizedInitialFileList = useMemo(() => initialFileList, [
+    initialFileList.length,
+    initialFileList.map(f => f.uid).join(','),
+    initialFileList.map(f => f.url).join(',')
+  ]);
+
   useEffect(() => {
-    setFileList([...initialFileList]);
-  }, [initialFileList]);
+    setFileList([...memoizedInitialFileList]);
+  }, [memoizedInitialFileList]);
 
   const handleEditOk = async () => {
     if (!editingFile || !croppedAreaPixels) {
@@ -183,13 +191,47 @@ const BaseControlUploadImage: React.FC<ImageCropUploadProps> = ({
     });
   };
 
+  // Use customRequest to upload to server and replace local URL with hosted URL
+  const customRequest: UploadProps['customRequest'] = async (options) => {
+    const { file, onSuccess, onError } = options;
+    try {
+      console.log('[ImageUpload] Starting upload for:', (file as File).name);
+      const hostedUrl = await courseServiceAPI.uploadImage(file as File);
+      console.log('[ImageUpload] Got hosted URL:', hostedUrl);
+      
+      // Create new file entry with hosted URL
+      const newFile: UploadFile = {
+        uid: (file as any).uid || String(Date.now()),
+        name: (file as File).name,
+        status: 'done',
+        url: hostedUrl,
+        thumbUrl: hostedUrl,
+        originFileObj: file as any,
+      };
+      
+      // Replace the current fileList with the new file (for single file upload)
+      const nextList = maxCount === 1 ? [newFile] : [...fileList, newFile];
+      setFileList(nextList);
+      onChange?.(nextList);
+      form.setFieldsValue({
+        [xmlColumn.id]: nextList.map((f) => ({ baseUrl: f.url! })),
+      });
+      onSuccess && onSuccess('ok');
+      messageApi.success('Tải ảnh thành công');
+    } catch (e) {
+      console.error('[ImageUpload] Upload failed:', e);
+      messageApi.error('Tải ảnh thất bại');
+      onError && onError(e as any);
+    }
+  };
+
   useEffect(() => {
     form.setFieldsValue({
-      [xmlColumn.id]: initialFileList.map((file) => ({
+      [xmlColumn.id]: memoizedInitialFileList.map((file) => ({
         baseUrl: file.url!,
       })),
     });
-  }, [form, initialFileList, xmlColumn.id]);
+  }, [form, memoizedInitialFileList, xmlColumn.id]);
 
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewImage, setPreviewImage] = useState<string>("");
@@ -265,6 +307,7 @@ const BaseControlUploadImage: React.FC<ImageCropUploadProps> = ({
               accept={accept}
               fileList={fileList}
               onChange={handleChange}
+              customRequest={customRequest}
               onPreview={previewHandler}
               maxCount={maxCount}
               itemRender={renderUploadItem}

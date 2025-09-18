@@ -8,9 +8,14 @@ import {
 } from "./sessionStore";
 import { Agent, setGlobalDispatcher } from "undici";
 
-const BACKEND = process.env.API_URL!;
-const CID = process.env.CLIENT_ID!;
-const CSECRET = process.env.CLIENT_SECRET!;
+const BACKEND = process.env.NEXT_PUBLIC_API_BASE_URL || process.env.API_URL || 'https://api.edusmart.pro.vn';
+const CID = process.env.CLIENT_ID || 'service_client';
+const CSECRET = process.env.CLIENT_SECRET || 'EduSmartAI-Capstone-Project';
+
+// Debug logging
+console.log('[authServer] BACKEND URL:', BACKEND);
+console.log('[authServer] CLIENT_ID:', CID);
+console.log('[authServer] CLIENT_SECRET exists:', !!CSECRET);
 const isProd = process.env.NODE_ENV === "production";
 const SID_NAME = isProd ? "__Host-sid" : "sid"; // dev không dùng __Host-
 const mustSecure = SID_NAME.startsWith("__Host-"); // __Host-* bắt buộc Secure
@@ -68,6 +73,9 @@ async function setIdTokenCookie(idt: string) {
 
 export async function exchangePassword(email: string, password: string) {
   console.log("[exchangePassword] start");
+  console.log("[exchangePassword] BACKEND URL:", BACKEND);
+  console.log("[exchangePassword] Full URL:", `${BACKEND}/auth/connect/token`);
+  
   const body = new URLSearchParams({
     grant_type: "password",
     username: email,
@@ -76,18 +84,24 @@ export async function exchangePassword(email: string, password: string) {
     client_secret: CSECRET,
   });
 
+  console.log("[exchangePassword] Request body:", body.toString());
+
   let resp: Response;
   try {
-    resp = await fetch(`${BACKEND}/auth/connect/token`, {
+    const fullUrl = `${BACKEND}/auth/connect/token`;
+    console.log("[exchangePassword] Making request to:", fullUrl);
+    
+    resp = await fetch(fullUrl, {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body: body.toString(),
       cache: "no-store",
     });
-    // console.log("response Login", resp)
+    console.log("[exchangePassword] Response received, status:", resp.status);
   } catch (err) {
     console.error("[exchangePassword] fetch error:", err);
-    throw new Error("Không gọi được /auth/connect/token");
+    console.error("[exchangePassword] BACKEND value was:", BACKEND);
+    throw new Error(`Không gọi được /auth/connect/token. URL: ${BACKEND}/auth/connect/token`);
   }
 
   // Log ở server terminal / function logs
@@ -203,8 +217,18 @@ export async function destroySession(sid: string) {
 export async function getAccessTokenFromCookie(): Promise<string | null> {
   const jar = await cookies();
   const sid = jar.get(SID_NAME)?.value;
-  if (!sid) return null;
+  console.log("[getAccessTokenFromCookie] SID from cookie:", sid);
+  console.log("[getAccessTokenFromCookie] SID_NAME:", SID_NAME);
+  
+  if (!sid) {
+    console.log("[getAccessTokenFromCookie] No SID found in cookies");
+    return null;
+  }
+  
   const nb = await loadTokens(sid);
+  console.log("[getAccessTokenFromCookie] Loaded tokens:", nb ? 'tokens found' : 'no tokens');
+  console.log("[getAccessTokenFromCookie] Access token:", nb?.access ? `${nb.access.slice(0, 10)}...` : 'null');
+  
   return nb?.access ?? null;
 }
 
