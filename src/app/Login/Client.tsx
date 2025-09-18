@@ -2,15 +2,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Button, Form, Segmented, Tooltip } from "antd";
 import Image from "next/image";
-// Temporarily disable react-spring to fix stack overflow
-// import { useSpring, useTrail, animated, easings } from "@react-spring/web";
-import { SafeAnimatedDiv } from "EduSmart/utils/safeAnimations";
-
-// Temporary safe replacements to prevent stack overflow
-const useSpring = (config: any) => [{ y: 100, opacity: 1, transform: 'scale(1)' }, { start: () => {}, stop: () => {} }];
-const useTrail = (count: number, config: any) => Array(count).fill({ opacity: 1, transform: 'translate3d(0,0,0)' });
-const animated = { div: SafeAnimatedDiv };
-const easings = { easeOutCubic: (t: number) => t, easeInCubic: (t: number) => t };
+import { useSpring, useTrail, animated, easings } from "@react-spring/web";
 import BaseControlTextField from "EduSmart/components/BaseControl/BasecontrolTextField";
 import { ThemeSwitch } from "EduSmart/components/Themes/Theme";
 import bgQuestion from "EduSmart/assets/FPT_Logo_Background.jpg";
@@ -47,13 +39,7 @@ export default function LoginPage() {
   const [skipMountAnim, setSkipMountAnim] = useState(false);
   const [showFormBySwipeRun, setShowFormBySwipeRun] = useState<boolean>(true);
   const [showWipe, setShowWipe] = useState(false);
-  // Temporarily disable wipe animation to prevent stack overflow
-  const wipeStyles = { y: 100, opacity: 1, transform: 'translate3d(0, 100%, 0)' };
-  const wipeApi = { 
-    start: (config?: any) => {}, 
-    stop: () => {}, 
-    set: (values?: any) => {} 
-  };
+  const [wipeStyles, wipeApi] = useSpring<{ y: number }>(() => ({ y: 100 }));
   const didRunRef = useRef(false);
 
   useEffect(() => {
@@ -142,19 +128,22 @@ export default function LoginPage() {
     }
   };
 
-  // 1) Mount animation: disabled to prevent stack overflow
-  const mountSprings = {
+  // 1) Mount animation: chỉ 1 useSpring
+  const mountSprings = useSpring({
     opacity: showForm ? 1 : 0,
     transform: showForm ? "scale(1)" : "scale(0.8)",
-  };
+    immediate: skipMountAnim,
+    config: { mass: 1, tension: 280, friction: 60 },
+    delay: 300,
+  });
 
-  // 2) Trail cho các input field - simplified
+  // 2) Trail cho các input field
   const fieldKeys = ["email", "password"] as const;
   const trail = useTrail(showForm ? fieldKeys.length : 0, {
     from: { opacity: 0, transform: "translate3d(0,20px,0)" },
     to: { opacity: 1, transform: "translate3d(0,0,0)" },
-    immediate: skipMountAnim || true, // Force immediate to prevent conflicts
     config: { mass: 1, tension: 200, friction: 20 },
+    delay: 600,
   });
 
   const FormCard = (
@@ -256,8 +245,8 @@ export default function LoginPage() {
         <animated.div
           className="fixed inset-0 z-[2147483647] pointer-events-none"
           style={{
-            transform: 'translate3d(0, 100%, 0)', // Static position to prevent animation issues
-            opacity: 0, // Hide the wipe effect
+            transform: wipeStyles.y.to((v) => `translate3d(0, ${v}%, 0)`),
+            opacity: wipeStyles.y.to([100, 0, -100], [0, 1, 0]), // fade in/out
           }}
         >
           <div className="relative h-dvh w-full overflow-hidden rounded-b-[80px] shadow-[0_20px_60px_rgba(16,185,129,.35)]">
