@@ -2,13 +2,14 @@
 import { FC, useState } from 'react';
 import { useCreateCourseStore } from 'EduSmart/stores/CreateCourse/CreateCourseStore';
 import { useTheme } from 'EduSmart/Provider/ThemeProvider';
-import { ConfigProvider, Input, InputNumber, Button, message, theme, Modal, Form } from 'antd';
+import { ConfigProvider, Input, InputNumber, Button, App, theme, Modal, Form } from 'antd';
 import { FaArrowLeft, FaArrowRight, FaPlus, FaTrash, FaBook } from 'react-icons/fa';
 import { FadeInUp } from 'EduSmart/components/Animation/FadeInUp';
 
 const Curriculum: FC = () => {
     const { setCurrentStep, modules, addModule, updateModule, removeModule } = useCreateCourseStore();
     const { isDarkMode } = useTheme();
+    const { message } = App.useApp();
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
     const [form] = Form.useForm();

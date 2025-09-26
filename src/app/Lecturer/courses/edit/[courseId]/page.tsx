@@ -15,11 +15,12 @@ import CourseInformation from '../../create-course/components/steps/CourseInform
 import Curriculum from '../../create-course/components/steps/Curriculum';
 import CourseContent from '../../create-course/components/steps/CourseContent';
 import Pricing from '../../create-course/components/steps/Pricing';
+import ConfirmUpdate from '../../create-course/components/steps/ConfirmUpdate';
 
 // Store and types
 import { useCreateCourseStore } from 'EduSmart/stores/CreateCourse/CreateCourseStore';
 import { useCourseManagementStore } from 'EduSmart/stores/CourseManagement/CourseManagementStore';
-import { COURSE_CREATION_STEPS } from '../../create-course/constants/steps';
+import { COURSE_EDIT_STEPS } from '../../create-course/constants/editSteps';
 
 const EditCoursePageContent: React.FC = () => {
   const params = useParams();
@@ -65,7 +66,7 @@ const EditCoursePageContent: React.FC = () => {
   }, [managementError]); // Remove clearManagementError from dependencies to prevent infinite loop
 
   const renderStep = () => {
-    const currentStepData = COURSE_CREATION_STEPS[currentStep];
+    const currentStepData = COURSE_EDIT_STEPS[currentStep];
 
     if (!currentStepData) {
       return <div className="text-center py-8">Step not found</div>;
@@ -80,6 +81,8 @@ const EditCoursePageContent: React.FC = () => {
         return <CourseContent />;
       case 3:
         return <Pricing />;
+      case 4:
+        return <ConfirmUpdate />;
       default:
         return <div className="text-center py-8">Step not found</div>;
     }
@@ -114,19 +117,28 @@ const EditCoursePageContent: React.FC = () => {
         {/* Header */}
         <div className="flex justify-between items-center mb-6 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
           <div>
-            <Breadcrumb className="mb-2">
-              <Breadcrumb.Item>
-                <Link href="/Lecturer/courses" className="text-emerald-600 hover:text-emerald-700">
-                  Quản lý khóa học
-                </Link>
-              </Breadcrumb.Item>
-              <Breadcrumb.Item>
-                <Link href={`/Lecturer/courses/${courseId}`} className="text-emerald-600 hover:text-emerald-700">
-                  Chi tiết khóa học
-                </Link>
-              </Breadcrumb.Item>
-              <Breadcrumb.Item>Chỉnh sửa</Breadcrumb.Item>
-            </Breadcrumb>
+            <Breadcrumb 
+              className="mb-2"
+              items={[
+                {
+                  title: (
+                    <Link href="/Lecturer/courses" className="text-emerald-600 hover:text-emerald-700">
+                      Quản lý khóa học
+                    </Link>
+                  )
+                },
+                {
+                  title: (
+                    <Link href={`/Lecturer/courses/${courseId}`} className="text-emerald-600 hover:text-emerald-700">
+                      Chi tiết khóa học
+                    </Link>
+                  )
+                },
+                {
+                  title: 'Chỉnh sửa'
+                }
+              ]}
+            />
             <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200">Chỉnh sửa khóa học</h1>
           </div>
           <div className="flex items-center gap-3">
@@ -140,7 +152,7 @@ const EditCoursePageContent: React.FC = () => {
         </div>
       </div>
 
-      <CreateCourseLayout>
+      <CreateCourseLayout isEditMode={true}>
         <div id="edit-course-content" className="min-h-screen">
           {/* Edit mode header */}
           <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 rounded-r-lg">
@@ -158,6 +170,10 @@ const EditCoursePageContent: React.FC = () => {
             layout="vertical"
             initialValues={courseInformation}
             className="space-y-6"
+            onFinish={(values) => {
+              // Prevent default form submission
+              // Handle form submission through our custom save logic instead
+            }}
           >
             <StepTransition item={currentStep}>
               {renderStep()}

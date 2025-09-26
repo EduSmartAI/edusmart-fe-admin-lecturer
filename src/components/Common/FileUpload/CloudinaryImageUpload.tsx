@@ -1,6 +1,7 @@
 "use client";
 import React, { useMemo } from 'react';
-import { Upload, UploadFile, UploadProps, message } from 'antd';
+import { Upload, UploadFile, UploadProps, App } from 'antd';
+import { PlusOutlined } from '@ant-design/icons';
 import type { RcFile } from 'antd/es/upload/interface';
 import { uploadToCloudinaryImage, CloudinaryUploadResult } from 'EduSmart/utils/cloudinary';
 
@@ -16,11 +17,14 @@ export interface CloudinaryImageUploadProps {
 const CloudinaryImageUpload: React.FC<CloudinaryImageUploadProps> = ({
   value,
   onChange,
+  accept = "image/*",
   maxCount = 1,
-  accept = 'image/*',
   folder,
-  listType = 'picture-card',
+  listType = "picture-card",
+  ...props
 }) => {
+  const { message } = App.useApp();
+  
   const fileList: UploadFile[] = useMemo(() => {
     if (Array.isArray(value)) return value;
     if (typeof value === 'string' && value) {
@@ -66,6 +70,26 @@ const CloudinaryImageUpload: React.FC<CloudinaryImageUploadProps> = ({
     }
   };
 
+  const handleRemove = (file: UploadFile) => {
+    if (maxCount === 1) {
+      // For single file, clear the value
+      onChange?.('');
+    } else {
+      // For multiple files, remove the specific file
+      const newFileList = fileList.filter(item => item.uid !== file.uid);
+      onChange?.(newFileList);
+    }
+    message.success('Đã xóa ảnh');
+    return true;
+  };
+
+  const uploadButton = (
+    <div>
+      <PlusOutlined />
+      <div style={{ marginTop: 8 }}>Upload</div>
+    </div>
+  );
+
   return (
     <Upload
       accept={accept}
@@ -74,13 +98,15 @@ const CloudinaryImageUpload: React.FC<CloudinaryImageUploadProps> = ({
       fileList={fileList}
       beforeUpload={beforeUpload}
       customRequest={customRequest}
+      onRemove={handleRemove}
     >
-      {fileList.length < maxCount && <div>+ Upload</div>}
+      {fileList.length < maxCount && uploadButton}
     </Upload>
   );
 };
 
 export default CloudinaryImageUpload;
+
 
 
 

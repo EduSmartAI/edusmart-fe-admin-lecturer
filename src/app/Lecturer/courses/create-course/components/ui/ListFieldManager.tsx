@@ -1,5 +1,5 @@
 'use client';
-import { FC } from 'react';
+import { FC, useState } from 'react';
 import { Form, Input, Button, Space, Typography } from 'antd';
 import { FaPlus, FaTrash, FaInfoCircle } from 'react-icons/fa';
 
@@ -29,6 +29,34 @@ const ListFieldManager: FC<ListFieldManagerProps> = ({
   clearable = true
 }) => {
   const form = Form.useFormInstance();
+  const [isOperating, setIsOperating] = useState(false);
+
+  const handleAdd = (add: () => void) => {
+    setIsOperating(true);
+    add();
+    
+    // Reset operating state after operation completes
+    setTimeout(() => {
+      setIsOperating(false);
+      
+      // Focus on the newly added input
+      const fields = form.getFieldValue(name) || [];
+      const newInputs = document.querySelectorAll(`[id*="${name}_${fields.length - 1}"]`);
+      if (newInputs.length > 0) {
+        (newInputs[0] as HTMLInputElement)?.focus();
+      }
+    }, 100);
+  };
+
+  const handleRemove = (remove: (index: number) => void, fieldName: number) => {
+    setIsOperating(true);
+    remove(fieldName);
+    
+    // Reset operating state after operation completes
+    setTimeout(() => {
+      setIsOperating(false);
+    }, 100);
+  };
 
   return (
     <div className="space-y-3">
@@ -58,23 +86,23 @@ const ListFieldManager: FC<ListFieldManagerProps> = ({
 
       <Form.List
         name={name}
-        rules={[
-          {
-            validator: async (_, items) => {
-              if (required && (!items || items.length < minItems)) {
-                return Promise.reject(new Error(`Vui lòng thêm ít nhất ${minItems} mục`));
-              }
-              if (items && items.length > maxItems) {
-                return Promise.reject(new Error(`Không được vượt quá ${maxItems} mục`));
-              }
-            },
-          },
-        ]}
       >
-        {(fields, { add, remove }, { errors }) => (
-          <div className="space-y-3">
-            
-            {fields.map(({ key, name: fieldName, ...restField }) => (
+        {(fields, { add, remove }, { errors }) => {
+          // Custom validation for minimum items - show warning but don't block actions
+          const hasMinimumItems = fields.length >= minItems;
+          const showMinimumWarning = required && !hasMinimumItems && fields.length > 0;
+
+          return (
+            <div className="space-y-3">
+              
+              {/* Show minimum items warning if applicable */}
+              {showMinimumWarning && (
+                <div className="text-amber-600 dark:text-amber-400 text-sm bg-amber-50 dark:bg-amber-900/20 p-3 rounded-lg border border-amber-200 dark:border-amber-800">
+                  ⚠️ Cần thêm ít nhất {minItems - fields.length} mục nữa để đáp ứng yêu cầu tối thiểu
+                </div>
+              )}
+              
+              {fields.map(({ key, name: fieldName, ...restField }) => (
               <div key={key} style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
                 <div 
                   className="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-sm font-medium"
@@ -88,8 +116,16 @@ const ListFieldManager: FC<ListFieldManagerProps> = ({
                   className="mb-0"
                   style={{ flex: 1 }}
                   rules={[
-                    { required: true, message: 'Vui lòng nhập nội dung!' },
-                    { max: 200, message: 'Không được vượt quá 200 ký tự!' }
+                    { 
+                      required: true, 
+                      message: 'Vui lòng nhập nội dung!',
+                      validateTrigger: ['onBlur', 'onSubmit'] // Only validate on blur or submit, not during typing
+                    },
+                    { 
+                      max: 200, 
+                      message: 'Không được vượt quá 200 ký tự!',
+                      validateTrigger: ['onBlur', 'onSubmit']
+                    }
                   ]}
                 >
                   <Input
@@ -101,8 +137,9 @@ const ListFieldManager: FC<ListFieldManagerProps> = ({
                 <Button
                   type="text"
                   icon={<FaTrash />}
-                  onClick={() => remove(fieldName)}
-                  className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/30"
+                  onClick={() => handleRemove(remove, fieldName)}
+                  disabled={isOperating}
+                  className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-50"
                   style={{ width: '40px', height: '40px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: '-8px' }}
                   title="Xóa mục này"
                 />
@@ -112,11 +149,12 @@ const ListFieldManager: FC<ListFieldManagerProps> = ({
             {fields.length < maxItems && (
               <Button
                 type="dashed"
-                onClick={() => add()}
+                onClick={() => handleAdd(add)}
+                disabled={isOperating}
                 icon={<FaPlus />}
-                className="w-full h-12 border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                className="w-full h-12 border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 disabled:opacity-50"
               >
-                Thêm mục mới ({fields.length}/{maxItems})
+                {isOperating ? 'Đang xử lý...' : `Thêm mục mới (${fields.length}/${maxItems})`}
               </Button>
             )}
 
@@ -149,7 +187,8 @@ const ListFieldManager: FC<ListFieldManagerProps> = ({
               <span>Tối đa: {maxItems} mục</span>
             </div>
           </div>
-        )}
+          );
+        }}
       </Form.List>
     </div>
   );

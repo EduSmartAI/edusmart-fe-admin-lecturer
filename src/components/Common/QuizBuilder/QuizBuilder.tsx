@@ -1,5 +1,5 @@
 'use client';
-import { FC, useState, useCallback } from 'react';
+import { FC, useState, useCallback, useEffect } from 'react';
 import { Input, Button, Select, Radio, Space, Card, InputNumber, Switch } from 'antd';
 import { FaPlus, FaTrash, FaClock, FaCheck, FaQuestion } from 'react-icons/fa';
 
@@ -15,6 +15,7 @@ interface QuizQuestion {
 
 interface QuizBuilderProps {
   initialQuestions?: QuizQuestion[];
+  initialSettings?: Partial<QuizSettings>;
   onSave?: (questions: QuizQuestion[], settings: QuizSettings) => void;
   onCancel?: () => void;
 }
@@ -29,6 +30,7 @@ interface QuizSettings {
 
 const QuizBuilder: FC<QuizBuilderProps> = ({
   initialQuestions = [],
+  initialSettings = {},
   onSave,
   onCancel
 }) => {
@@ -38,9 +40,26 @@ const QuizBuilder: FC<QuizBuilderProps> = ({
     passingScore: 70,
     shuffleQuestions: false,
     showResults: true,
-    allowRetake: true
+    allowRetake: true,
+    ...initialSettings // Override with initial settings
   });
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+
+  // Update state when props change
+  useEffect(() => {
+    setQuestions(initialQuestions);
+  }, [initialQuestions]);
+
+  useEffect(() => {
+    setSettings(prev => ({
+      timeLimit: 30,
+      passingScore: 70,
+      shuffleQuestions: false,
+      showResults: true,
+      allowRetake: true,
+      ...initialSettings
+    }));
+  }, [initialSettings]);
 
   // Add new question
   const addQuestion = useCallback(() => {

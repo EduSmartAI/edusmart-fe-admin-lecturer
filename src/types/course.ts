@@ -1,19 +1,21 @@
 // Re-export types from the API service for consistency
-export { 
+export type { 
   CourseDto,
   CourseDetailDto,
   CourseObjectiveDto,
   CourseRequirementDto,
+  CourseTagDto,
+  CreateCourseTagDto,
   ModuleDetailDto,
   ModuleObjectiveDto,
   GuestLessonDetailDto,
   CreateCourseDto,
   UpdateCourseDto,
-  CourseSortBy,
   GetCoursesQuery,
   PaginatedResult,
   ApiResponse
 } from 'EduSmart/api/api-course-service';
+export { CourseSortBy } from 'EduSmart/api/api-course-service';
 
 // Backward compatibility - map old Course interface to new API format
 export interface Course {
@@ -34,6 +36,13 @@ export interface Course {
   duration?: number; // in hours
   rating?: number;
   reviewCount?: number;
+  tags?: CourseTag[];
+}
+
+// Course tag interface for UI
+export interface CourseTag {
+  tagId: number;
+  tagName: string;
 }
 
 export interface CourseFormData {

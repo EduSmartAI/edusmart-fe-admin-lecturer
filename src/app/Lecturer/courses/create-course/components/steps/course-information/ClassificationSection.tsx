@@ -2,7 +2,7 @@
 import { FC } from 'react';
 import { Form } from 'antd';
 import BaseControlSelect from 'EduSmart/components/BaseControl/BaseControlSelect';
-import TagsSelector from '../../ui/TagsSelector';
+import CourseTagsSelector from '../../ui/CourseTagsSelector';
 
 const ClassificationSection: FC = () => {
 
@@ -30,8 +30,8 @@ const ClassificationSection: FC = () => {
           </Form.Item>
         </div>
 
-        <Form.Item name="tags" rules={[{ required: true, message: 'Vui lòng thêm ít nhất 3 tags!' }]}>
-          <TagsSelector
+        <Form.Item name="courseTags">
+          <CourseTagsSelector
             maxTags={10}
             placeholder="Nhập và chọn các từ khóa liên quan..."
           />

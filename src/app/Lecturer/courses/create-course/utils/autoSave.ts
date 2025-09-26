@@ -1,7 +1,7 @@
 const AUTO_SAVE_KEY = 'course_creation_draft';
 const AUTO_SAVE_DELAY = 2000; // 2 seconds
 const AUTO_CLEAR_TIMEOUT = 10 * 60 * 1000; // 10 minutes in milliseconds
-const ALLOWED_SAVE_STEPS = ['1', '2', '3', '4']; // Save for all steps 1, 2, 3, 4
+const ALLOWED_SAVE_STEPS = ['0', '1', '2', '3', '4', 'courseInformation']; // Save for all steps including step 0 and courseInformation
 
 export interface AutoSaveData {
     timestamp: string;
@@ -12,6 +12,11 @@ export interface AutoSaveData {
 
 export const saveToLocalStorage = (formData: Record<string, unknown>, step: string): void => {
     try {
+        // Check if we're on the client side
+        if (typeof window === 'undefined') {
+            return;
+        }
+
         if (!ALLOWED_SAVE_STEPS.includes(step)) {
             return;
         }
@@ -41,6 +46,11 @@ export const saveToLocalStorage = (formData: Record<string, unknown>, step: stri
 
 export const loadFromLocalStorage = (): Record<string, unknown> | null => {
     try {
+        // Check if we're on the client side
+        if (typeof window === 'undefined') {
+            return null;
+        }
+
         const savedData = localStorage.getItem(AUTO_SAVE_KEY);
         if (savedData) {
             const parsedData = JSON.parse(savedData);
@@ -53,7 +63,6 @@ export const loadFromLocalStorage = (): Record<string, unknown> | null => {
             if (timeDifference > AUTO_CLEAR_TIMEOUT) {
                 // Data has expired, clear it
                 clearLocalStorage();
-                console.log('Auto-saved course data expired and cleared (loaded after 10 minutes)');
                 return null;
             }
             
@@ -69,6 +78,11 @@ export const loadFromLocalStorage = (): Record<string, unknown> | null => {
 
 export const clearLocalStorage = (): void => {
     try {
+        // Check if we're on the client side
+        if (typeof window === 'undefined') {
+            return;
+        }
+
         localStorage.removeItem(AUTO_SAVE_KEY);
         // Cancel any scheduled auto-clear since data is already cleared
         cancelAutoClear();
@@ -79,6 +93,11 @@ export const clearLocalStorage = (): void => {
 
 export const getLastSavedTime = (): Date | null => {
     try {
+        // Check if we're on the client side
+        if (typeof window === 'undefined') {
+            return null;
+        }
+
         const savedData = localStorage.getItem(AUTO_SAVE_KEY);
         if (savedData) {
             const parsedData = JSON.parse(savedData);
@@ -92,6 +111,11 @@ export const getLastSavedTime = (): Date | null => {
 
 export const getTimeUntilExpiry = (): number => {
     try {
+        // Check if we're on the client side
+        if (typeof window === 'undefined') {
+            return 0;
+        }
+
         const savedData = localStorage.getItem(AUTO_SAVE_KEY);
         if (savedData) {
             const parsedData = JSON.parse(savedData);
@@ -108,6 +132,11 @@ export const getTimeUntilExpiry = (): number => {
 
 export const getSavedStep = (): string | null => {
     try {
+        // Check if we're on the client side
+        if (typeof window === 'undefined') {
+            return null;
+        }
+
         const savedData = localStorage.getItem(AUTO_SAVE_KEY);
         if (savedData) {
             const parsedData = JSON.parse(savedData);
@@ -140,21 +169,18 @@ export const scheduleAutoClear = (): void => {
     if (timeUntilExpiry <= 0) {
         // Data has already expired, clear it immediately
         clearLocalStorage();
-        console.log('Auto-saved course data cleared (already expired)');
         return;
     }
     
     // Schedule auto-clear for the remaining time
     autoClearTimeoutId = setTimeout(() => {
         clearLocalStorage();
-        console.log('Auto-saved course data cleared after 10 minutes');
     }, timeUntilExpiry);
     
     // Also set up a periodic check every minute to catch edge cases
     periodicCheckIntervalId = setInterval(() => {
         const wasExpired = checkAndClearExpiredData();
         if (wasExpired) {
-            console.log('Auto-saved course data cleared by periodic check');
             // Clear the interval since data is gone
             if (periodicCheckIntervalId) {
                 clearInterval(periodicCheckIntervalId);
@@ -182,6 +208,11 @@ export const cancelAutoClear = (): void => {
 
 export const checkAndClearExpiredData = (): boolean => {
     try {
+        // Check if we're on the client side
+        if (typeof window === 'undefined') {
+            return false;
+        }
+
         const savedData = localStorage.getItem(AUTO_SAVE_KEY);
         if (savedData) {
             const parsedData = JSON.parse(savedData);
@@ -202,6 +233,11 @@ export const checkAndClearExpiredData = (): boolean => {
 };
 
 export const initializeAutoSave = (): void => {
+    // Check if we're on the client side
+    if (typeof window === 'undefined') {
+        return;
+    }
+
     // Check and clear expired data on initialization
     const wasExpired = checkAndClearExpiredData();
     

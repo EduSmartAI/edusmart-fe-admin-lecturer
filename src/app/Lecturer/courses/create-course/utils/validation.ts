@@ -20,11 +20,22 @@ export const validateCourseInformation = (data: Partial<CourseFormData>): string
         errors.push('Mô tả ngắn không được vượt quá 200 ký tự');
     }
 
-    if (!data.detailedDescription || data.detailedDescription.trim().length === 0) {
+    // Helper function to get plain text from HTML
+    const getPlainText = (html: string): string => {
+        if (typeof window !== 'undefined') {
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html;
+            return tempDiv.textContent || '';
+        }
+        // Server-side fallback: simple HTML tag removal
+        return html.replace(/<[^>]*>/g, '').trim();
+    };
+
+    if (!data.detailedDescription || getPlainText(data.detailedDescription).trim().length === 0) {
         errors.push('Mô tả chi tiết là bắt buộc');
     }
 
-    if (data.detailedDescription && data.detailedDescription.length > 2000) {
+    if (data.detailedDescription && getPlainText(data.detailedDescription).length > 2000) {
         errors.push('Mô tả chi tiết không được vượt quá 2000 ký tự');
     }
 

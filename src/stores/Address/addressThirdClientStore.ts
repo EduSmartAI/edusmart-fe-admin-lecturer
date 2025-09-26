@@ -49,8 +49,6 @@ export const useAddressThirdClientStore = create<AddressThirdClientState>(
         .validateFields()
         .then((values) => {
           set({ province: values.province, ward: values.ward });
-          console.log("🏷️ Store updated from form:", values);
-          console.log("province", form.getFieldsValue().province);
         })
         .catch((err) => {
           console.warn("Validation failed:", err);

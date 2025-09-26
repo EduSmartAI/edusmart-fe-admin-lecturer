@@ -1,4 +1,5 @@
 import { FC, ReactNode } from 'react';
+import NoSSR from 'EduSmart/components/Common/NoSSR';
 
 interface LayoutProps {
     children: ReactNode;
@@ -6,9 +7,11 @@ interface LayoutProps {
 
 const Layout: FC<LayoutProps> = ({ children }) => {
     return (
-        <div className="min-h-screen bg-gray-50">
-            {children}
-        </div>
+        <NoSSR>
+            <div className="min-h-screen bg-gray-50">
+                {children}
+            </div>
+        </NoSSR>
     );
 };
 

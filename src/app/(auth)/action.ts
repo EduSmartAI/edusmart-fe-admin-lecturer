@@ -2,7 +2,7 @@
 "use server";
 
 import { DetailError, StudentInsertCommand, StudentInsertResponse } from "EduSmart/api/api-auth-service";
-import { destroySession, exchangePassword, getAccessTokenFromCookie, getSidFromCookie, hasRefreshToken, refreshTokens, revokeRefreshLocal } from "EduSmart/lib/authServer";
+import { destroySession, exchangePassword, getAccessTokenFromCookie, getSidFromCookie, hasRefreshToken, refreshTokens, revokeRefreshLocal, getIdTokenFromCookie } from "EduSmart/lib/authServer";
 const BACKEND = process.env.NEXT_PUBLIC_API_URL;
 export async function loginAction({
   email,
@@ -13,13 +13,9 @@ export async function loginAction({
 }) {
   if (!email || !password) return { ok: false, error: "Thiếu email/password" };
   try {
-    console.log("start")
     const result = await exchangePassword(email, password);
-    console.log("end")
     const accessToken = await getAccessTokenFromCookie();
-    console.warn("result", result)
     if(accessToken) return { ok: true, accessToken: accessToken};
-    // console.log("Bearer Access", accessToken)
     return { ok: false, accessToken: null};
   } catch (e: unknown) {
     console.error("lỗi")
@@ -30,13 +26,10 @@ export async function loginAction({
 
 export async function refreshAction() {
   try {
-    console.log("vao serverrrrrrrrrrrrrr")
     const sid = await getSidFromCookie();
-    console.log("sid", sid)
     if (!sid) return { ok: false, error: "No session" };
     await refreshTokens(sid);                              // 👈 truyền sid vào đây
     const accessToken = await getAccessTokenFromCookie();  // lấy access mới
-    console.log("new accessToken", accessToken)
     return { ok: true, accessToken };
   } catch (e: unknown) {
     const msg =
@@ -48,11 +41,112 @@ export async function refreshAction() {
 }
 
 export async function logoutAction() {
-  const sid = await getSidFromCookie();
-  if (sid) {
-    await destroySession(sid);  // xóa session + cookie sid
+  try {
+    const sid = await getSidFromCookie();
+    if (sid) {
+      await destroySession(sid);
+    }
+    return { ok: true };
+  } catch (e: unknown) {
+    console.error("logoutAction error:", e);
+    return { ok: false, error: "Logout failed" };
   }
-  return { ok: true };
+}
+
+export async function getCurrentTokenAction() {
+  try {
+    const accessToken = await getAccessTokenFromCookie();
+    if (accessToken) {
+      return { ok: true, accessToken };
+    }
+    return { ok: false, error: "No token found" };
+  } catch (e: unknown) {
+    const errorMessage = typeof e === "object" && e !== null && "message" in e ? (e as { message?: string }).message : undefined;
+    return { ok: false, error: errorMessage ?? "Failed to get token" };
+  }
+}
+
+export async function initializeAuthAction() {
+  try {
+    const accessToken = await getAccessTokenFromCookie();
+    const isAuthenticated = await hasRefreshToken();
+    
+    return {
+      ok: true,
+      accessToken: accessToken || null,
+      isAuthenticated
+    };
+  } catch (e: unknown) {
+    const errorMessage = typeof e === "object" && e !== null && "message" in e ? (e as { message?: string }).message : undefined;
+    return { ok: false, error: errorMessage ?? "Failed to initialize auth" };
+  }
+}
+
+export async function getUserIdFromTokenAction() {
+  try {
+    const { getIdTokenFromCookie } = await import('EduSmart/lib/authServer');
+    const idToken = await getIdTokenFromCookie();
+    
+    
+    if (idToken) {
+      // Decode JWT token to get user info
+      const tokenParts = idToken.split('.');
+      
+      if (tokenParts.length === 3) {
+        const payload = JSON.parse(atob(tokenParts[1]));
+        
+        // Try to find the lecturer/account ID from available fields
+        const lecturerAccountId = payload.oi_au_id || payload.accountId || payload.account_id;
+        const userId = payload.sub;
+        const userRole = payload.role;
+        const userName = payload.name;
+        const userEmail = payload.email;
+        
+        
+        // CRITICAL FIX: Use the stable 'sub' field that matches the actual Account ID
+        // This will make courses created with one session retrievable in future sessions
+        const finalLecturerId = userId; // Use stable Account ID from sub field
+        
+        if (!finalLecturerId) {
+          return { ok: false, error: "No lecturer ID found in token" };
+        }
+        
+        return {
+          ok: true,
+          userId: finalLecturerId,  // This will be used as lecturer ID
+          userRole,
+          userName,
+          userEmail,
+          originalUserId: userId,   // Keep original for reference
+          accountId: lecturerAccountId,
+          idToken: idToken  // Return the actual token for API calls
+        };
+      } else {
+        return { ok: false, error: "Invalid token format" };
+      }
+    } else {
+      return { ok: false, error: "No ID token found - user may need to log in again" };
+    }
+  } catch (e: unknown) {
+    const errorMessage = typeof e === "object" && e !== null && "message" in e ? (e as { message?: string }).message : undefined;
+    return { ok: false, error: errorMessage ?? "Failed to get user ID from token" };
+  }
+}
+
+export async function getIdTokenAction() {
+  try {
+    const { getIdTokenFromCookie } = await import('EduSmart/lib/authServer');
+    const idToken = await getIdTokenFromCookie();
+    
+    if (idToken) {
+      return { ok: true, idToken };
+    }
+    
+    return { ok: false, error: "No ID token found" };
+  } catch (e: unknown) {
+    const errorMessage = typeof e === "object" && e !== null && "message" in e ? (e as { message?: string }).message : undefined;
+    return { ok: false, error: errorMessage ?? "Failed to get ID token" };
+  }
 }
 
 async function postJsonPublic(path: string, body: unknown): Promise<Response> {
@@ -89,12 +183,10 @@ export async function insertStudentAction(
   | { ok: false; status?: number; error: string; detailErrors?: DetailError[] | null }
 > {
   const resp = await postJsonPublic("/auth/api/v1/InsertStudent", payload);
-  console.log("response", resp)
   const raw = await resp.text();
   const data = parseJson<StudentInsertResponse>(raw);
 
   if (resp.ok) {
-    console.log("data response", data)
     if (data?.success) return { ok: true, data };
     return {
       ok: false,
@@ -111,6 +203,29 @@ export async function insertStudentAction(
     error: err.message ?? err.title ?? err.error ?? "InsertStudent failed",
     detailErrors: err.detailErrors ?? null,
   };
+}
+
+export async function getAccessTokenAction() {
+  try {
+    
+    // Check if session ID exists
+    const { getSidFromCookie } = await import('EduSmart/lib/authServer');
+    const sid = await getSidFromCookie();
+    
+    const accessToken = await getAccessTokenFromCookie();
+    
+    if (accessToken) {
+      return {
+        ok: true,
+        accessToken: accessToken
+      };
+    }
+    
+    return { ok: false, error: "No access token found" };
+  } catch (e: unknown) {
+    const errorMessage = typeof e === "object" && e !== null && "message" in e ? (e as { message?: string }).message : undefined;
+    return { ok: false, error: errorMessage ?? "Failed to get access token" };
+  }
 }
 
 export async function getAuthen(): Promise<boolean> {

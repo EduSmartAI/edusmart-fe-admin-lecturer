@@ -75,83 +75,23 @@ const AnalyticsPage: React.FC = () => {
   const [dateRange, setDateRange] = useState<string>('30days');
   const [activeTab, setActiveTab] = useState('overview');
 
-  // Mock analytics data - in a real app, this would come from API
+  // Analytics data would come from API
   const analyticsData: AnalyticsData = {
-    totalRevenue: 15750000,
-    revenueGrowth: 12.5,
-    totalStudents: 1248,
-    studentGrowth: 8.3,
+    totalRevenue: 0,
+    revenueGrowth: 0,
+    totalStudents: 0,
+    studentGrowth: 0,
     totalCourses: courses.length,
-    avgRating: 4.7,
-    completionRate: 78,
-    watchTime: 285
+    avgRating: 0,
+    completionRate: 0,
+    watchTime: 0
   };
 
-  const topCourses: TopCourse[] = [
-    {
-      id: '1',
-      title: 'Lập trình ReactJS cho người mới bắt đầu',
-      students: 156,
-      revenue: 46644000,
-      rating: 4.8,
-      completionRate: 85,
-      thumbnail: 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=200'
-    },
-    {
-      id: '2',
-      title: 'Java Spring Boot Fundamentals',
-      students: 203,
-      revenue: 81097000,
-      rating: 4.6,
-      completionRate: 72,
-      thumbnail: 'https://images.unsplash.com/photo-1517180102446-f3ece451e9d8?w=200'
-    },
-    {
-      id: '4',
-      title: 'C# và .NET Core Development',
-      students: 87,
-      revenue: 39063000,
-      rating: 4.9,
-      completionRate: 91,
-      thumbnail: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=200'
-    }
-  ];
+  const topCourses: TopCourse[] = [];
 
-  const studentActivities: StudentActivity[] = [
-    {
-      id: '1',
-      name: 'Nguyễn Văn A',
-      coursesEnrolled: 3,
-      completionRate: 92,
-      lastActive: '2 giờ trước',
-      totalSpent: 1197000
-    },
-    {
-      id: '2',
-      name: 'Trần Thị B',
-      coursesEnrolled: 2,
-      completionRate: 75,
-      lastActive: '1 ngày trước',
-      totalSpent: 698000
-    },
-    {
-      id: '3',
-      name: 'Lê Minh C',
-      coursesEnrolled: 4,
-      completionRate: 88,
-      lastActive: '3 giờ trước',
-      totalSpent: 1596000
-    }
-  ];
+  const studentActivities: StudentActivity[] = [];
 
-  const revenueData = [
-    { month: 'Tháng 1', revenue: 2500000, students: 45 },
-    { month: 'Tháng 2', revenue: 3200000, students: 62 },
-    { month: 'Tháng 3', revenue: 2800000, students: 51 },
-    { month: 'Tháng 4', revenue: 4100000, students: 78 },
-    { month: 'Tháng 5', revenue: 3700000, students: 69 },
-    { month: 'Tháng 6', revenue: 4500000, students: 89 }
-  ];
+  const revenueData = [];
 
   const topCoursesColumns = [
     {
@@ -221,14 +161,21 @@ const AnalyticsPage: React.FC = () => {
       <FadeInUp>
         <div className="p-6">
           {/* Breadcrumb */}
-          <Breadcrumb className="mb-4">
-            <Breadcrumb.Item>
-              <Link href="/Lecturer/courses" className="text-emerald-600 hover:text-emerald-700">
-                Quản lý khóa học
-              </Link>
-            </Breadcrumb.Item>
-            <Breadcrumb.Item>Thống kê & Phân tích</Breadcrumb.Item>
-          </Breadcrumb>
+          <Breadcrumb 
+            className="mb-4"
+            items={[
+              {
+                title: (
+                  <Link href="/Lecturer/courses" className="text-emerald-600 hover:text-emerald-700">
+                    Quản lý khóa học
+                  </Link>
+                )
+              },
+              {
+                title: 'Thống kê & Phân tích'
+              }
+            ]}
+          />
 
           {/* Header */}
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">

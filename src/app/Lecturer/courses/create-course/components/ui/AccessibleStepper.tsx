@@ -6,11 +6,12 @@ import { FaCheck, FaExclamationTriangle, FaLock } from 'react-icons/fa';
 
 interface AccessibleStepperProps {
   className?: string;
+  isEditMode?: boolean;
 }
 
-const AccessibleStepper: FC<AccessibleStepperProps> = ({ className = '' }) => {
+const AccessibleStepper: FC<AccessibleStepperProps> = ({ className = '', isEditMode = false }) => {
   const { currentStep, setCurrentStep } = useCreateCourseStore();
-  const { stepProgress } = useProgressTracking();
+  const { stepProgress } = useProgressTracking(isEditMode);
   const stepRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   const handleStepClick = useCallback((stepIndex: number) => {

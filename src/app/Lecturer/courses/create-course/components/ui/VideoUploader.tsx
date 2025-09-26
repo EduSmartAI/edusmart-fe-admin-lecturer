@@ -1,6 +1,6 @@
 'use client';
 import { FC, useState } from 'react';
-import { Upload, Button, Progress, Input, Typography, message } from 'antd';
+import { Upload, Button, Progress, Input, Typography, App } from 'antd';
 import { FaVideo, FaPlay, FaTrash, FaLink } from 'react-icons/fa';
 import type { UploadProps } from 'antd/es/upload/interface';
 import { courseServiceAPI } from 'EduSmart/api/api-course-service';
@@ -27,6 +27,7 @@ const VideoUploader: FC<VideoUploaderProps> = ({
   acceptedFormats = ['mp4', 'mov', 'avi', 'mkv'],
   showUrlInput = true
 }) => {
+  const { message } = App.useApp();
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [inputType, setInputType] = useState<'upload' | 'url'>('upload');
@@ -37,9 +38,8 @@ const VideoUploader: FC<VideoUploaderProps> = ({
     setIsUploading(true);
     setUploadProgress(10);
     try {
-      console.log('[VideoUpload] Starting upload for:', (file as File).name);
+
       const url = await courseServiceAPI.uploadVideo(file as File);
-      console.log('[VideoUpload] Got hosted URL:', url);
       setUploadProgress(100);
       setIsUploading(false);
       onChange?.(url);

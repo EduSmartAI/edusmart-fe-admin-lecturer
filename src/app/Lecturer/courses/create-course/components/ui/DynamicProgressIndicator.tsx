@@ -7,13 +7,15 @@ import { useCreateCourseStore } from 'EduSmart/stores/CreateCourse/CreateCourseS
 interface DynamicProgressIndicatorProps {
   showDetailedView?: boolean;
   className?: string;
+  isEditMode?: boolean;
 }
 
 const DynamicProgressIndicator: FC<DynamicProgressIndicatorProps> = ({ 
   showDetailedView = false, 
-  className = '' 
+  className = '',
+  isEditMode = false
 }) => {
-  const { overallProgress, stepProgress } = useProgressTracking();
+  const { overallProgress, stepProgress } = useProgressTracking(isEditMode);
   const { setCurrentStep, currentStep } = useCreateCourseStore();
 
   const getStepStatusIcon = (step: StepProgress) => {

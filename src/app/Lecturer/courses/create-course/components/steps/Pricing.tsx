@@ -1,22 +1,78 @@
 'use client';
-import { FC, useEffect } from 'react';
+import { FC, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useCreateCourseStore } from 'EduSmart/stores/CreateCourse/CreateCourseStore';
 import { useTheme } from 'EduSmart/Provider/ThemeProvider';
-import { Button, ConfigProvider, Form, InputNumber, theme, message } from 'antd';
+import { Button, ConfigProvider, Form, InputNumber, theme, App } from 'antd';
 import { FaArrowLeft, FaArrowRight } from 'react-icons/fa';
 import { FadeInUp } from 'EduSmart/components/Animation/FadeInUp';
+import { useAutoSave } from '../../hooks/useAutoSave';
 
 const Pricing: FC = () => {
     const { isDarkMode } = useTheme();
     const { courseInformation, updateCourseInformation, setCurrentStep } = useCreateCourseStore();
+    const { message } = App.useApp();
     const form = Form.useFormInstance();
+    const initializedRef = useRef(false);
 
+    // Memoize initial values to prevent re-renders
+    const initialValues = useMemo(() => ({
+        basePrice: courseInformation.price || undefined,
+        discountPrice: courseInformation.dealPrice,
+    }), []); // Empty dependency array - only calculate once
+
+    // Auto-save functionality with stable reference
+    const autoSaveOptions = useMemo(() => ({
+        step: '3'
+    }), []);
+
+    const { debouncedSave } = useAutoSave(autoSaveOptions);
+
+    // Initialize form values only once
     useEffect(() => {
-        form.setFieldsValue({
-            basePrice: courseInformation.price || undefined,
-            discountPrice: courseInformation.dealPrice,
-        });
-    }, [form, courseInformation]);
+        if (!initializedRef.current) {
+            form.setFieldsValue(initialValues);
+            initializedRef.current = true;
+        }
+    }, [form, initialValues]);
+
+    // Stable save function - remove changing dependencies to prevent infinite loops
+    const handleSave = useCallback((price?: number, dealPrice?: number) => {
+        if (price !== undefined || dealPrice !== undefined) {
+            const currentState = useCreateCourseStore.getState().courseInformation;
+            debouncedSave({
+                price: price ?? currentState.price,
+                dealPrice: dealPrice ?? currentState.dealPrice
+            });
+        }
+    }, [debouncedSave]);
+
+    // Memoized currency formatter to prevent infinite loops
+    const formatCurrency = useCallback((value?: string | number): string => {
+        if (!value) return '';
+        return `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    }, []);
+
+    const parseCurrency = useCallback((value?: string): string | number => {
+        if (!value) return '';
+        const cleaned = value.replace(/\s?VND|,/g, '');
+        const numValue = Number(cleaned);
+        return isNaN(numValue) ? '' : numValue;
+    }, []);
+
+    // Memoized onChange handlers
+    const handleBasePriceChange = useCallback((value: string | number | null) => {
+        const numValue = typeof value === 'number' ? value : undefined;
+        updateCourseInformation({ price: numValue });
+        const currentState = useCreateCourseStore.getState().courseInformation;
+        handleSave(numValue, currentState.dealPrice);
+    }, [updateCourseInformation, handleSave]);
+
+    const handleDiscountPriceChange = useCallback((value: string | number | null) => {
+        const numValue = typeof value === 'number' ? value : undefined;
+        updateCourseInformation({ dealPrice: numValue });
+        const currentState = useCreateCourseStore.getState().courseInformation;
+        handleSave(currentState.price, numValue);
+    }, [updateCourseInformation, handleSave]);
 
     const onBack = () => {
         const container = document.getElementById('create-course-content');
@@ -83,11 +139,11 @@ const Pricing: FC = () => {
                                 className="w-full"
                                 min={0}
                                 addonAfter="VND"
-                                formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                parser={(v) => Number(v!.replace(/\s?VND|,/g, '')) as any}
+                                formatter={formatCurrency}
+                                parser={parseCurrency}
                                 placeholder="VD: 500,000"
                                 size="large"
+                                onChange={handleBasePriceChange}
                             />
                         </Form.Item>
                     </div>
@@ -103,19 +159,19 @@ const Pricing: FC = () => {
                                 className="w-full" 
                                 min={0} 
                                 addonAfter="VND" 
-                                formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} 
-                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                parser={(v) => Number(v!.replace(/\s?VND|,/g, '')) as any} 
+                                formatter={formatCurrency}
+                                parser={parseCurrency}
                                 placeholder="VD: 299,000" 
-                                size="large" 
+                                size="large"
+                                onChange={handleDiscountPriceChange}
                             />
                         </Form.Item>
                     </div>
 
                     {/* Actions */}
                     <div className="flex justify-between items-center mt-12 pt-6 border-t border-gray-200 dark:border-gray-700">
-                        <Button icon={<FaArrowLeft />} onClick={onBack} size="large">Quay lại</Button>
-                        <Button type="primary" icon={<FaArrowRight />} onClick={onNext} size="large">Tiếp theo: Xuất bản</Button>
+                        <Button icon={<FaArrowLeft />} htmlType="button" onClick={onBack} size="large">Quay lại</Button>
+                        <Button type="primary" htmlType="button" icon={<FaArrowRight />} onClick={onNext} size="large">Tiếp theo: Xuất bản</Button>
                     </div>
                 </div>
             </FadeInUp>

@@ -52,7 +52,6 @@ export const AutoScroll = forwardRef<AutoScrollRef, AutoScrollProps>(function Au
         animationRef.current = requestAnimationFrame(animate);
       }, 500);
       
-      console.log('AutoScroll reset triggered - scrolling to top');
     }
   };
 

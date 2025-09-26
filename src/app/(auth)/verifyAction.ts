@@ -23,7 +23,6 @@ export async function verifyAccountAction(
   try {
     const resp = await rootService.api.v1VerifyAccountCreate(payload);
     const api = resp.data;
-    console.log("api response",api)
     if (api?.success === true) {
       return { ok: true, data: api };
     }

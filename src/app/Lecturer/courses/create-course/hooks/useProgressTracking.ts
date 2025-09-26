@@ -24,7 +24,7 @@ export interface OverallProgress {
   estimatedTimeToComplete?: number;
 }
 
-export const useProgressTracking = () => {
+export const useProgressTracking = (isEditMode: boolean = false) => {
   const { 
     courseInformation, 
     modules, 
@@ -140,17 +140,19 @@ export const useProgressTracking = () => {
         warnings.push(`${modulesWithoutContent.length} chương chưa có nội dung`);
       }
 
-      if (totalLessons < modules.length * 2) {
-        warnings.push('Mỗi chương nên có ít nhất 2 bài học');
+      if (totalLessons < modules.length) {
+        warnings.push('Mỗi chương nên có ít nhất 1 video bài học');
       }
 
-      // Check for video content
-      const hasVideo = modules.some(module => 
-        module.lessons?.some(lesson => lesson.videoUrl)
+      // Check each module has at least one video lesson
+      const modulesWithoutVideoLessons = modules.filter(module => 
+        !module.lessons || 
+        module.lessons.length === 0 || 
+        !module.lessons.some(lesson => lesson.videoUrl && lesson.videoUrl.trim() !== '')
       );
 
-      if (!hasVideo) {
-        warnings.push('Khóa học nên có ít nhất 1 video bài giảng');
+      if (modulesWithoutVideoLessons.length > 0) {
+        warnings.push(`${modulesWithoutVideoLessons.length} chương chưa có video bài học`);
       }
 
       const completionPercentage = modules.length > 0 ? 
@@ -159,7 +161,7 @@ export const useProgressTracking = () => {
       return {
         stepId: 2,
         stepName: 'Nội dung bài học',
-        isCompleted: totalLessons >= modules.length && modulesWithoutContent.length === 0,
+        isCompleted: modulesWithoutVideoLessons.length === 0 && modules.length > 0,
         completionPercentage,
         requiredFields,
         completedFields,
@@ -203,33 +205,56 @@ export const useProgressTracking = () => {
       };
     };
 
-    // Step 4: Course Analytics (placeholder)
-    const courseAnalyticsProgress = (): StepProgress => {
+    // Step 4: Course Analytics & Review OR Confirm Update - Final step
+    const courseFinalStepProgress = (): StepProgress => {
+      // Check if all previous steps are complete enough for publication/update
+      const requiredFields = [isEditMode ? 'updateReview' : 'courseReview'];
+      const completedFields: string[] = [];
+      const warnings: string[] = [];
+
+      // Check if basic course info is complete
+      const courseInfoComplete = courseInformation.title?.trim() && 
+                                courseInformation.description?.trim() && 
+                                courseInformation.price && courseInformation.price > 0;
+
+      // Check if curriculum is complete
+      const hasModules = modules.length > 0;
+      const modulesComplete = modules.every(module => 
+        module.moduleName?.trim() && (module.durationMinutes || 0) > 0
+      );
+
+      // Check if content exists
+      const hasContent = modules.some(module => 
+        module.lessons && module.lessons.length > 0
+      );
+
+      if (courseInfoComplete && hasModules && modulesComplete && hasContent) {
+        completedFields.push(isEditMode ? 'updateReview' : 'courseReview');
+      }
+
+      // Add warnings for incomplete sections
+      if (!courseInfoComplete) {
+        warnings.push('Thông tin khóa học chưa đầy đủ');
+      }
+      if (!hasModules || !modulesComplete) {
+        warnings.push('Chương trình học chưa hoàn thiện');
+      }
+      if (!hasContent) {
+        warnings.push('Chưa có nội dung bài học');
+      }
+
+      const completionPercentage = (completedFields.length / requiredFields.length) * 100;
+
       return {
         stepId: 4,
-        stepName: 'Phân tích',
-        isCompleted: false,
-        completionPercentage: 0,
-        requiredFields: [],
-        completedFields: [],
-        missingFields: [],
-        warnings: [],
-        estimatedTimeRemaining: 0
-      };
-    };
-
-    // Step 5: Publish (placeholder)
-    const publishProgress = (): StepProgress => {
-      return {
-        stepId: 5,
-        stepName: 'Xuất bản',
-        isCompleted: false,
-        completionPercentage: 0,
-        requiredFields: ['review'],
-        completedFields: [],
-        missingFields: ['review'],
-        warnings: [],
-        estimatedTimeRemaining: 5
+        stepName: isEditMode ? 'Xác nhận cập nhật' : 'Phân tích',
+        isCompleted: completedFields.length === requiredFields.length,
+        completionPercentage,
+        requiredFields,
+        completedFields,
+        missingFields: requiredFields.filter(field => !completedFields.includes(field)),
+        warnings,
+        estimatedTimeRemaining: completedFields.length === 0 ? 10 : 0
       };
     };
 
@@ -238,8 +263,7 @@ export const useProgressTracking = () => {
       curriculumProgress(),
       contentProgress(),
       pricingProgress(),
-      courseAnalyticsProgress(),
-      publishProgress()
+      courseFinalStepProgress()
     ];
   }, [courseInformation, modules]);
 

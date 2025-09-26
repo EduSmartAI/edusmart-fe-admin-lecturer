@@ -1,6 +1,5 @@
 "use client";
-import React from 'react';
-import { useTransition, animated } from '@react-spring/web';
+import React, { useState, useEffect } from 'react';
 
 interface StepTransitionProps {
   item: React.ReactNode;
@@ -8,20 +7,31 @@ interface StepTransitionProps {
 }
 
 export const StepTransition: React.FC<StepTransitionProps> = ({ item, children }) => {
-  const transitions = useTransition(item, {
-    from: { opacity: 0, transform: 'translateY(20px)' },
-    enter: { opacity: 1, transform: 'translateY(0px)' },
-    leave: { opacity: 0, transform: 'translateY(-20px)', position: 'absolute', width: '100%' },
-    config: { tension: 220, friction: 20 },
-  });
+  const [isClient, setIsClient] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
+
+  // Fix hydration mismatch
+  useEffect(() => {
+    setIsClient(true);
+    // Add slight delay for smooth transition
+    const timer = setTimeout(() => setIsVisible(true), 50);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Simple CSS transition instead of React Spring to avoid hydration issues
+  if (!isClient) {
+    return <div className="opacity-0">{children}</div>;
+  }
 
   return (
-    <div style={{ position: 'relative' }}>
-      {transitions((style) => (
-        <animated.div style={style}>
-          {children}
-        </animated.div>
-      ))}
+    <div 
+      className={`transition-all duration-300 ease-in-out ${
+        isVisible 
+          ? 'opacity-100 translate-y-0' 
+          : 'opacity-0 translate-y-5'
+      }`}
+    >
+      {children}
     </div>
   );
 };

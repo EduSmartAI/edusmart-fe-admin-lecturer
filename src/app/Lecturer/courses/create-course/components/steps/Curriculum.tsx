@@ -2,12 +2,14 @@
 import { FC, useState, useEffect } from 'react';
 import { useCreateCourseStore } from 'EduSmart/stores/CreateCourse/CreateCourseStore';
 import { useTheme } from 'EduSmart/Provider/ThemeProvider';
-import { ConfigProvider, Input, InputNumber, Button, message, theme, Modal, Form } from 'antd';
+import { ConfigProvider, Input, InputNumber, Button, theme, Modal, Form, Checkbox, App } from 'antd';
 import { FaArrowLeft, FaArrowRight, FaPlus, FaTrash, FaBook } from 'react-icons/fa';
 import { FadeInUp } from 'EduSmart/components/Animation/FadeInUp';
+import { useAutoSave } from '../../hooks/useAutoSave';
 
 const Curriculum: FC = () => {
     const { setCurrentStep, modules, addModule, updateModule, removeModule, error, clearError } = useCreateCourseStore();
+    const { message } = App.useApp();
     const { isDarkMode } = useTheme();
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -15,13 +17,25 @@ const Curriculum: FC = () => {
     const [deleteModalVisible, setDeleteModalVisible] = useState(false);
     const [moduleToDelete, setModuleToDelete] = useState<number | null>(null);
 
+    // Auto-save functionality
+    const { debouncedSave } = useAutoSave({
+        step: '1'
+    });
+
     // Handle error display
     useEffect(() => {
         if (error) {
             message.error(error);
             clearError();
         }
-    }, [error]); // Remove clearError from dependencies to prevent infinite loop
+    }, [error, clearError]);
+
+    // Auto-save when modules change - remove debouncedSave from dependencies
+    useEffect(() => {
+        if (modules.length > 0) {
+            debouncedSave({ modules });
+        }
+    }, [modules]); // Remove debouncedSave from dependencies to prevent infinite loop
 
     const handleAddModule = () => {
         setEditingIndex(null);
@@ -183,10 +197,10 @@ const Curriculum: FC = () => {
 
                 {/* Navigation */}
                 <div className="flex justify-between">
-                    <Button size="large" onClick={() => setCurrentStep(0)} icon={<FaArrowLeft />}>
+                    <Button size="large" htmlType="button" onClick={() => setCurrentStep(0)} icon={<FaArrowLeft />}>
                         Quay lại
                     </Button>
-                    <Button type="primary" size="large" onClick={handleNext} icon={<FaArrowRight />}>
+                    <Button type="primary" htmlType="button" size="large" onClick={handleNext} icon={<FaArrowRight />}>
                         Tiếp theo
                     </Button>
                 </div>
@@ -231,8 +245,7 @@ const Curriculum: FC = () => {
                         </div>
 
                         <Form.Item name="isCore" valuePropName="checked">
-                            <input type="checkbox" className="mr-2" />
-                            <span>Chương cốt lõi (bắt buộc)</span>
+                            <Checkbox>Chương cốt lõi (bắt buộc)</Checkbox>
                         </Form.Item>
 
                         <div className="flex justify-end gap-2">

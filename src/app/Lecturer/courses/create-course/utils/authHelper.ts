@@ -28,20 +28,17 @@ export const loginForCourseCreation = async (credentials: LoginCredentials = DEF
   error?: string;
 }> => {
   try {
-    console.log('[AuthHelper] Attempting login for course creation...');
     
     const { login } = useAuthStore.getState();
     const success = await login(credentials.username, credentials.password);
     
     if (success) {
       const { token } = useAuthStore.getState();
-      console.log('[AuthHelper] Login successful, token obtained');
       return {
         success: true,
         token: token || undefined
       };
     } else {
-      console.log('[AuthHelper] Login failed');
       return {
         success: false,
         error: 'Login failed with provided credentials'
@@ -69,7 +66,6 @@ export const getOrRefreshToken = async (): Promise<{
     
     // If we have a token and are authenticated, return it
     if (token && isAuthen) {
-      console.log('[AuthHelper] Valid token found');
       return {
         success: true,
         token
@@ -78,26 +74,22 @@ export const getOrRefreshToken = async (): Promise<{
     
     // Try to refresh the token
     if (token) {
-      console.log('[AuthHelper] Attempting token refresh...');
       try {
         await refreshToken();
         const newToken = useAuthStore.getState().token;
         if (newToken) {
-          console.log('[AuthHelper] Token refreshed successfully');
           return {
             success: true,
             token: newToken
           };
         }
       } catch (refreshError) {
-        console.log('[AuthHelper] Token refresh failed, attempting fresh login...');
         // If refresh fails, try fresh login
         return await loginForCourseCreation();
       }
     }
     
     // No token, attempt fresh login
-    console.log('[AuthHelper] No token found, attempting fresh login...');
     return await loginForCourseCreation();
     
   } catch (error) {
@@ -131,7 +123,6 @@ export const validateCourseCreationAuth = async (): Promise<{
       tokenMasked: token ? `${token.slice(0, 6)}...${token.slice(-4)}` : undefined
     };
     
-    console.log('[AuthHelper] Auth validation details:', details);
     
     if (!token || !isAuthen) {
       // Attempt to get/refresh token
@@ -177,7 +168,6 @@ export const validateCourseCreationAuth = async (): Promise<{
 export const debugAuthState = (): void => {
   const { token, isAuthen, refreshTokenValue } = useAuthStore.getState();
   
-  console.log('[AuthHelper] Current auth state:', {
     hasToken: !!token,
     tokenPreview: token ? `${token.slice(0, 8)}...` : 'none',
     isAuthenticated: isAuthen,

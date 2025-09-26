@@ -57,5 +57,21 @@ export async function uploadToCloudinaryVideo(file: File, overrides?: Partial<Cl
   return resp.data as unknown as CloudinaryUploadResult;
 }
 
+export async function uploadToCloudinaryRaw(file: File, overrides?: Partial<CloudinaryConfig>): Promise<CloudinaryUploadResult> {
+  const cfg = { ...resolveConfig(), ...overrides };
+  const endpoint = `https://api.cloudinary.com/v1_1/${cfg.cloudName}/raw/upload`;
+  const form = new FormData();
+  form.append('file', file);
+  if (cfg.uploadPreset) form.append('upload_preset', cfg.uploadPreset);
+  if (cfg.folder) form.append('folder', cfg.folder);
+  const resp: AxiosResponse<CloudinaryUploadResult> = await axios.post(endpoint, form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    maxBodyLength: Infinity,
+    maxContentLength: Infinity,
+  });
+  return resp.data as unknown as CloudinaryUploadResult;
+}
+
+
 
 

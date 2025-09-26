@@ -10,7 +10,7 @@ export interface CourseCreationStep {
 export const COURSE_CREATION_STEPS: CourseCreationStep[] = [
     {
         id: 0,
-        title: 'Thông tin',
+        title: 'Thông tin khóa học',
         description: 'Cung cấp thông tin cơ bản về khóa học của bạn.',
         component: 'CourseInformation',
         isRequired: true,
@@ -26,7 +26,7 @@ export const COURSE_CREATION_STEPS: CourseCreationStep[] = [
     },
     {
         id: 2,
-        title: 'Nội dung',
+        title: 'Nội dung bài học',
         description: 'Thêm nội dung bài giảng và tài liệu học tập.',
         component: 'CourseContent',
         isRequired: true,
@@ -34,18 +34,17 @@ export const COURSE_CREATION_STEPS: CourseCreationStep[] = [
     },
     {
         id: 3,
-        title: 'Giá',
-        description: 'Thiết lập giá và các tùy chọn thanh toán.',
+        title: 'Giá khóa học',
+        description: 'Thiết lập giá cả và chính sách cho khóa học.',
         component: 'Pricing',
         isRequired: true,
         isCompleted: false,
     },
-
     {
         id: 4,
-        title: 'Xuất bản',
-        description: 'Hoàn tất và xuất bản khóa học của bạn.',
-        component: 'Publish',
+        title: 'Phân tích',
+        description: 'Đánh giá khóa học và tạo khóa học.',
+        component: 'Analytics',
         isRequired: true,
         isCompleted: false,
     },
@@ -56,8 +55,7 @@ export const STEP_NAMES = {
     CURRICULUM: 'Curriculum',
     COURSE_CONTENT: 'CourseContent',
     PRICING: 'Pricing',
-
-    PUBLISH: 'Publish',
+    ANALYTICS: 'Analytics',
 } as const;
 
 export type StepName = typeof STEP_NAMES[keyof typeof STEP_NAMES];

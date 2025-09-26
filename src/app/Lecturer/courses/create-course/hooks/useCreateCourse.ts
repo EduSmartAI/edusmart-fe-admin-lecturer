@@ -32,11 +32,10 @@ export const useCreateCourse = () => {
             const authResult = await validateCourseCreationAuth();
             
             if (authResult.success) {
-                console.log('[CreateCourse] Authentication validated successfully');
                 debugAuthState(); // Debug logging
                 return true;
             } else {
-                console.log('[CreateCourse] Authentication validation failed:', authResult.error);
+
                 setAuthError(authResult.error || 'Authentication failed');
                 return false;
             }
@@ -55,23 +54,18 @@ export const useCreateCourse = () => {
 
             // First validate authentication
             const isAuthValid = await validateAuthToken();
+            
             if (!isAuthValid) {
                 setIsSubmitting(false);
                 return false;
             }
 
-            // Log final auth status before creating course
-            console.log('[CreateCourse] Creating course with auth token present');
-            
             // Proceed with course creation
             const success = await createCourse();
             
             if (success) {
-                console.log('[CreateCourse] Course created successfully');
                 // Clear auto-save data on successful creation
                 clearLocalStorage();
-            } else {
-                console.log('[CreateCourse] Course creation failed');
             }
             
             return success;
@@ -101,7 +95,6 @@ export const useCreateCourse = () => {
             if (wasExpired) {
                 // Clear the store data when auto-save data expires
                 resetForm();
-                console.log('Store data cleared due to auto-save expiry');
             }
         }, 60000); // Check every minute
         
@@ -112,16 +105,14 @@ export const useCreateCourse = () => {
     // Initialize authentication on mount
     useEffect(() => {
         const initAuth = async () => {
-            console.log('[CreateCourse] Initializing authentication...');
             debugAuthState();
             
             // Validate authentication status
             const authResult = await validateCourseCreationAuth();
             if (!authResult.success) {
-                console.log('[CreateCourse] Initial auth validation failed:', authResult.error);
+
                 setAuthError(authResult.error || 'Authentication required');
             } else {
-                console.log('[CreateCourse] Authentication ready for course creation');
             }
         };
 

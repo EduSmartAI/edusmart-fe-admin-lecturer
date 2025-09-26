@@ -66,7 +66,7 @@ export async function middleware(req: NextRequest) {
   const sid = getSidFromReq(req);
   const idt = getIdTokenFromReq(req);
   const claims = idt ? decodeJwtPayload(idt) : null;
-  console.log("claims middleware", claims)
+
 
   // Nếu đã login rồi mà truy cập /login → redirect về /Admin
   if (isPublicPath(pathname)) {

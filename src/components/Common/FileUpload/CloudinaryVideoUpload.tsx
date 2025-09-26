@@ -1,6 +1,6 @@
 "use client";
 import React, { useMemo, useState } from 'react';
-import { Upload, UploadProps, message, Progress, Button } from 'antd';
+import { Upload, UploadProps, App, Progress, Button } from 'antd';
 import { UploadOutlined } from '@ant-design/icons';
 import type { RcFile } from 'antd/es/upload/interface';
 import { uploadToCloudinaryVideo, CloudinaryUploadResult } from 'EduSmart/utils/cloudinary';
@@ -22,6 +22,7 @@ const CloudinaryVideoUpload: React.FC<CloudinaryVideoUploadProps> = ({
   maxSizeMB = 1024,
   dragger = false,
 }) => {
+  const { message } = App.useApp();
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
 

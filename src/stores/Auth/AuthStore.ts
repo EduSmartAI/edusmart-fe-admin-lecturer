@@ -19,7 +19,9 @@ export interface AuthState {
   login: (email: string, password: string) => Promise<boolean>;
   refreshToken: () => Promise<void>;
   logout: () => void;
+  reset: () => void;
   getAuthen: () => Promise<boolean>;
+  initializeAuth: () => Promise<boolean>;
   insertStudent: (
     email: string,
     password: string,
@@ -57,6 +59,31 @@ export const useAuthStore = create<AuthState>()(
         return ok;
       },
 
+      initializeAuth: async () => {
+        try {
+          const { initializeAuthAction } = await import('EduSmart/app/(auth)/action');
+          const result = await initializeAuthAction();
+          
+          if (result.ok) {
+            set({ 
+              token: result.accessToken,
+              isAuthen: result.isAuthenticated 
+            });
+            
+            if (result.accessToken) {
+              apiClient.authEduService.setSecurityData({ token: result.accessToken });
+            }
+            
+
+            return true;
+          }
+          return false;
+        } catch (error) {
+          console.error('[AuthStore] Failed to initialize:', error);
+          return false;
+        }
+      },
+
       insertStudent: async (email, password, firstName, lastName) => {
         const res = await insertStudentAction({
           email,
@@ -78,7 +105,6 @@ export const useAuthStore = create<AuthState>()(
             apiClient.authEduService.setSecurityData({ token });
             return true
           }
-          console.log("resp", resp.error);
           return false
         } catch {
           return false
@@ -87,7 +113,7 @@ export const useAuthStore = create<AuthState>()(
 
       // 2) Refresh token và revoke khi cần
       refreshToken: async () => {
-        console.log("vao");
+
         const res = await refreshAction();
         if (!res.ok || !res.accessToken) {
           set({ token: null });

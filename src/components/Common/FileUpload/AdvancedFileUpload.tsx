@@ -1,6 +1,6 @@
 'use client';
 import { FC, useState, useCallback, useRef } from 'react';
-import { Progress, Button, message } from 'antd';
+import { Progress, Button, App } from 'antd';
 import { FaUpload, FaFile, FaVideo, FaImage, FaFilePdf, FaFileWord, FaFileExcel, FaFilePowerpoint, FaTrash, FaEye } from 'react-icons/fa';
 import Image from 'next/image';
 
@@ -41,6 +41,7 @@ const AdvancedFileUpload: FC<AdvancedFileUploadProps> = ({
   const [files, setFiles] = useState<FileItem[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { message } = App.useApp();
 
   // Get file icon based on type
   const getFileIcon = (type: string) => {

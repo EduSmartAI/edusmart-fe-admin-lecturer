@@ -1,9 +1,11 @@
 'use client';
 import { FC, useState, useCallback, useMemo, useEffect } from 'react';
-import { ConfigProvider, theme, message, Modal, Form, Input, Button, Upload, InputNumber } from 'antd';
+import { ConfigProvider, theme, App, Modal, Form, Input, Button, Upload, InputNumber } from 'antd';
 import { useTheme } from 'EduSmart/Provider/ThemeProvider';
 import { useCreateCourseStore, CourseContentItem } from 'EduSmart/stores/CreateCourse/CreateCourseStore';
 import { FadeInUp } from 'EduSmart/components/Animation/FadeInUp';
+import { useAutoSave } from '../../hooks/useAutoSave';
+import { uploadToCloudinaryRaw } from 'EduSmart/utils/cloudinary';
 
 import { QuizBuilder } from 'EduSmart/components/Common/QuizBuilder';
 import { 
@@ -73,43 +75,156 @@ const CourseContent: FC = () => {
   const { isDarkMode } = useTheme();
   const store = useCreateCourseStore();
   const { setCurrentStep, modules, updateModule, addLesson, updateLesson, removeLesson } = store;
+  const { message } = App.useApp();
   
   // State management
   const [activeModuleId, setActiveModuleId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0); // Force re-render trigger
+
+  // Auto-save functionality
+  const { debouncedSave } = useAutoSave({
+    step: '2'
+  });
+
+  // Auto-save when modules/lessons change
+  useEffect(() => {
+    const hasContent = modules.some(module => module.lessons && module.lessons.length > 0);
+    if (hasContent) {
+      debouncedSave({ modules });
+    }
+  }, [modules, debouncedSave]);
+
+  // Cleanup effect when component unmounts
+  useEffect(() => {
+    return () => {
+      // Reset local state when component unmounts
+      setActiveModuleId(null);
+      setRefreshKey(0);
+    };
+  }, []);
 
   // Helper to get lessons for a module (mapped from new store structure)
   const getModuleItems = useCallback((moduleIndex: number): CourseContentItem[] => {
     const courseModule = modules[moduleIndex];
     if (!courseModule) return [];
     
-    // Convert lessons to CourseContentItem format for backward compatibility
-    return courseModule.lessons.map((lesson, index) => {
-      // Determine content type based on lesson properties
-      let contentType: ContentType = ContentType.VIDEO; // Default
-      
-      if (lesson.title.toLowerCase().includes('kiểm tra') || lesson.title.toLowerCase().includes('quiz')) {
-        contentType = ContentType.QUIZ;
-      } else if (lesson.title.toLowerCase().includes('thảo luận') || lesson.title.toLowerCase().includes('câu hỏi')) {
-        contentType = ContentType.QUESTION;
-      } else if (lesson.title.toLowerCase().includes('tài liệu') || lesson.title.toLowerCase().includes('file')) {
-        contentType = ContentType.FILE;
-      } else if (lesson.videoUrl && lesson.videoUrl.trim() !== '') {
-        contentType = ContentType.VIDEO;
-      }
-      
-      return {
-        id: lesson.id || `lesson-${index}`,
-        type: contentType,
-        title: lesson.title,
-        description: '',
-        duration: lesson.videoDurationSec ? Math.round(lesson.videoDurationSec / 60) : undefined,
-        url: lesson.videoUrl,
-        order: lesson.positionIndex || index,
-        metadata: {}
-      };
-    });
+    const items: CourseContentItem[] = [];
+    
+    // Add lessons (videos and quizzes)
+    if (courseModule.lessons) {
+      const lessonItems = courseModule.lessons
+        .filter(lesson => lesson && typeof lesson === 'object')
+        .map((lesson, index) => {
+          let contentType: ContentType = ContentType.VIDEO;
+          
+          // Determine content type based on lesson properties only
+          if (lesson.lessonQuiz && lesson.lessonQuiz.questions && lesson.lessonQuiz.questions.length > 0) {
+            contentType = ContentType.QUIZ;
+          } else if (lesson.title && (lesson.title.toLowerCase().includes('kiểm tra') || lesson.title.toLowerCase().includes('quiz'))) {
+            contentType = ContentType.QUIZ;
+          } else if (lesson.videoUrl && typeof lesson.videoUrl === 'string' && lesson.videoUrl.trim() !== '') {
+            contentType = ContentType.VIDEO;
+          }
+        
+          return {
+            id: lesson.id || `lesson-${index}`,
+            type: contentType,
+            title: lesson.title || 'Untitled Lesson',
+            description: '', // No metadata available, use empty string
+            duration: lesson.videoDurationSec ? Math.round(lesson.videoDurationSec / 60) : undefined,
+            url: lesson.videoUrl,
+            order: lesson.positionIndex || index,
+            metadata: {
+              hasQuiz: !!(lesson.lessonQuiz && lesson.lessonQuiz.questions && lesson.lessonQuiz.questions.length > 0),
+              contentType: contentType
+            }
+          };
+        });
+      items.push(...lessonItems);
+    }
+    
+    // Add discussions
+    if (courseModule.discussions) {
+      const discussionItems = courseModule.discussions
+        .filter(discussion => discussion && typeof discussion === 'object')
+        .map((discussion, index) => ({
+          id: discussion.id || `discussion-${index}`,
+          type: ContentType.QUESTION,
+          title: discussion.title || 'Untitled Discussion',
+          description: discussion.description || '',
+          duration: undefined,
+          url: '',
+          order: 1000 + index, // Place discussions after lessons
+          metadata: {
+            contentType: ContentType.QUESTION,
+            question: discussion.discussionQuestion
+          }
+        }));
+      items.push(...discussionItems);
+    }
+    
+    // Add materials
+    if (courseModule.materials) {
+      const materialItems = courseModule.materials
+        .filter(material => material && typeof material === 'object')
+        .map((material, index) => ({
+          id: material.id || `material-${index}`,
+          type: ContentType.FILE,
+          title: material.title || 'Untitled Material',
+          description: material.description || '',
+          duration: undefined,
+          url: material.fileUrl,
+          order: 2000 + index, // Place materials after discussions
+          metadata: {
+            contentType: ContentType.FILE,
+            fileUrl: material.fileUrl
+          }
+        }));
+      items.push(...materialItems);
+    }
+    
+    // Sort by order
+    return items.sort((a, b) => a.order - b.order);
   }, [modules, refreshKey]);
+
+  // Helper functions to convert between store format and QuizBuilder format
+  const convertStoreQuizToBuilderFormat = useCallback((lessonQuiz: any) => {
+    if (!lessonQuiz || !lessonQuiz.questions) return { questions: [], settings: {} };
+
+    const convertQuestionTypeToString = (type: number): 'multiple-choice' | 'true-false' | 'short-answer' => {
+      switch (type) {
+        case 1: return 'multiple-choice';
+        case 2: return 'true-false';
+        case 3: return 'short-answer';
+        default: return 'multiple-choice';
+      }
+    };
+
+    const questions = lessonQuiz.questions.map((q: any, index: number) => ({
+      id: q.id || `question-${index}`,
+      question: q.questionText || '',
+      type: convertQuestionTypeToString(q.questionType),
+      options: q.options ? q.options.map((opt: any) => opt.text) : [],
+      correctAnswer: q.options ? 
+        (q.questionType === 1 ? // Multiple choice
+          q.options.findIndex((opt: any) => opt.isCorrect) :
+          q.questionType === 2 ? // True/False  
+          (q.options[0]?.isCorrect ? 'true' : 'false') :
+          q.options.find((opt: any) => opt.isCorrect)?.text || '') : '',
+      explanation: q.explanation || '',
+      points: 1
+    }));
+
+    const settings = {
+      timeLimit: lessonQuiz.quizSettings?.durationMinutes || 30,
+      passingScore: lessonQuiz.quizSettings?.passingScorePercentage || 70,
+      shuffleQuestions: lessonQuiz.quizSettings?.shuffleQuestions || false,
+      showResults: lessonQuiz.quizSettings?.showResultsImmediately || true,
+      allowRetake: lessonQuiz.quizSettings?.allowRetake || true
+    };
+
+    return { questions, settings };
+  }, []);
 
   const totalContentCount = useMemo(() => 
     modules.reduce((acc, module) => acc + module.lessons.length, 0)
@@ -117,10 +232,20 @@ const CourseContent: FC = () => {
   const [selectedType, setSelectedType] = useState<ContentType | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isQuizBuilderOpen, setIsQuizBuilderOpen] = useState(false);
+  // State for quiz builder initial data
+  const [quizInitialData, setQuizInitialData] = useState<{
+    questions: any[];
+    settings: any;
+  } | null>(null);
   const [editingItem, setEditingItem] = useState<CourseContentItem | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{moduleId: string, itemId: string} | null>(null);
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const [form] = Form.useForm();
+  
+  // Create a form key that changes when content type changes to force complete recreation
+  const formKey = `form-${selectedType || 'none'}`;
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -179,18 +304,57 @@ const CourseContent: FC = () => {
   ];
 
 
+  // Comprehensive form reset function
+  const resetFormCompletely = useCallback(() => {
+    // First, reset all fields using Antd's method
+    form.resetFields();
+    
+    // Then, explicitly set all possible fields to empty/undefined
+    const emptyValues = {
+      title: '',
+      description: '',
+      duration: undefined,
+      url: '',
+      fileUrl: '',
+      question: ''
+    };
+    
+    form.setFieldsValue(emptyValues);
+    
+    // Reset uploaded file name state and uploading state
+    setUploadedFileName(null);
+    setIsUploading(false);
+  }, [form]);
+
+  // Clear form when switching content types - more aggressive approach
+  useEffect(() => {
+    if (selectedType && !editingItem) {
+      // Force clear all fields immediately when switching types
+      setTimeout(() => {
+        resetFormCompletely();
+      }, 0); // Use setTimeout to ensure it runs after render
+    }
+  }, [selectedType, editingItem, resetFormCompletely]);
+
   // Handle content type selection
   const handleTypeSelection = useCallback((type: ContentType) => {
+    // First reset everything
+    resetFormCompletely();
+    // Then set the new type
     setSelectedType(type);
     setEditingItem(null);
     
     if (type === ContentType.QUIZ) {
       setIsQuizBuilderOpen(true);
+      setQuizInitialData(null); // Clear initial data for new quiz
     } else {
       setIsModalOpen(true);
-      form.resetFields();
+      // Reset again to be sure
+      setTimeout(() => {
+        resetFormCompletely();
+      }, 100);
     }
-  }, [form]);
+  }, [resetFormCompletely]);
 
   // Handle drag and drop reordering
   const handleDragEnd = useCallback((event: DragEndEvent, moduleIndex: number) => {
@@ -223,7 +387,26 @@ const CourseContent: FC = () => {
   // Handle content creation/editing
   const handleSubmitContent = useCallback(async () => {
     try {
+      // Use Antd form validation
       const values = await form.validateFields();
+      
+      // Additional validation for different content types
+      if (selectedType === ContentType.FILE && !values.fileUrl) {
+        message.error('Vui lòng tải lên file!');
+        return;
+      }
+      
+      // For video content, check if there's actually a video URL in the component state
+      // even if the form field is empty
+      if (selectedType === ContentType.VIDEO) {
+        const videoUploadComponent = document.querySelector('video');
+        if (videoUploadComponent && videoUploadComponent.src) {
+          // If video is in the DOM but not in form values, use the DOM source
+          if (!values.url) {
+            values.url = videoUploadComponent.src;
+          }
+        }
+      }
       
       if (activeModuleId === null) {
         message.warning('Vui lòng chọn chương để thêm nội dung');
@@ -239,36 +422,123 @@ const CourseContent: FC = () => {
         return;
       }
 
-      const newLesson = {
-        id: editingItem?.id,
-        title: values.title,
-        videoUrl: values.url || '',
-        videoDurationSec: values.duration ? values.duration * 60 : undefined, // Convert minutes to seconds
-        positionIndex: editingItem?.order ?? modules[moduleIndex].lessons.length,
-        isActive: true
-      };
+      const currentModule = modules[moduleIndex];
 
-      if (editingItem) {
-        // Find lesson index and update
-        const lessonIndex = modules[moduleIndex].lessons.findIndex((l, index) => 
-          l.id === editingItem.id || `lesson-${index}` === editingItem.id
-        );
-        if (lessonIndex !== -1) {
-          updateLesson(moduleIndex, lessonIndex, newLesson);
+      // Handle different content types according to API structure
+      if (selectedType === ContentType.VIDEO) {
+        // Video lessons go to lessons array
+        const newLesson = {
+          id: editingItem?.id,
+          title: values.title,
+          videoUrl: values.url || '',
+          videoDurationSec: values.duration ? values.duration * 60 : 0,
+          positionIndex: editingItem?.order ?? currentModule.lessons.length,
+          isActive: true,
+          // Store metadata for UI purposes
+          metadata: {
+            contentType: selectedType,
+            description: values.description || undefined
+          }
+        };
+
+        if (editingItem) {
+          // Find existing lesson to preserve any quiz data
+          const lessonIndex = currentModule.lessons.findIndex((l, index) => 
+            l.id === editingItem.id || `lesson-${index}` === editingItem.id
+          );
+          if (lessonIndex !== -1) {
+            const existingLesson = currentModule.lessons[lessonIndex];
+            const updatedLesson = {
+              ...newLesson,
+              ...(existingLesson.lessonQuiz && { lessonQuiz: existingLesson.lessonQuiz })
+            };
+            updateLesson(moduleIndex, lessonIndex, updatedLesson);
+          }
+        } else {
+          addLesson(moduleIndex, newLesson);
         }
-      } else {
-        // Add new lesson
-        addLesson(moduleIndex, newLesson);
+      } 
+      else if (selectedType === ContentType.QUESTION) {
+        // Discussions go to discussions array
+        const newDiscussion = {
+          id: editingItem?.id || `discussion-${Date.now()}`,
+          title: values.title,
+          description: values.description || '',
+          discussionQuestion: values.question || '',
+          isActive: true,
+          // Store metadata for UI purposes
+          metadata: {
+            contentType: selectedType
+          }
+        };
+
+        const updatedModule = {
+          ...currentModule,
+          discussions: currentModule.discussions || []
+        };
+
+        if (editingItem) {
+          // Find and update existing discussion
+          const discussionIndex = updatedModule.discussions.findIndex(d => 
+            d.id === editingItem.id
+          );
+          if (discussionIndex !== -1) {
+            updatedModule.discussions[discussionIndex] = newDiscussion;
+          } else {
+            updatedModule.discussions.push(newDiscussion);
+          }
+        } else {
+          updatedModule.discussions.push(newDiscussion);
+        }
+
+        updateModule(moduleIndex, updatedModule);
+      }
+      else if (selectedType === ContentType.FILE) {
+        // Materials go to materials array
+        const newMaterial = {
+          id: editingItem?.id || `material-${Date.now()}`,
+          title: values.title,
+          description: values.description || '',
+          fileUrl: values.fileUrl || '',
+          isActive: true,
+          // Store metadata for UI purposes
+          metadata: {
+            contentType: selectedType
+          }
+        };
+
+        const updatedModule = {
+          ...currentModule,
+          materials: currentModule.materials || []
+        };
+
+        if (editingItem) {
+          // Find and update existing material
+          const materialIndex = updatedModule.materials.findIndex(m => 
+            m.id === editingItem.id
+          );
+          if (materialIndex !== -1) {
+            updatedModule.materials[materialIndex] = newMaterial;
+          } else {
+            updatedModule.materials.push(newMaterial);
+          }
+        } else {
+          updatedModule.materials.push(newMaterial);
+        }
+
+        updateModule(moduleIndex, updatedModule);
       }
 
       setIsModalOpen(false);
       setEditingItem(null);
-      form.resetFields();
-      message.success(`Bài học đã được ${editingItem ? 'cập nhật' : 'thêm'} thành công!`);
+      resetFormCompletely(); // Use comprehensive reset
+      setSelectedType(null); // Also reset selected type
+      message.success(`Nội dung đã được ${editingItem ? 'cập nhật' : 'thêm'} thành công!`);
     } catch (error) {
       console.error('Validation failed:', error);
+      message.error('Có lỗi xảy ra khi lưu nội dung');
     }
-  }, [form, activeModuleId, modules, editingItem, updateLesson, addLesson]);
+  }, [form, activeModuleId, modules, editingItem, updateLesson, addLesson, selectedType, resetFormCompletely, updateModule]);
 
   // Handle quiz creation from QuizBuilder
   const handleQuizSave = useCallback((questions: QuizQuestion[], settings: QuizSettings) => {
@@ -286,44 +556,203 @@ const CourseContent: FC = () => {
       return;
     }
 
-    // Create quiz title that will be detected as quiz type
-    const quizCount = modules[moduleIndex].lessons.filter(l => 
-      l.title.toLowerCase().includes('kiểm tra') || l.title.toLowerCase().includes('quiz')
-    ).length + 1;
+    // Convert QuizBuilder format to store format
+    const convertQuestionType = (type: string): number => {
+      switch (type) {
+        case 'multiple-choice': return 1; // MultipleChoice
+        case 'true-false': return 2; // TrueFalse  
+        case 'short-answer': return 3; // SingleChoice
+        default: return 1;
+      }
+    };
 
-    const newQuizLesson = {
-      id: editingItem?.id || `quiz-${Date.now()}`, // Ensure unique ID for quizzes
-      title: editingItem ? editingItem.title : `Bài kiểm tra ${quizCount}`,
-      videoUrl: '', // Quiz doesn't have video
-      videoDurationSec: settings.timeLimit ? settings.timeLimit * 60 : undefined,
-      positionIndex: editingItem?.order ?? modules[moduleIndex].lessons.length,
-      isActive: true
+    const convertedQuestions = questions.map(q => ({
+      id: q.id,
+      questionType: convertQuestionType(q.type),
+      questionText: q.question,
+      explanation: q.explanation || '',
+      options: q.options ? q.options.map((text, index) => ({
+        id: `option-${q.id}-${index}`,
+        text: text,
+        isCorrect: q.type === 'multiple-choice' ? 
+          (Array.isArray(q.correctAnswer) ? q.correctAnswer.includes(index) : q.correctAnswer === index) :
+          q.type === 'true-false' ?
+          (index === 0 ? q.correctAnswer === 'true' : q.correctAnswer === 'false') :
+          q.correctAnswer === text
+      })) : []
+    }));
+
+    const convertedSettings = {
+      id: `settings-${Date.now()}`,
+      durationMinutes: settings.timeLimit || 30,
+      passingScorePercentage: settings.passingScore || 70,
+      shuffleQuestions: settings.shuffleQuestions || false,
+      showResultsImmediately: settings.showResults || true,
+      allowRetake: settings.allowRetake || true
     };
 
     if (editingItem) {
-      // Update existing quiz
-      const lessonIndex = modules[moduleIndex].lessons.findIndex((l, index) => 
-        l.id === editingItem.id || `lesson-${index}` === editingItem.id
-      );
-      if (lessonIndex !== -1) {
-        updateLesson(moduleIndex, lessonIndex, newQuizLesson);
-        message.success('Bài kiểm tra đã được cập nhật thành công!');
+      // We're editing an existing item
+      if (editingItem.type === 'module-quiz') {
+        // Update existing module quiz
+        const moduleQuiz = {
+          id: `module-quiz-${Date.now()}`,
+          quizSettings: convertedSettings,
+          questions: convertedQuestions
+        };
+
+        const updatedModule = {
+          ...modules[moduleIndex],
+          moduleQuiz
+        };
+        updateModule(moduleIndex, updatedModule);
+        message.success('Bài kiểm tra chương đã được cập nhật thành công!');
+      }
+      else if (editingItem.type === ContentType.QUIZ) {
+        // Check if this is editing a module quiz display lesson
+        const lesson = modules[moduleIndex].lessons.find(l => l.id === editingItem.id);
+        if (lesson && lesson.type === 'quiz') {
+          // This is editing a module quiz, update the moduleQuiz data
+          const moduleQuiz = {
+            quizSettings: {
+              durationMinutes: settings.timeLimit || 30,
+              passingScorePercentage: settings.passingScore || 70,
+              shuffleQuestions: settings.shuffleQuestions || false,
+              showResultsImmediately: settings.showResults || true,
+              allowRetake: settings.allowRetake || true
+            },
+            questions: questions.map(q => ({
+              questionType: convertQuestionType(q.type),
+              questionText: q.question,
+              explanation: q.explanation || '',
+              options: q.options ? q.options.map((text, index) => ({
+                text: text,
+                isCorrect: q.type === 'multiple-choice' ? 
+                  (Array.isArray(q.correctAnswer) ? q.correctAnswer.includes(index) : q.correctAnswer === index) :
+                  q.type === 'true-false' ?
+                  (index === 0 ? q.correctAnswer === 'true' : q.correctAnswer === 'false') :
+                  q.correctAnswer === text
+              })) : []
+            }))
+          };
+
+          const updatedModule = {
+            ...modules[moduleIndex],
+            moduleQuiz
+          };
+          updateModule(moduleIndex, updatedModule);
+          message.success('Bài kiểm tra chương đã được cập nhật thành công!');
+        } else {
+          // Regular lesson quiz editing - this handles the case where lesson has lessonQuiz
+          const quizCount = modules[moduleIndex].lessons.filter(l => 
+            l.title && (l.title.toLowerCase().includes('kiểm tra') || l.title.toLowerCase().includes('quiz'))
+          ).length;
+
+          const newQuizLesson = {
+            id: editingItem?.id || `quiz-${Date.now()}`,
+            title: editingItem ? editingItem.title : `Bài kiểm tra ${quizCount}`,
+            videoUrl: '',
+            videoDurationSec: settings.timeLimit ? settings.timeLimit * 60 : 1800,
+            positionIndex: editingItem?.order ?? modules[moduleIndex].lessons.length,
+            isActive: true,
+            lessonQuiz: {
+              id: `lesson-quiz-${Date.now()}`,
+              quizSettings: convertedSettings,
+              questions: convertedQuestions
+            }
+          };
+
+          const lessonIndex = modules[moduleIndex].lessons.findIndex((l, index) => 
+            l.id === editingItem.id || `lesson-${index}` === editingItem.id
+          );
+          if (lessonIndex !== -1) {
+            updateLesson(moduleIndex, lessonIndex, newQuizLesson);
+            message.success('Bài kiểm tra đã được cập nhật thành công!');
+          }
+        }
+      }
+      else if (editingItem.type === ContentType.VIDEO) {
+        // Adding quiz to existing video lesson
+        const lessonIndex = modules[moduleIndex].lessons.findIndex((l, index) => 
+          l.id === editingItem.id || `lesson-${index}` === editingItem.id
+        );
+        if (lessonIndex !== -1) {
+          const existingLesson = modules[moduleIndex].lessons[lessonIndex];
+          const updatedLesson = {
+            ...existingLesson,
+            lessonQuiz: {
+              id: `lesson-quiz-${Date.now()}`,
+              quizSettings: convertedSettings,
+              questions: convertedQuestions
+            }
+          };
+          updateLesson(moduleIndex, lessonIndex, updatedLesson);
+          message.success('Quiz đã được thêm vào bài học thành công!');
+        }
       }
     } else {
-      // Add new quiz
-      addLesson(moduleIndex, newQuizLesson);
+      // Create NEW module quiz when using "Thêm nội dung" → "Bài Kiểm Tra"
+      // But also create a lesson item for UI display
+      const quizCount = modules[moduleIndex].lessons.filter(l => 
+        l.title && (l.title.toLowerCase().includes('kiểm tra') || l.title.toLowerCase().includes('quiz'))
+      ).length + 1;
+
+      // Create module quiz with correct API format
+      const moduleQuiz = {
+        quizSettings: {
+          durationMinutes: settings.timeLimit || 30,
+          passingScorePercentage: settings.passingScore || 70,
+          shuffleQuestions: settings.shuffleQuestions || false,
+          showResultsImmediately: settings.showResults || true,
+          allowRetake: settings.allowRetake || true
+        },
+        questions: questions.map(q => ({
+          questionType: convertQuestionType(q.type),
+          questionText: q.question,
+          explanation: q.explanation || '',
+          options: q.options ? q.options.map((text, index) => ({
+            text: text,
+            isCorrect: q.type === 'multiple-choice' ? 
+              (Array.isArray(q.correctAnswer) ? q.correctAnswer.includes(index) : q.correctAnswer === index) :
+              q.type === 'true-false' ?
+              (index === 0 ? q.correctAnswer === 'true' : q.correctAnswer === 'false') :
+              q.correctAnswer === text
+          })) : []
+        }))
+      };
+
+      // Create a lesson item for UI display (but mark it as quiz type)
+      const quizLesson = {
+        id: `quiz-${Date.now()}`,
+        title: `Bài kiểm tra ${quizCount}`,
+        videoUrl: '',
+        videoDurationSec: settings.timeLimit ? settings.timeLimit * 60 : 1800,
+        positionIndex: modules[moduleIndex].lessons.length,
+        isActive: true,
+        type: 'quiz' // Mark as quiz type for identification
+      };
+
+      // Update module with both the moduleQuiz and the display lesson
+      const updatedModule = {
+        ...modules[moduleIndex],
+        moduleQuiz,
+        lessons: [...modules[moduleIndex].lessons, quizLesson]
+      };
+      
+      updateModule(moduleIndex, updatedModule);
       message.success('Bài kiểm tra đã được tạo thành công!');
     }
 
     setIsQuizBuilderOpen(false);
     setSelectedType(null);
     setEditingItem(null);
-  }, [activeModuleId, modules, addLesson, editingItem, updateLesson]);
-
-  // Handle quiz builder cancel
+    setQuizInitialData(null); // Clear initial data
+  }, [activeModuleId, modules, updateLesson, addLesson, editingItem, updateModule]);  // Handle quiz builder cancel
   const handleQuizCancel = useCallback(() => {
     setIsQuizBuilderOpen(false);
     setSelectedType(null);
+    setQuizInitialData(null); // Clear initial data
+    setEditingItem(null); // Clear editing item
   }, []);
 
   // Handle content deletion
@@ -351,22 +780,53 @@ const CourseContent: FC = () => {
     }
 
     const targetModule = modules[moduleIndex];
+    let deleted = false;
 
-    // Find the lesson index from itemId  
-    const lessonIndex = targetModule.lessons.findIndex((l, index) => {
-      const currentLessonId = l.id || `lesson-${index}`;
-      return currentLessonId === itemId;
-    });
-    
-    if (lessonIndex === -1) {
-      message.error('Không tìm thấy bài học');
+    // Try to find and delete from lessons
+    if (targetModule.lessons) {
+      const lessonIndex = targetModule.lessons.findIndex((l, index) => {
+        const currentLessonId = l.id || `lesson-${index}`;
+        return currentLessonId === itemId;
+      });
+      
+      if (lessonIndex !== -1) {
+        removeLesson(moduleIndex, lessonIndex);
+        deleted = true;
+      }
+    }
+
+    // Try to find and delete from discussions
+    if (!deleted && targetModule.discussions) {
+      const discussionIndex = targetModule.discussions.findIndex(d => d.id === itemId);
+      if (discussionIndex !== -1) {
+        const updatedModule = {
+          ...targetModule,
+          discussions: targetModule.discussions.filter(d => d.id !== itemId)
+        };
+        updateModule(moduleIndex, updatedModule);
+        deleted = true;
+      }
+    }
+
+    // Try to find and delete from materials  
+    if (!deleted && targetModule.materials) {
+      const materialIndex = targetModule.materials.findIndex(m => m.id === itemId);
+      if (materialIndex !== -1) {
+        const updatedModule = {
+          ...targetModule,
+          materials: targetModule.materials.filter(m => m.id !== itemId)
+        };
+        updateModule(moduleIndex, updatedModule);
+        deleted = true;
+      }
+    }
+
+    if (!deleted) {
+      message.error('Không tìm thấy nội dung để xóa');
       setDeleteModalOpen(false);
       setDeleteTarget(null);
       return;
     }
-
-    // Call the store method
-    removeLesson(moduleIndex, lessonIndex);
     
     // Force component re-render
     setRefreshKey(prev => prev + 1);
@@ -376,7 +836,7 @@ const CourseContent: FC = () => {
     // Close modal
     setDeleteModalOpen(false);
     setDeleteTarget(null);
-  }, [deleteTarget, modules, removeLesson]);
+  }, [deleteTarget, modules, removeLesson, updateModule]);
 
   // Handle content editing
   const handleEditContent = useCallback((moduleId: string, item: CourseContentItem) => {
@@ -388,19 +848,123 @@ const CourseContent: FC = () => {
     
     // Handle quiz editing differently
     if (contentType === ContentType.QUIZ) {
+      // Find the actual lesson data to get quiz information
+      const moduleIndex = modules.findIndex((m, index) => 
+        m.id === moduleId || `module-${index}` === moduleId
+      );
+      if (moduleIndex !== -1) {
+        const lesson = modules[moduleIndex].lessons?.find(l => 
+          l.id === item.id || `lesson-${modules[moduleIndex].lessons.findIndex(le => le === l)}` === item.id
+        );
+        
+        // Check if this is a module quiz (lesson marked as type 'quiz' but data in moduleQuiz)
+        if (lesson && lesson.type === 'quiz' && modules[moduleIndex].moduleQuiz) {
+          // Convert module quiz format to builder format
+          const convertModuleQuizToBuilderFormat = (moduleQuiz: any) => {
+            if (!moduleQuiz || !moduleQuiz.questions) return { questions: [], settings: {} };
+
+            const questions = moduleQuiz.questions.map((q: any, index: number) => ({
+              id: q.id || `question-${index}`,
+              question: q.questionText || '',
+              type: q.questionType === 1 ? 'multiple-choice' : q.questionType === 2 ? 'true-false' : 'short-answer',
+              options: q.options ? q.options.map((opt: any) => opt.text) : [],
+              correctAnswer: q.options ? 
+                (q.questionType === 1 ? // Multiple choice
+                  q.options.findIndex((opt: any) => opt.isCorrect) :
+                  q.questionType === 2 ? // True/False  
+                  (q.options[0]?.isCorrect ? 'true' : 'false') :
+                  q.options.find((opt: any) => opt.isCorrect)?.text || '') : '',
+              explanation: q.explanation || '',
+              points: 1
+            }));
+
+            const settings = {
+              timeLimit: moduleQuiz.quizSettings?.durationMinutes || 30,
+              passingScore: moduleQuiz.quizSettings?.passingScorePercentage || 70,
+              shuffleQuestions: moduleQuiz.quizSettings?.shuffleQuestions || false,
+              showResults: moduleQuiz.quizSettings?.showResultsImmediately || true,
+              allowRetake: moduleQuiz.quizSettings?.allowRetake || true
+            };
+
+            return { questions, settings };
+          };
+
+          const quizData = convertModuleQuizToBuilderFormat(modules[moduleIndex].moduleQuiz);
+          setQuizInitialData(quizData);
+        } else if (lesson && lesson.lessonQuiz) {
+          // Regular lesson quiz
+          const quizData = convertStoreQuizToBuilderFormat(lesson.lessonQuiz);
+          setQuizInitialData(quizData);
+        } else {
+          setQuizInitialData(null);
+        }
+      }
       setIsQuizBuilderOpen(true);
-      // TODO: Load existing quiz data into QuizBuilder if needed
     } else {
       setIsModalOpen(true);
-      form.setFieldsValue({
-        title: item.title,
-        description: item.description,
-        duration: item.duration,
-        url: item.url,
-        question: item.metadata?.question || ''
-      });
+      
+      // Set form values based on content type
+      if (contentType === ContentType.QUESTION) {
+        // For discussions, get data from metadata
+        form.setFieldsValue({
+          title: item.title,
+          description: item.description || '',
+          question: item.metadata?.question || ''
+        });
+        setUploadedFileName(null);
+      } else if (contentType === ContentType.FILE) {
+        // For materials, get data from metadata
+        form.setFieldsValue({
+          title: item.title,
+          description: item.description || '',
+          fileUrl: item.metadata?.fileUrl || item.url || ''
+        });
+        
+        // Set uploaded file name
+        const fileUrl = item.metadata?.fileUrl || item.url || '';
+        if (fileUrl && typeof fileUrl === 'string') {
+          const fileName = fileUrl.split('/').pop() || '';
+          setUploadedFileName(fileName);
+        }
+      } else {
+        // For video lessons
+        form.setFieldsValue({
+          title: item.title,
+          description: item.description || '',
+          duration: item.duration,
+          url: item.url || ''
+        });
+        setUploadedFileName(null);
+      }
     }
-  }, [form]);
+  }, [form, modules, convertStoreQuizToBuilderFormat]);
+
+  // Handle adding quiz to existing video lesson
+  const handleAddQuizToLesson = useCallback((moduleId: string, item: CourseContentItem) => {
+    setEditingItem(item); // Set the lesson we're adding quiz to
+    setActiveModuleId(moduleId);
+    setSelectedType(ContentType.QUIZ);
+    
+    // Check if lesson already has quiz data (shouldn't happen with UI logic, but just in case)
+    const moduleIndex = modules.findIndex((m, index) => 
+      m.id === moduleId || `module-${index}` === moduleId
+    );
+    if (moduleIndex !== -1) {
+      const lesson = modules[moduleIndex].lessons.find(l => 
+        l.id === item.id || `lesson-${modules[moduleIndex].lessons.findIndex(le => le === l)}` === item.id
+      );
+      if (lesson && lesson.lessonQuiz) {
+        const quizData = convertStoreQuizToBuilderFormat(lesson.lessonQuiz);
+        setQuizInitialData(quizData);
+      } else {
+        setQuizInitialData(null); // No existing quiz data
+      }
+    }
+    
+    setIsQuizBuilderOpen(true);
+  }, [modules, convertStoreQuizToBuilderFormat]);
+
+
 
   // Render content type selector
   const renderContentTypeSelector = () => (
@@ -551,11 +1115,28 @@ const CourseContent: FC = () => {
               `}>
                 {typeConfig?.title}
               </span>
+              {/* Show quiz indicator for video lessons with quiz */}
+              {item.type === ContentType.VIDEO && (item.metadata?.hasQuiz as boolean) && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
+                  <FaClipboardList className="mr-1 text-xs" />
+                  Có Quiz
+                </span>
+              )}
             </div>
           </div>
 
           {/* Action buttons */}
           <div className="flex-shrink-0 flex items-center gap-2 opacity-100 transition-opacity duration-200">
+            {/* Add Quiz button for video lessons without quiz */}
+            {item.type === ContentType.VIDEO && !(item.metadata?.hasQuiz as boolean) && (
+              <button
+                onClick={() => handleAddQuizToLesson(moduleId, item)}
+                className="p-2 text-gray-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg transition-colors duration-200"
+                title="Thêm Quiz cho bài học"
+              >
+                <FaClipboardList />
+              </button>
+            )}
             <button
               onClick={() => handleEditContent(moduleId, item)}
               className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors duration-200"
@@ -583,32 +1164,40 @@ const CourseContent: FC = () => {
     const typeConfig = contentTypes.find(t => t.type === selectedType);
     
     return (
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="text-center pb-4 border-b border-gray-200 dark:border-gray-700">
-          <div className={`
-            inline-flex items-center justify-center w-16 h-16 rounded-full mb-4
-            bg-gradient-to-br ${typeConfig?.gradient} text-white
-          `}>
-            {typeConfig?.icon && <typeConfig.icon className="text-2xl" />}
+      <Form
+        form={form}
+        layout="vertical"
+        key={formKey} // Use dynamic key to force complete re-render
+      >
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="text-center pb-4 border-b border-gray-200 dark:border-gray-700">
+            <div className={`
+              inline-flex items-center justify-center w-16 h-16 rounded-full mb-4
+              bg-gradient-to-br ${typeConfig?.gradient} text-white
+            `}>
+              {typeConfig?.icon && <typeConfig.icon className="text-2xl" />}
+            </div>
+            <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
+              {editingItem ? 'Chỉnh sửa' : 'Thêm'} {typeConfig?.title}
+            </h3>
           </div>
-          <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200">
-            {editingItem ? 'Chỉnh sửa' : 'Thêm'} {typeConfig?.title}
-          </h3>
-        </div>
 
-        {/* Common fields */}
-        <Form.Item
-          name="title"
-          label="Tiêu đề"
-          rules={[{ required: true, message: 'Vui lòng nhập tiêu đề!' }]}
-        >
-          <Input placeholder="Nhập tiêu đề nội dung..." size="large" />
-        </Form.Item>
+          {/* Common fields */}
+          <Form.Item
+            name="title"
+            label={<span className="text-sm font-medium text-gray-700 dark:text-gray-300">Tiêu đề <span className="text-red-500">*</span></span>}
+            rules={[{ required: true, message: 'Vui lòng nhập tiêu đề!' }]}
+          >
+            <Input 
+              placeholder="Nhập tiêu đề nội dung..." 
+              size="large"
+            />
+          </Form.Item>
 
         <Form.Item
           name="description"
-          label="Mô tả"
+          label={<span className="text-sm font-medium text-gray-700 dark:text-gray-300">Mô tả</span>}
         >
           <Input.TextArea 
             placeholder="Mô tả chi tiết về nội dung này..."
@@ -623,7 +1212,7 @@ const CourseContent: FC = () => {
           <>
             <Form.Item
               name="duration"
-              label="Thời lượng (phút)"
+              label={<span className="text-sm font-medium text-gray-700 dark:text-gray-300">Thời lượng (phút) <span className="text-red-500">*</span></span>}
               rules={[{ required: true, message: 'Vui lòng nhập thời lượng!' }]}
             >
               <InputNumber 
@@ -635,38 +1224,125 @@ const CourseContent: FC = () => {
               />
             </Form.Item>
             
-            <Form.Item name="url" label="Upload Video" valuePropName="value">
-              <CloudinaryVideoUpload maxSizeMB={512} dragger />
+            <Form.Item
+              name="url"
+              label={<span className="text-sm font-medium text-gray-700 dark:text-gray-300">Upload Video</span>}
+            >
+              <CloudinaryVideoUpload 
+                maxSizeMB={512} 
+                dragger
+                value={form.getFieldValue('url')}
+                onChange={(value) => {
+                  form.setFieldsValue({ url: value });
+                }}
+              />
             </Form.Item>
           </>
         )}
 
         {selectedType === ContentType.FILE && (
-          <Form.Item label="Upload File">
-            <Upload.Dragger
-              name="file"
-              multiple
-              className="hover:border-blue-400 transition-colors duration-200"
+          <>
+            <Form.Item
+              name="fileUrl"
+              label={<span className="text-sm font-medium text-gray-700 dark:text-gray-300">URL File</span>}
+              hidden
             >
-              <p className="ant-upload-drag-icon">
-                <FaFile className="text-4xl text-purple-500" />
-              </p>
-              <p className="ant-upload-text text-lg font-medium">
-                Kéo thả file vào đây hoặc click để chọn
-              </p>
-              <p className="ant-upload-hint text-gray-500">
-                Hỗ trợ: PDF, DOC, PPT, XLS, TXT, ZIP
-              </p>
-            </Upload.Dragger>
-          </Form.Item>
+              <Input />
+            </Form.Item>
+            <Form.Item
+              label={<span className="text-sm font-medium text-gray-700 dark:text-gray-300">Upload File <span className="text-red-500">*</span></span>}
+              required
+            >
+              <Upload.Dragger
+                name="file"
+                multiple={false}
+                fileList={[]}
+                className="hover:border-blue-400 transition-colors duration-200"
+                customRequest={async (options) => {
+                  const { file, onSuccess, onError, onProgress } = options;
+                  try {
+                    setIsUploading(true);
+                    const fileName = (file as File).name || 'file';
+                    setUploadedFileName(fileName); // Update state to show uploading
+                    
+                    // Show upload progress
+                    onProgress?.({ percent: 10 });
+                    message.loading({ content: 'Đang tải lên file...', key: 'upload', duration: 0 });
+                    
+                    // Upload to Cloudinary
+                    const result = await uploadToCloudinaryRaw(file as File, {
+                      folder: 'course-materials'
+                    });
+                    
+                    // Update progress
+                    onProgress?.({ percent: 100 });
+                    
+                    // Set the actual Cloudinary URL
+                    const fileUrl = result.secure_url || result.url;
+                    form.setFieldsValue({ fileUrl });
+                    
+                    setIsUploading(false);
+                    onSuccess?.(result);
+                    message.success({ content: 'File đã được tải lên Cloudinary thành công!', key: 'upload' });
+                  } catch (error) {
+                    console.error('Cloudinary upload failed:', error);
+                    setIsUploading(false);
+                    setUploadedFileName(null); // Reset on error
+                    onError?.(error as any);
+                    message.error({ content: 'Tải file lên Cloudinary thất bại!', key: 'upload' });
+                  }
+                }}
+                showUploadList={false}
+                maxCount={1}
+              >
+                <p className="ant-upload-drag-icon">
+                  <FaFile className="text-4xl text-purple-500" />
+                </p>
+                <p className="ant-upload-text text-lg font-medium">
+                  Kéo thả file vào đây hoặc click để chọn
+                </p>
+                <p className="ant-upload-hint text-gray-500">
+                  Hỗ trợ: PDF, DOC, PPT, XLS, TXT, ZIP
+                </p>
+              </Upload.Dragger>
+              {/* Show upload status using state (reactive) */}
+              {isUploading && (
+                <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <div className="flex items-center gap-2">
+                    <div className="animate-spin w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                    <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                      Đang tải lên file: {uploadedFileName}
+                    </span>
+                  </div>
+                  <div className="mt-1 text-xs text-blue-600 dark:text-blue-400">
+                    Đang upload lên Cloudinary...
+                  </div>
+                </div>
+              )}
+              {uploadedFileName && !isUploading && (
+                <div className="mt-2 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                  <div className="flex items-center gap-2">
+                    <FaFile className="text-green-600 dark:text-green-400" />
+                    <span className="text-sm font-medium text-green-700 dark:text-green-300">
+                      File đã tải lên Cloudinary thành công:
+                    </span>
+                  </div>
+                  <div className="mt-1 text-sm text-green-600 dark:text-green-400 font-mono bg-green-100 dark:bg-green-800/20 px-2 py-1 rounded">
+                    {uploadedFileName}
+                  </div>
+                  <div className="mt-1 text-xs text-green-500 dark:text-green-400">
+                    ✓ Lưu trữ trên Cloudinary CDN
+                  </div>
+                </div>
+              )}
+            </Form.Item>
+          </>
         )}
-
-
 
         {selectedType === ContentType.QUESTION && (
           <Form.Item
             name="question"
-            label="Câu hỏi thảo luận"
+            label={<span className="text-sm font-medium text-gray-700 dark:text-gray-300">Câu hỏi thảo luận <span className="text-red-500">*</span></span>}
             rules={[{ required: true, message: 'Vui lòng nhập câu hỏi!' }]}
           >
             <Input.TextArea 
@@ -677,7 +1353,8 @@ const CourseContent: FC = () => {
             />
           </Form.Item>
         )}
-      </div>
+        </div>
+      </Form>
     );
   };
 
@@ -711,10 +1388,25 @@ const CourseContent: FC = () => {
                         <div className="p-4 flex justify-between items-center">
                             <div>
                                 <h3 className="font-semibold text-lg text-gray-800 dark:text-gray-200">{module.moduleName}</h3>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">{items.length} nội dung</p>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                  {items.length} nội dung
+                                  {module.moduleQuiz && (
+                                    <span className="ml-2 px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs rounded-full">
+                                      Có quiz chương ({module.moduleQuiz.questions?.length || 0} câu hỏi)
+                                    </span>
+                                  )}
+                                </p>
                             </div>
-                            <Button icon={<FaPlus />} onClick={() => { setActiveModuleId(module.id || `module-${moduleIndex}`); setIsModalOpen(true); setSelectedType(null); }}>
-                                Thêm nội dung
+                            <Button 
+                              icon={<FaPlus />} 
+                              onClick={() => { 
+                                const moduleId = module.id || `module-${moduleIndex}`;
+                                setActiveModuleId(moduleId); 
+                                setIsModalOpen(true); 
+                                setSelectedType(null); 
+                              }}
+                            >
+                              Thêm nội dung
                             </Button>
                         </div>
                         <div className="px-4 pb-4">
@@ -741,7 +1433,7 @@ const CourseContent: FC = () => {
 
         {/* Actions */}
         <div className="flex justify-between items-center mt-12 pt-6 border-t border-gray-200 dark:border-gray-700">
-            <Button icon={<FaArrowLeft />} onClick={() => {
+            <Button icon={<FaArrowLeft />} htmlType="button" onClick={() => {
                 const container = document.getElementById('create-course-content');
                 if (container) {
                     container.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -750,7 +1442,7 @@ const CourseContent: FC = () => {
                 }
                 setCurrentStep(1);
             }} size="large">Quay lại</Button>
-            <Button type="primary" icon={<FaArrowRight />} onClick={() => {
+            <Button type="primary" htmlType="button" icon={<FaArrowRight />} onClick={() => {
                 const container = document.getElementById('create-course-content');
                 if (container) {
                     container.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -765,12 +1457,18 @@ const CourseContent: FC = () => {
 
         {/* Modal for adding/editing content */}
         <Modal
+          key={`modal-${selectedType || 'none'}-${editingItem?.id || 'new'}`} // Force re-render when type/item changes
           title={editingItem ? 'Chỉnh sửa nội dung' : 'Thêm nội dung mới'}
           open={isModalOpen}
-          onCancel={() => { setIsModalOpen(false); setEditingItem(null); form.resetFields(); setSelectedType(null); }}
+          onCancel={() => { 
+            setIsModalOpen(false); 
+            setEditingItem(null); 
+            resetFormCompletely(); 
+            setSelectedType(null); 
+          }}
           footer={null}
           width={selectedType ? 600 : 800}
-          destroyOnHidden
+          destroyOnHidden={true} // Destroy modal contents when closed
         >
             {!selectedType ? (
                 <div className="p-4">
@@ -778,13 +1476,18 @@ const CourseContent: FC = () => {
                     {renderContentTypeSelector()}
                 </div>
             ) : (
-                <Form form={form} layout="vertical" onFinish={handleSubmitContent}>
+                <div>
                     {renderModalContent()}
                     <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
-                        <Button onClick={() => { setIsModalOpen(false); setEditingItem(null); form.resetFields(); setSelectedType(null); }}>Hủy</Button>
-                        <Button type="primary" htmlType="submit">{editingItem ? 'Cập nhật' : 'Thêm nội dung'}</Button>
+                        <Button onClick={() => { 
+                          setIsModalOpen(false); 
+                          setEditingItem(null); 
+                          resetFormCompletely(); 
+                          setSelectedType(null); 
+                        }}>Hủy</Button>
+                        <Button type="primary" onClick={handleSubmitContent}>{editingItem ? 'Cập nhật' : 'Thêm nội dung'}</Button>
                     </div>
-                </Form>
+                </div>
             )}
         </Modal>
 
@@ -797,7 +1500,12 @@ const CourseContent: FC = () => {
           width={900}
           destroyOnHidden
         >
-          <QuizBuilder onSave={handleQuizSave} onCancel={handleQuizCancel} />
+          <QuizBuilder 
+            initialQuestions={quizInitialData?.questions || []}
+            initialSettings={quizInitialData?.settings || {}}
+            onSave={handleQuizSave} 
+            onCancel={handleQuizCancel} 
+          />
         </Modal>
 
         {/* Delete Confirmation Modal */}

@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "antd/dist/reset.css";
+@import "../styles/ckeditor-custom.css";
 /* @custom-variant dark (&:where(.new-dark, .new-dark *)); */
 @custom-variant dark (&:where(.dark, .dark *));
 @layer theme, base, components, utilities;

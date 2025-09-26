@@ -47,7 +47,7 @@ const CourseManagementPage: React.FC = () => {
     courses,
     isLoading,
     error,
-    fetchCourses,
+    fetchCoursesByLecturer,
     clearError,
   } = useCourseManagementStore();
 
@@ -60,8 +60,8 @@ const CourseManagementPage: React.FC = () => {
   
 
   useEffect(() => {
-    fetchCourses();
-  }, []); // Remove fetchCourses from dependencies to prevent infinite loop
+    fetchCoursesByLecturer();
+  }, []); // Remove fetchCoursesByLecturer from dependencies to prevent infinite loop
 
   // Handle error display
   useEffect(() => {
@@ -88,10 +88,10 @@ const CourseManagementPage: React.FC = () => {
     createdAt: new Date(course.createdAt),
     updatedAt: new Date(course.updatedAt),
     lecturerId: course.teacherId,
-    lecturerName: 'Instructor Name', // TODO: Get from teacher API
+    lecturerName: 'Instructor',
     duration: course.durationHours,
-    rating: 4.5, // TODO: Get from reviews API
-    reviewCount: 0, // TODO: Get from reviews API
+    rating: 0,
+    reviewCount: 0,
   });
 
   // Filter courses based on active filters
@@ -158,10 +158,19 @@ const CourseManagementPage: React.FC = () => {
         cover={
           <div className="relative h-48 overflow-hidden">
             <Image
-              src={course.coverImage || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=400'}
+              src={course.coverImage && 
+                   !course.coverImage.includes('example.com') && 
+                   !course.coverImage.includes('cdn.example.com')
+                ? course.coverImage 
+                : 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=400'
+              }
               alt={course.title}
               fill
               className="object-cover"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.src = 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=400';
+              }}
             />
             <div className="absolute top-3 left-3">
               <Tag color={statusColors[course.status]} className="font-medium">
@@ -197,7 +206,7 @@ const CourseManagementPage: React.FC = () => {
             </div>
           </div>
         }
-        bodyStyle={{ padding: '20px' }}
+        styles={{ body: { padding: '20px' } }}
         onClick={() => router.push(`/Lecturer/courses/${course.id}`)}
       >
         <div className="flex flex-col h-full">

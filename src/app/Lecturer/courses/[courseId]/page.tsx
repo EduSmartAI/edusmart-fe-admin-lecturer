@@ -22,7 +22,8 @@ import {
   Rate, 
   Breadcrumb,
   Typography,
-  Dropdown
+  Dropdown,
+  Empty
 } from 'antd';
 import {
   EditOutlined,
@@ -55,10 +56,10 @@ const mapCourseForUI = (course: CourseDto) => {
     studentCount: course.learnerCount,
     currency: 'VND', // Default currency as API doesn't provide this
     duration: course.durationHours,
-    lecturerName: 'Instructor Name', // TODO: Get from teacher API
+    lecturerName: 'Instructor',
     status: course.isActive ? 'published' : 'draft' as const,
-    rating: 4.5, // TODO: Get from reviews API
-    reviewCount: 0, // TODO: Get from reviews API
+    rating: 0,
+    reviewCount: 0,
     coverImage: course.courseImageUrl, // Map courseImageUrl to coverImage
     category: course.subjectCode || 'General', // Use subjectCode as category
   };
@@ -102,72 +103,6 @@ const CourseDetailPage: React.FC = () => {
   const [course, setCourse] = useState<ReturnType<typeof mapCourseForUI> | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
   const [loading, setLoading] = useState(true);
-
-  // Mock data for demonstration
-  const [courseContent] = useState<CourseContent[]>([
-    {
-      id: '1',
-      title: 'Giới thiệu về ReactJS',
-      type: 'video',
-      duration: 45,
-      completionRate: 85,
-      watchTime: 38
-    },
-    {
-      id: '2',
-      title: 'Components và Props',
-      type: 'video',
-      duration: 60,
-      completionRate: 72,
-      watchTime: 43
-    },
-    {
-      id: '3',
-      title: 'Kiểm tra kiến thức cơ bản',
-      type: 'quiz',
-      duration: 15,
-      completionRate: 65,
-      watchTime: 12
-    }
-  ]);
-
-  const [studentProgress] = useState<StudentProgress[]>([
-    {
-      id: '1',
-      name: 'Nguyễn Văn A',
-      email: 'nguyenvana@email.com',
-      progress: 75,
-      lastAccessed: new Date('2024-03-15'),
-      completedLessons: 15,
-      totalLessons: 20
-    },
-    {
-      id: '2',
-      name: 'Trần Thị B',
-      email: 'tranthib@email.com',
-      progress: 92,
-      lastAccessed: new Date('2024-03-20'),
-      completedLessons: 18,
-      totalLessons: 20
-    }
-  ]);
-
-  const [reviews] = useState<CourseReview[]>([
-    {
-      id: '1',
-      studentName: 'Nguyễn Văn A',
-      rating: 5,
-      comment: 'Khóa học rất hữu ích và dễ hiểu. Giảng viên giải thích rất chi tiết.',
-      date: new Date('2024-03-10')
-    },
-    {
-      id: '2',
-      studentName: 'Trần Thị B',
-      rating: 4,
-      comment: 'Nội dung phong phú, tuy nhiên cần thêm bài tập thực hành.',
-      date: new Date('2024-03-12')
-    }
-  ]);
 
   const loadCourseData = useCallback(async () => {
     setLoading(true);
@@ -381,14 +316,21 @@ const CourseDetailPage: React.FC = () => {
           {/* Header */}
           <div className="flex justify-between items-center mb-6 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
             <div>
-              <Breadcrumb className="mb-2">
-                <Breadcrumb.Item>
-                  <Link href="/Lecturer/courses" className="text-emerald-600 hover:text-emerald-700">
-                    Quản lý khóa học
-                  </Link>
-                </Breadcrumb.Item>
-                <Breadcrumb.Item>{course.title || 'Untitled Course'}</Breadcrumb.Item>
-              </Breadcrumb>
+              <Breadcrumb 
+                className="mb-2"
+                items={[
+                  {
+                    title: (
+                      <Link href="/Lecturer/courses" className="text-emerald-600 hover:text-emerald-700">
+                        Quản lý khóa học
+                      </Link>
+                    )
+                  },
+                  {
+                    title: course.title || 'Untitled Course'
+                  }
+                ]}
+              />
               <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200">Chi tiết khóa học</h1>
             </div>
             <div className="flex items-center gap-3">
@@ -574,11 +516,9 @@ const CourseDetailPage: React.FC = () => {
                           Thêm nội dung
                         </Button>
                       </div>
-                      <Table
-                        columns={contentColumns}
-                        dataSource={courseContent}
-                        rowKey="id"
-                        pagination={false}
+                      <Empty 
+                        description="Chưa có nội dung bài học"
+                        image={Empty.PRESENTED_IMAGE_SIMPLE}
                       />
                     </div>
                   )
@@ -589,11 +529,9 @@ const CourseDetailPage: React.FC = () => {
                   children: (
                     <div className="space-y-4">
                       <Title level={4}>Tiến độ học viên</Title>
-                      <Table
-                        columns={progressColumns}
-                        dataSource={studentProgress}
-                        rowKey="id"
-                        pagination={{ pageSize: 10 }}
+                      <Empty 
+                        description="Chưa có học viên đăng ký"
+                        image={Empty.PRESENTED_IMAGE_SIMPLE}
                       />
                     </div>
                   )
@@ -615,30 +553,9 @@ const CourseDetailPage: React.FC = () => {
                           </div>
                         </div>
                       </div>
-                      <List
-                        dataSource={reviews}
-                        renderItem={(review) => (
-                          <List.Item>
-                            <List.Item.Meta
-                              avatar={
-                                <Avatar 
-                                  src={review.studentAvatar} 
-                                  icon={<UserOutlined />} 
-                                />
-                              }
-                              title={
-                                <div className="flex items-center gap-2">
-                                  <span>{review.studentName}</span>
-                                  <Rate disabled value={review.rating} className="text-sm" />
-                                  <span className="text-sm text-gray-500">
-                                    {review.date.toLocaleDateString('vi-VN')}
-                                  </span>
-                                </div>
-                              }
-                              description={review.comment}
-                            />
-                          </List.Item>
-                        )}
+                      <Empty 
+                        description="Chưa có đánh giá nào"
+                        image={Empty.PRESENTED_IMAGE_SIMPLE}
                       />
                     </div>
                   )

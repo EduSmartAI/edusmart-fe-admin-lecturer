@@ -3,12 +3,13 @@ import { FC, useEffect, useState, useCallback, useRef } from 'react';
 import { useCreateCourseStore } from 'EduSmart/stores/CreateCourse/CreateCourseStore';
 
 import { useTheme } from 'EduSmart/Provider/ThemeProvider';
-import { ConfigProvider, Form, theme, message, Button } from 'antd';
+import { ConfigProvider, Form, theme, App, Button } from 'antd';
 
 import { FaArrowRight, FaCheck, FaSpinner, FaTrash } from 'react-icons/fa';
 import { FadeInUp } from 'EduSmart/components/Animation/FadeInUp';
 
 import { CourseFormData } from '../../types';
+import { scheduleAutoClear } from '../../utils/autoSave';
 import BasicInfoSection from './course-information/BasicInfoSection';
 import DescriptionSection from './course-information/DescriptionSection';
 import ClassificationSection from './course-information/ClassificationSection';
@@ -35,8 +36,8 @@ const showDebouncedNotification = (type: 'success' | 'error' | 'warning', conten
 
     lastNotification = content;
 
+    // Just log for now - will be replaced with proper App notification
     notificationTimeout = setTimeout(() => {
-        message[type](content);
         setTimeout(() => {
             lastNotification = '';
         }, 2000); // Reset after 2 seconds to allow future messages
@@ -46,8 +47,8 @@ const showDebouncedNotification = (type: 'success' | 'error' | 'warning', conten
 
 
 const CourseInformation: FC = () => {
-    const { updateCourseInformation, setCurrentStep } = useCreateCourseStore();
-    const form = Form.useFormInstance();
+    const { updateCourseInformation, setCurrentStep, currentStep } = useCreateCourseStore();
+    const form = Form.useFormInstance(); // Use the parent form instance instead of creating a new one
     const { isDarkMode } = useTheme();
 
     // Auto-save state
@@ -55,6 +56,37 @@ const CourseInformation: FC = () => {
     const [lastSaved, setLastSaved] = useState<Date | null>(null);
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const isInitialLoadRef = useRef(true);
+    const listOperationRef = useRef(false); // Track if list operations are happening
+    
+    // Add effect to handle returning to this step
+    useEffect(() => {
+        // Reset the initial load flag when returning to step 0
+        if (currentStep === 0 && !isInitialLoadRef.current) {
+            // Refresh form data from store
+            const storeState = useCreateCourseStore.getState();
+            const formData = {
+                title: storeState.courseInformation.title,
+                subtitle: storeState.courseInformation.shortDescription,
+                subjectId: storeState.courseInformation.subjectId,
+                description: storeState.courseInformation.description,
+                courseImageUrl: storeState.courseInformation.courseImageUrl,
+                price: storeState.courseInformation.price,
+                dealPrice: storeState.courseInformation.dealPrice,
+                level: storeState.courseInformation.level === 1 ? 'Beginner' : 
+                       storeState.courseInformation.level === 2 ? 'Intermediate' : 
+                       storeState.courseInformation.level === 3 ? 'Advanced' : 'Beginner',
+                promoVideo: storeState.courseInformation.courseIntroVideoUrl,
+                learningObjectives: storeState.objectives.map(obj => obj.content),
+                requirements: storeState.requirements.map(req => req.content),
+                targetAudience: storeState.targetAudience.map(aud => aud.content),
+                courseTags: storeState.courseTags,
+            };
+            
+            setTimeout(() => {
+                form.setFieldsValue(formData);
+            }, 50);
+        }
+    }, [currentStep, form]);
 
     // Auto-save functions
     const saveToLocalStorage = useCallback((formData: CourseFormData) => {
@@ -77,6 +109,9 @@ const CourseInformation: FC = () => {
             localStorage.setItem(AUTO_SAVE_KEY, JSON.stringify(dataToSave));
             setSaveStatus('saved');
             setLastSaved(new Date());
+            
+            // Set up auto-clear after 10 minutes
+            scheduleAutoClear();
 
             // Reset status after 3 seconds
             setTimeout(() => {
@@ -158,39 +193,185 @@ const CourseInformation: FC = () => {
         return false;
     }, [form, scrollToTop]);
 
-    // Load saved data on component mount
+    // Load saved data on component mount - prioritize Zustand store over localStorage
     useEffect(() => {
         if (isInitialLoadRef.current) {
-            loadFromLocalStorage();
+            // First, try to load from Zustand store (persisted data)
+            const storeState = useCreateCourseStore.getState();
+            
+            if (storeState.courseInformation && (
+                storeState.courseInformation.title ||
+                storeState.courseInformation.subjectId ||
+                storeState.courseInformation.shortDescription
+            )) {
+                
+                // Sync Zustand store data back to form
+                const formData = {
+                    title: storeState.courseInformation.title,
+                    subtitle: storeState.courseInformation.shortDescription, // Map back to form field name
+                    subjectId: storeState.courseInformation.subjectId,
+                    description: storeState.courseInformation.description,
+                    courseImageUrl: storeState.courseInformation.courseImageUrl,
+                    price: storeState.courseInformation.price,
+                    dealPrice: storeState.courseInformation.dealPrice,
+                    level: storeState.courseInformation.level === 1 ? 'Beginner' : 
+                           storeState.courseInformation.level === 2 ? 'Intermediate' : 
+                           storeState.courseInformation.level === 3 ? 'Advanced' : 'Beginner',
+                    promoVideo: storeState.courseInformation.courseIntroVideoUrl,
+                    // Map arrays back to form format
+                    learningObjectives: storeState.objectives.map(obj => obj.content),
+                    requirements: storeState.requirements.map(req => req.content),
+                    targetAudience: storeState.targetAudience.map(aud => aud.content),
+                    courseTags: storeState.courseTags,
+                };
+                
+                
+                // Use setTimeout to ensure form is ready before setting values
+                setTimeout(() => {
+                    form.setFieldsValue(formData);
+                    setLastSaved(new Date());
+                    showDebouncedNotification('success', 'Đã khôi phục dữ liệu từ phiên trước', 500);
+                }, 100);
+            } else {
+                // Fallback to localStorage if no Zustand data
+                setTimeout(() => {
+                    loadFromLocalStorage();
+                }, 100);
+            }
+            
             isInitialLoadRef.current = false;
         }
-    }, [loadFromLocalStorage]);
+    }, [loadFromLocalStorage, form]);
 
     const allValues = Form.useWatch([], form);
+    const prevValuesRef = useRef<any>(null);
+    const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     useEffect(() => {
-        if (!isInitialLoadRef.current) {
+        if (!isInitialLoadRef.current && allValues) {
+            // Skip update if values haven't actually changed
+            if (prevValuesRef.current && JSON.stringify(prevValuesRef.current) === JSON.stringify(allValues)) {
+                return;
+            }
+            
+            // Clear any existing timeout to debounce updates
+            if (updateTimeoutRef.current) {
+                clearTimeout(updateTimeoutRef.current);
+            }
+            
+            // Check if array lengths changed (indicating add/remove operations)
+            if (prevValuesRef.current) {
+                const prevObj = prevValuesRef.current.learningObjectives || [];
+                const currObj = allValues.learningObjectives || [];
+                const prevReq = prevValuesRef.current.requirements || [];
+                const currReq = allValues.requirements || [];
+                const prevAud = prevValuesRef.current.targetAudience || [];
+                const currAud = allValues.targetAudience || [];
+                
+                if (prevObj.length !== currObj.length || 
+                    prevReq.length !== currReq.length || 
+                    prevAud.length !== currAud.length) {
+                    listOperationRef.current = true;
+                }
+            }
+            
+            // Auto-save to localStorage (for backup) only
+            
+            // Log specific array values to debug add/remove operations
+            if (allValues.learningObjectives) {
+            }
+            if (allValues.requirements) {
+            }
+            if (allValues.targetAudience) {
+            }
+            
             debouncedSave(allValues);
+            
+            // Use a longer delay to allow Form.List operations to complete properly
+            // Check if list operations are happening and adjust delay accordingly
+            const delay = listOperationRef.current ? 1500 : 1000;
+            
+            updateTimeoutRef.current = setTimeout(() => {
+                try {
+                    // Helper function to check if HTML content is empty or different
+                    const normalizeHtml = (html: string): string => {
+                        if (!html) return '';
+                        const tempDiv = document.createElement('div');
+                        tempDiv.innerHTML = html;
+                        return tempDiv.innerHTML;
+                    };
+
+                    // Only update store if values have actually changed
+                    const currentStoreState = useCreateCourseStore.getState();
+                    const hasChanges = (
+                        currentStoreState.courseInformation.title !== (allValues.title || '') ||
+                        currentStoreState.courseInformation.shortDescription !== (allValues.subtitle || '') ||
+                        normalizeHtml(currentStoreState.courseInformation.description) !== normalizeHtml(allValues.description || '') ||
+                        currentStoreState.courseInformation.subjectId !== (allValues.subjectId || '') ||
+                        currentStoreState.objectives.length !== (allValues.learningObjectives || []).length ||
+                        currentStoreState.requirements.length !== (allValues.requirements || []).length ||
+                        currentStoreState.targetAudience.length !== (allValues.targetAudience || []).length
+                    );
+                    
+                    if (hasChanges) {
+                        updateCourseInformation(allValues);
+                    } else {
+                    }
+                    
+                    listOperationRef.current = false; // Reset after successful update
+                } catch (error) {
+                    console.warn('[CourseInformation] Failed to update Zustand store:', error);
+                }
+            }, delay);
+            
+            // Store current values for next comparison
+            prevValuesRef.current = { ...allValues };
         }
-    }, [allValues, debouncedSave]);
+    }, [allValues, debouncedSave, updateCourseInformation]);
 
     const handleNext = async () => {
         try {
+            // Get current form values (don't validate yet to allow checking what's there)
+            const currentValues = form.getFieldsValue();
+            
+            // Validate all form fields
             const values = await form.validateFields();
-            updateCourseInformation(values);
-
-            // Clear saved data on successful submission
-            localStorage.removeItem(AUTO_SAVE_KEY);
-
-            const container = document.getElementById('create-course-content');
-            if (container) {
-                container.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            } else {
-                window.scrollTo({ top: 0, behavior: 'smooth' });
+            
+            // Custom validation for array fields
+            const errors: string[] = [];
+            
+            if (!values.learningObjectives || values.learningObjectives.length < 4) {
+                errors.push('Mục tiêu học tập cần có ít nhất 4 mục');
             }
-            setCurrentStep(1);
+            
+            if (!values.targetAudience || values.targetAudience.length < 3) {
+                errors.push('Đối tượng học viên cần có ít nhất 3 mục');
+            }
+            
+            if (!values.requirements || values.requirements.length < 2) {
+                errors.push('Yêu cầu trước khi học cần có ít nhất 2 mục');
+            }
+            
+            if (errors.length > 0) {
+                showDebouncedNotification('error', errors[0], 100);
+                return;
+            }
+            
+            
+            // Update the store with the form data
+            updateCourseInformation(values);
+            
+            // Small delay to ensure store is updated before navigation
+            setTimeout(() => {
+                const container = document.getElementById('create-course-content');
+                if (container) {
+                    container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                } else {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+                setCurrentStep(1);
+            }, 100);
         } catch (error) {
-            console.log('Validation failed:', error);
             // Scroll to first error field if validation fails
             const errorField = document.querySelector('.ant-form-item-has-error');
             if (errorField) {
@@ -218,6 +399,9 @@ const CourseInformation: FC = () => {
         return () => {
             if (saveTimeoutRef.current) {
                 clearTimeout(saveTimeoutRef.current);
+            }
+            if (updateTimeoutRef.current) {
+                clearTimeout(updateTimeoutRef.current);
             }
         };
     }, []);
@@ -294,8 +478,8 @@ const CourseInformation: FC = () => {
 
                 {/* Actions */}
                 <div className="flex justify-end items-center gap-4 mt-12 pt-6 border-t border-gray-200 dark:border-gray-700">
-                    <Button type="text" icon={<FaTrash />} onClick={handleResetForm}>Đặt lại</Button>
-                    <Button type="primary" icon={<FaArrowRight />} onClick={handleNext} size="large">
+                    <Button type="text" htmlType="button" icon={<FaTrash />} onClick={handleResetForm}>Đặt lại</Button>
+                    <Button type="primary" htmlType="button" icon={<FaArrowRight />} onClick={handleNext} size="large">
                         Tiếp theo: Xây dựng giáo trình
                     </Button>
                 </div>

@@ -5,7 +5,6 @@ import { GoogleLogin, CredentialResponse } from "@react-oauth/google";
 export default function LoginPage() {
   const onGoogleSuccess = async (resp: CredentialResponse) => {
     const idToken = resp?.credential; // JWT ID Token từ Google One Tap/Button
-    console.log("idToken ở đây",idToken)
     // thành công: điều hướng về app
     // window.location.href = "/";
   };

@@ -5,7 +5,6 @@ import {
   CreateCourseDto, 
   UpdateCourseDto,
 } from 'EduSmart/api/api-course-service';
-import { useSessionAuthStore } from 'EduSmart/stores/Auth/SessionAuthStore';
 
 // Course basic information aligned with API schema
 export interface CourseInformation {
@@ -16,6 +15,7 @@ export interface CourseInformation {
     shortDescription: string;
     description: string;
     courseImageUrl?: string;
+    courseIntroVideoUrl?: string; // Video giới thiệu khóa học
     durationMinutes?: number;
     level?: number; // 1, 2, 3 for beginner, intermediate, advanced
     price: number;
@@ -39,6 +39,20 @@ export interface CourseRequirement {
     isActive: boolean;
 }
 
+// Course target audience aligned with API (similar structure to requirements)
+export interface CourseTargetAudience {
+    id?: string; // for updates
+    content: string;
+    positionIndex: number;
+    isActive: boolean;
+}
+
+// Course tags aligned with API
+export interface CourseTag {
+    tagId: number;
+    tagName?: string;
+}
+
 // Module objectives aligned with API
 export interface ModuleObjective {
     id?: string; // for updates
@@ -55,6 +69,60 @@ export interface Lesson {
     videoDurationSec?: number;
     positionIndex: number;
     isActive: boolean;
+    lessonQuiz?: LessonQuiz;
+    type?: string; // Optional: to mark special lesson types like 'quiz' for module quizzes
+}
+
+// Quiz-related interfaces
+export interface LessonQuiz {
+    id?: string;
+    quizSettings?: QuizSettings;
+    questions?: Question[];
+}
+
+export interface QuizSettings {
+    id?: string;
+    durationMinutes?: number;
+    passingScorePercentage?: number;
+    shuffleQuestions?: boolean;
+    showResultsImmediately?: boolean;
+    allowRetake?: boolean;
+}
+
+export interface Question {
+    id?: string;
+    questionType: number; // 1 = MultipleChoice, 2 = TrueFalse, 3 = SingleChoice
+    questionText?: string;
+    options?: QuestionOption[];
+    explanation?: string;
+}
+
+export interface QuestionOption {
+    id?: string;
+    text?: string;
+    isCorrect: boolean;
+}
+
+export interface ModuleQuiz {
+    id?: string;
+    quizSettings?: QuizSettings;
+    questions?: Question[];
+}
+
+export interface Discussion {
+    id?: string; // for updates
+    title: string;
+    description?: string;
+    discussionQuestion?: string;
+    isActive: boolean;
+}
+
+export interface Material {
+    id?: string; // for updates
+    title: string;
+    description?: string;
+    fileUrl?: string;
+    isActive: boolean;
 }
 
 // Module structure aligned with API
@@ -69,6 +137,9 @@ export interface CourseModule {
     level?: number;
     objectives: ModuleObjective[];
     lessons: Lesson[];
+    discussions?: Discussion[]; // Optional: thảo luận
+    materials?: Material[]; // Optional: tài liệu 
+    moduleQuiz?: ModuleQuiz; // Optional: module quiz
     isExpanded?: boolean; // UI state only
 }
 
@@ -77,6 +148,8 @@ export interface CreateCourseState {
     courseInformation: CourseInformation;
     objectives: CourseObjective[];
     requirements: CourseRequirement[];
+    targetAudience: CourseTargetAudience[];
+    courseTags: CourseTag[];
     modules: CourseModule[];
     isLoading: boolean;
     isSaving: boolean;
@@ -100,6 +173,17 @@ export interface CreateCourseState {
     updateRequirement: (index: number, data: Partial<CourseRequirement>) => void;
     removeRequirement: (index: number) => void;
     reorderRequirements: (startIndex: number, endIndex: number) => void;
+    
+    // Target Audience management
+    addTargetAudience: (targetAudience: Omit<CourseTargetAudience, 'positionIndex'>) => void;
+    updateTargetAudience: (index: number, data: Partial<CourseTargetAudience>) => void;
+    removeTargetAudience: (index: number) => void;
+    reorderTargetAudience: (startIndex: number, endIndex: number) => void;
+    
+    // Tags management
+    addTag: (tag: CourseTag) => void;
+    removeTag: (tagId: number) => void;
+    updateTags: (tags: CourseTag[]) => void;
     
     // Module management
     addModule: (module: Omit<CourseModule, 'id' | 'positionIndex'>) => void;
@@ -144,19 +228,19 @@ export interface CourseContentItem {
     order: number;
 }
 
-// Temporary teacher ID - TODO: Get from user session/authentication
-const DEFAULT_TEACHER_ID = 'd9824682-b5ba-4cd2-8015-5a808e899e4e';
+// No hardcoded teacher ID - always extract from logged-in account
 
 const initialState = {
     currentStep: 0,
     courseInformation: {
-        teacherId: DEFAULT_TEACHER_ID,
+        teacherId: '', // Will be set dynamically from JWT token
         subjectId: '',
         subjectCode: '',
         title: '',
         shortDescription: '',
         description: '',
         courseImageUrl: '',
+        courseIntroVideoUrl: '', // Video giới thiệu khóa học
         durationMinutes: 0,
         level: 1, // 1 = Beginner
         price: 0,
@@ -165,6 +249,8 @@ const initialState = {
     },
     objectives: [],
     requirements: [],
+    targetAudience: [],
+    courseTags: [],
     modules: [],
     isLoading: false,
     isSaving: false,
@@ -185,9 +271,39 @@ const updatePositionIndexes = <T extends { positionIndex: number }>(array: T[]):
 };
 
 // Convert store data to API format
-const convertToCreateCourseDto = (state: CreateCourseState): CreateCourseDto => {
-    // Build raw dto first
-    const sessionUserId = useSessionAuthStore.getState().session?.userId;
+const convertToCreateCourseDto = async (state: CreateCourseState): Promise<CreateCourseDto> => {
+    // Debug: Log the current state modules before conversion
+    state.modules.forEach((module, idx) => {
+        if (module.moduleQuiz) {
+        }
+        module.lessons.forEach((lesson, lessonIdx) => {
+            if (lesson.lessonQuiz) {
+            }
+        });
+    });
+    state.modules.forEach((module, idx) => {
+        module.objectives.forEach((obj, objIdx) => {
+        });
+    });
+    
+    // Get lecturer ID from JWT token (don't hardcode teacher_id) 
+    let teacherId = '';
+    
+    try {
+        const { getUserIdFromTokenAction } = await import('EduSmart/app/(auth)/action');
+        const userInfo = await getUserIdFromTokenAction();
+        
+        if (userInfo.ok && userInfo.userId) {
+            teacherId = userInfo.userId;
+        } else {
+            console.error('[CreateCourse] Failed to get lecturer ID from JWT:', userInfo);
+            throw new Error('Unable to get lecturer ID from logged-in account');
+        }
+    } catch (error) {
+        console.error('[CreateCourse] Error extracting lecturer ID:', error);
+        throw new Error('Failed to get lecturer ID: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    }
+    
     // Derive total course duration from modules/lessons if not explicitly set
     const totalMinutesFromState = (state.modules || []).reduce((sum, mod) => {
         const moduleMinutes = (mod.durationMinutes && mod.durationMinutes > 0)
@@ -197,7 +313,7 @@ const convertToCreateCourseDto = (state: CreateCourseState): CreateCourseDto => 
     }, 0);
 
     const dto: CreateCourseDto = {
-        teacherId: sessionUserId || state.courseInformation.teacherId,
+        teacherId: teacherId, // Use dynamically extracted lecturer ID
         subjectId: state.courseInformation.subjectId,
         title: state.courseInformation.title,
         shortDescription: state.courseInformation.shortDescription,
@@ -205,6 +321,7 @@ const convertToCreateCourseDto = (state: CreateCourseState): CreateCourseDto => 
         // Let backend generate slug to avoid uniqueness conflicts
         // slug: state.courseInformation.slug,
         courseImageUrl: state.courseInformation.courseImageUrl,
+        courseIntroVideoUrl: state.courseInformation.courseIntroVideoUrl, // Video giới thiệu khóa học
         durationMinutes: (state.courseInformation.durationMinutes && state.courseInformation.durationMinutes > 0)
             ? state.courseInformation.durationMinutes
             : (totalMinutesFromState > 0 ? totalMinutesFromState : undefined),
@@ -224,6 +341,14 @@ const convertToCreateCourseDto = (state: CreateCourseState): CreateCourseDto => 
             positionIndex: (req.positionIndex ?? idx) + 1,
             isActive: req.isActive,
         })),
+        courseTags: state.courseTags.map((tag) => ({
+            tagId: tag.tagId,
+        })),
+        audiences: state.targetAudience.map((aud, idx) => ({
+            content: aud.content,
+            positionIndex: (aud.positionIndex ?? idx) + 1,
+            isActive: aud.isActive,
+        })),
         modules: state.modules.map((module, mIdx) => ({
             moduleName: module.moduleName,
             description: module.description,
@@ -241,15 +366,97 @@ const convertToCreateCourseDto = (state: CreateCourseState): CreateCourseDto => 
                 positionIndex: (obj.positionIndex ?? oIdx) + 1,
                 isActive: obj.isActive,
             })),
-            lessons: module.lessons
-                .filter(lesson => typeof lesson.videoUrl === 'string' && lesson.videoUrl.trim().length > 0)
-                .map((lesson, lIdx) => ({
-                title: lesson.title,
-                videoUrl: lesson.videoUrl,
-                videoDurationSec: lesson.videoDurationSec,
-                positionIndex: (lesson.positionIndex ?? lIdx) + 1,
-                isActive: lesson.isActive,
-            })),
+            // Optional: lessons (bài học - videos) - only include if user added them
+            // Exclude quiz display lessons (type: 'quiz') as they are for UI only
+            ...((() => {
+                const validLessons = module.lessons
+                    ?.filter((lesson: Lesson) => {
+                        const isValid = lesson.title && 
+                            lesson.title.trim().length > 0 && 
+                            lesson.type !== 'quiz'; // Exclude quiz display lessons
+                        return isValid;
+                    }) || [];
+                
+                
+                return validLessons.length > 0 ? {
+                    lessons: validLessons.map((lesson: Lesson, lIdx: number) => ({
+                        title: lesson.title,
+                        videoUrl: lesson.videoUrl && lesson.videoUrl.trim().length > 0 
+                            ? lesson.videoUrl 
+                            : '', // Leave empty if no video uploaded
+                        videoDurationSec: lesson.videoDurationSec || 0,
+                        positionIndex: (lesson.positionIndex ?? lIdx) + 1,
+                        isActive: lesson.isActive ?? true,
+                        // Optional: lesson quiz
+                        ...(lesson.lessonQuiz && {
+                            lessonQuiz: {
+                                quizSettings: lesson.lessonQuiz.quizSettings ? {
+                                    durationMinutes: lesson.lessonQuiz.quizSettings.durationMinutes,
+                                    passingScorePercentage: lesson.lessonQuiz.quizSettings.passingScorePercentage,
+                                    shuffleQuestions: lesson.lessonQuiz.quizSettings.shuffleQuestions,
+                                    showResultsImmediately: lesson.lessonQuiz.quizSettings.showResultsImmediately,
+                                    allowRetake: lesson.lessonQuiz.quizSettings.allowRetake,
+                                } : undefined,
+                                questions: lesson.lessonQuiz.questions?.map(question => ({
+                                    questionType: question.questionType,
+                                    questionText: question.questionText,
+                                    explanation: question.explanation,
+                                    options: question.options?.map(option => ({
+                                        text: option.text,
+                                        isCorrect: option.isCorrect,
+                                    })),
+                                })),
+                            }
+                        }),
+                    }))
+                } : {};
+            })()), 
+            
+            // Optional: discussions (thảo luận) - only include if user added them  
+            ...(module.discussions && module.discussions.length > 0 && {
+                discussions: module.discussions
+                    .filter((discussion: Discussion) => discussion.title && discussion.title.trim().length > 0)
+                    .map((discussion: Discussion, dIdx: number) => ({
+                        title: discussion.title,
+                        description: discussion.description || '',
+                        discussionQuestion: discussion.discussionQuestion || '',
+                        isActive: discussion.isActive ?? true,
+                    }))
+            }),
+            
+            // Optional: materials (tài liệu) - only include if user added them
+            ...(module.materials && module.materials.length > 0 && {
+                materials: module.materials
+                    .filter((material: Material) => material.title && material.title.trim().length > 0)
+                    .map((material: Material, mIdx: number) => ({
+                        title: material.title,
+                        description: material.description || '',
+                        fileUrl: material.fileUrl || '',
+                        isActive: material.isActive ?? true,
+                    }))
+            }),
+            
+            // Optional: module quiz
+            ...(module.moduleQuiz && {
+                moduleQuiz: {
+                    quizSettings: module.moduleQuiz.quizSettings ? {
+                        durationMinutes: module.moduleQuiz.quizSettings.durationMinutes,
+                        passingScorePercentage: module.moduleQuiz.quizSettings.passingScorePercentage,
+                        shuffleQuestions: module.moduleQuiz.quizSettings.shuffleQuestions,
+                        showResultsImmediately: module.moduleQuiz.quizSettings.showResultsImmediately,
+                        allowRetake: module.moduleQuiz.quizSettings.allowRetake,
+                    } : undefined,
+                    questions: module.moduleQuiz.questions?.map(question => ({
+                        questionType: question.questionType,
+                        questionText: question.questionText,
+                        explanation: question.explanation,
+                        options: question.options?.map(option => ({
+                            text: option.text,
+                            isCorrect: option.isCorrect,
+                        })),
+                    })),
+                }
+            }),
         })),
     };
 
@@ -268,10 +475,20 @@ const convertToCreateCourseDto = (state: CreateCourseState): CreateCourseDto => 
     }
     // Always omit slug; backend will generate from title
     delete (dto as any).slug;
-    if (!dto.shortDescription || dto.shortDescription.trim() === '') {
+    
+    // Helper function to check if HTML content is empty
+    const isHtmlContentEmpty = (html: string): boolean => {
+        if (!html || html.trim() === '') return true;
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = html;
+        const textContent = tempDiv.textContent || tempDiv.innerText || '';
+        return textContent.trim() === '';
+    };
+    
+    if (!dto.shortDescription || isHtmlContentEmpty(dto.shortDescription)) {
         delete (dto as any).shortDescription;
     }
-    if (!dto.description || dto.description.trim() === '') {
+    if (!dto.description || isHtmlContentEmpty(dto.description)) {
         delete (dto as any).description;
     }
 
@@ -292,55 +509,63 @@ const convertToCreateCourseDto = (state: CreateCourseState): CreateCourseDto => 
     return dto;
 };
 
-const convertToUpdateCourseDto = (state: CreateCourseState): UpdateCourseDto => {
+const convertToUpdateCourseDto = async (state: CreateCourseState): Promise<UpdateCourseDto> => {
+    // Get lecturer ID from JWT token (same logic as create)
+    let teacherId = '';
+    
+    try {
+        const { getUserIdFromTokenAction } = await import('EduSmart/app/(auth)/action');
+        const userInfo = await getUserIdFromTokenAction();
+        
+        if (userInfo.ok && userInfo.userId) {
+            teacherId = userInfo.userId;
+        } else {
+            throw new Error('Unable to get lecturer ID from logged-in account');
+        }
+    } catch (error) {
+        throw new Error('Failed to get lecturer ID: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    }
+    
     return {
-        teacherId: state.courseInformation.teacherId,
+        teacherId: teacherId,
         subjectId: state.courseInformation.subjectId,
         title: state.courseInformation.title,
         shortDescription: state.courseInformation.shortDescription,
         description: state.courseInformation.description,
         courseImageUrl: state.courseInformation.courseImageUrl,
+        courseIntroVideoUrl: state.courseInformation.courseIntroVideoUrl, // Video giới thiệu khóa học
         durationMinutes: state.courseInformation.durationMinutes,
         level: state.courseInformation.level,
         price: state.courseInformation.price,
         dealPrice: state.courseInformation.dealPrice,
         isActive: state.courseInformation.isActive,
-        objectives: state.objectives.map(obj => ({
-            objectiveId: obj.id,
+        objectives: state.objectives.map((obj, idx) => ({
+            // Only include objectiveId if it exists (for existing objectives)
+            ...(obj.id && { objectiveId: obj.id }),
             content: obj.content,
-            positionIndex: obj.positionIndex,
+            positionIndex: obj.positionIndex ?? idx,
             isActive: obj.isActive,
         })),
-        requirements: state.requirements.map(req => ({
-            requirementId: req.id,
+        requirements: state.requirements.map((req, idx) => ({
+            // Only include requirementId if it exists (for existing requirements)  
+            ...(req.id && { requirementId: req.id }),
             content: req.content,
-            positionIndex: req.positionIndex,
+            positionIndex: req.positionIndex ?? idx,
             isActive: req.isActive,
         })),
-        modules: state.modules.map(module => ({
-            moduleId: module.id,
-            moduleName: module.moduleName,
-            description: module.description,
-            positionIndex: module.positionIndex,
-            isActive: module.isActive,
-            isCore: module.isCore,
-            durationMinutes: module.durationMinutes,
-            level: module.level,
-            objectives: module.objectives.map(obj => ({
-                objectiveId: obj.id,
-                content: obj.content,
-                positionIndex: obj.positionIndex,
-                isActive: obj.isActive,
-            })),
-            lessons: module.lessons.map(lesson => ({
-                lessonId: lesson.id,
-                title: lesson.title,
-                videoUrl: lesson.videoUrl,
-                videoDurationSec: lesson.videoDurationSec,
-                positionIndex: lesson.positionIndex,
-                isActive: lesson.isActive,
-            })),
+        audiences: state.targetAudience.length > 0 ? state.targetAudience.map(aud => ({
+            // Use audienceId instead of targetAudienceId to match API
+            ...(aud.id && { audienceId: aud.id }),
+            content: aud.content,
+            positionIndex: aud.positionIndex,
+            isActive: aud.isActive,
+        })) : [], // Include empty array explicitly - API might expect this
+        // Add courseTags in the format API expects
+        courseTags: state.courseTags.map(tag => ({
+            tagId: tag.tagId,
         })),
+        // Note: Modules are updated separately via a different API endpoint
+        // The basic course update only handles course information, objectives, requirements, and audiences
     };
 };
 
@@ -355,36 +580,49 @@ export const useCreateCourseStore = create<CreateCourseState>()(
             // Course information
             updateCourseInformation: (data: any) =>
                 set((state) => {
-                    // Create a clean copy of only the fields we need to avoid circular references
                     const cleanData: Partial<CourseInformation> = {};
                     
-                    // Copy basic fields
-                    if (data.title !== undefined) cleanData.title = data.title;
-                    if (data.description !== undefined) cleanData.description = data.description;
+                    // Copy basic fields - only update if value is provided and meaningful
+                    if (data.title !== undefined && data.title !== null) cleanData.title = String(data.title).trim();
+                    if (data.description !== undefined && data.description !== null) cleanData.description = String(data.description);
                     if (data.courseImageUrl !== undefined) cleanData.courseImageUrl = data.courseImageUrl;
                     if (data.durationMinutes !== undefined) cleanData.durationMinutes = data.durationMinutes;
-                    if (data.price !== undefined) cleanData.price = data.price;
+                    if (data.price !== undefined && data.price !== null) cleanData.price = Number(data.price) || 0;
                     if (data.dealPrice !== undefined) cleanData.dealPrice = data.dealPrice;
                     if (data.isActive !== undefined) cleanData.isActive = data.isActive;
                     
+                    // Map promoVideo → courseIntroVideoUrl
+                    if (data.promoVideo !== undefined) {
+                        // Handle array format from file uploader
+                        if (Array.isArray(data.promoVideo) && data.promoVideo.length > 0) {
+                            const firstVideo = data.promoVideo[0];
+                            const videoUrl = (firstVideo?.baseUrl || firstVideo?.url || '').toString();
+                            if (videoUrl) {
+                                cleanData.courseIntroVideoUrl = videoUrl;
+                            }
+                        } else if (typeof data.promoVideo === 'string' && data.promoVideo.trim()) {
+                            cleanData.courseIntroVideoUrl = data.promoVideo.trim();
+                        }
+                    }
+                    
                     // Subject mapping: form now provides subjectId directly
-                    if (data.subjectId) {
-                        cleanData.subjectId = data.subjectId as unknown as string;
+                    if (data.subjectId !== undefined && data.subjectId !== null && data.subjectId !== '') {
+                        cleanData.subjectId = String(data.subjectId);
                     }
                     
                     // Convert level from string to number if provided
-                    if (data.level) {
+                    if (data.level !== undefined && data.level !== null && data.level !== '') {
                         const levelMap: Record<string, number> = {
                             'Beginner': 1,
                             'Intermediate': 2,
                             'Advanced': 3
                         };
-                        cleanData.level = levelMap[data.level] || 1;
+                        cleanData.level = levelMap[String(data.level)] || 1;
                     }
                     
-                    // Map subtitle → shortDescription
-                    if (data.subtitle) {
-                        cleanData.shortDescription = data.subtitle;
+                    // Map subtitle → shortDescription (preserve existing value if subtitle is empty)
+                    if (data.subtitle !== undefined && data.subtitle !== null) {
+                        cleanData.shortDescription = String(data.subtitle).trim();
                     }
 
                     // Map cover image uploader → courseImageUrl (first item)
@@ -397,34 +635,90 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                     }
 
                     // Map learning objectives (array of strings) → objectives DTO in store
+                    // PRESERVE EXISTING IDs to prevent creating duplicates
                     let mappedObjectives = state.objectives;
                     if (Array.isArray(data.learningObjectives)) {
-                        mappedObjectives = data.learningObjectives
-                            .filter((s: unknown) => typeof s === 'string' && s.trim().length > 0)
-                            .map((content: string, index: number) => ({
+                        const filteredObjectives = data.learningObjectives
+                            .filter((s: unknown) => typeof s === 'string' && s.trim().length > 0);
+                        
+                        mappedObjectives = filteredObjectives.map((content: string, index: number) => {
+                            // Try to preserve existing ID if content matches
+                            const existingObjective = state.objectives.find(obj => obj.content === content);
+                            return {
+                                id: existingObjective?.id, // Preserve existing ID if found
                                 content,
                                 positionIndex: index,
                                 isActive: true,
-                            }));
+                            };
+                        });
                     }
 
                     // Map requirements (array of strings)
+                    // PRESERVE EXISTING IDs to prevent creating duplicates  
                     let mappedRequirements = state.requirements;
                     if (Array.isArray(data.requirements)) {
-                        mappedRequirements = data.requirements
-                            .filter((s: unknown) => typeof s === 'string' && s.trim().length > 0)
-                            .map((content: string, index: number) => ({
+                        const filteredRequirements = data.requirements
+                            .filter((s: unknown) => typeof s === 'string' && s.trim().length > 0);
+                            
+                        mappedRequirements = filteredRequirements.map((content: string, index: number) => {
+                            // Try to preserve existing ID if content matches
+                            const existingRequirement = state.requirements.find(req => req.content === content);
+                            return {
+                                id: existingRequirement?.id, // Preserve existing ID if found
                                 content,
                                 positionIndex: index,
                                 isActive: true,
+                            };
+                        });
+                    }
+
+                    // Map target audience (array of strings)
+                    // PRESERVE EXISTING IDs to prevent creating duplicates
+                    let mappedTargetAudience = state.targetAudience;
+                    if (Array.isArray(data.targetAudience)) {
+                        const filteredTargetAudience = data.targetAudience
+                            .filter((s: unknown) => typeof s === 'string' && s.trim().length > 0);
+                            
+                        mappedTargetAudience = filteredTargetAudience.map((content: string, index: number) => {
+                            // Try to preserve existing ID if content matches
+                            const existingTargetAudience = state.targetAudience.find(aud => aud.content === content);
+                            return {
+                                id: existingTargetAudience?.id, // Preserve existing ID if found
+                                content,
+                                positionIndex: index,
+                                isActive: true,
+                            };
+                        });
+                    }
+
+                    // Map course tags
+                    let mappedCourseTags = state.courseTags;
+                    if (Array.isArray(data.courseTags)) {
+                        mappedCourseTags = data.courseTags
+                            .filter((tag: any) => tag && typeof tag.tagId === 'number')
+                            .map((tag: any) => ({
+                                tagId: tag.tagId,
+                                tagName: tag.tagName || tag.name || '',
+                            }));
+                    } else if (Array.isArray(data.tags)) {
+                        // Support both 'courseTags' and 'tags' for flexibility
+                        mappedCourseTags = data.tags
+                            .filter((tag: any) => tag && typeof tag.tagId === 'number')
+                            .map((tag: any) => ({
+                                tagId: tag.tagId,
+                                tagName: tag.tagName || tag.name || '',
                             }));
                     }
 
-                    return {
+                    const updatedState = {
                         courseInformation: { ...state.courseInformation, ...cleanData },
                         objectives: mappedObjectives,
                         requirements: mappedRequirements,
+                        targetAudience: mappedTargetAudience,
+                        courseTags: mappedCourseTags,
                     };
+                    
+                    return updatedState;
                 }),
             
             // Objectives management
@@ -486,6 +780,50 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                         reorderArray(state.requirements, startIndex, endIndex)
                     )
                 })),
+            
+            // Target Audience management
+            addTargetAudience: (targetAudience) =>
+                set((state) => ({
+                    targetAudience: [
+                        ...state.targetAudience,
+                        { ...targetAudience, positionIndex: state.targetAudience.length }
+                    ]
+                })),
+            
+            updateTargetAudience: (index, data) =>
+                set((state) => ({
+                    targetAudience: state.targetAudience.map((aud, i) =>
+                        i === index ? { ...aud, ...data } : aud
+                    )
+                })),
+            
+            removeTargetAudience: (index) =>
+                set((state) => ({
+                    targetAudience: updatePositionIndexes(
+                        state.targetAudience.filter((_, i) => i !== index)
+                    )
+                })),
+            
+            reorderTargetAudience: (startIndex, endIndex) =>
+                set((state) => ({
+                    targetAudience: updatePositionIndexes(
+                        reorderArray(state.targetAudience, startIndex, endIndex)
+                    )
+                })),
+            
+            // Tags management
+            addTag: (tag) =>
+                set((state) => ({
+                    courseTags: [...state.courseTags, tag]
+                })),
+            
+            removeTag: (tagId) =>
+                set((state) => ({
+                    courseTags: state.courseTags.filter(tag => tag.tagId !== tagId)
+                })),
+            
+            updateTags: (tags) =>
+                set({ courseTags: tags }),
             
             // Module management
             addModule: (module) =>
@@ -624,15 +962,7 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                 const state = get();
                 set({ isSaving: true, error: null });
                 
-                // Validate required fields
-                if (!state.courseInformation.teacherId) {
-                    set({ 
-                        error: 'Teacher ID is required',
-                        isSaving: false 
-                    });
-                    return false;
-                }
-                
+                // Validate required fields (teacherId will be extracted from JWT)
                 if (!state.courseInformation.subjectId) {
                     set({ 
                         error: 'Subject ID is required. Please select a category.',
@@ -650,21 +980,38 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                 }
                 
                 try {
-                    const courseData = convertToCreateCourseDto(state);
-                    console.log('Sending course data:', courseData); // Debug log
+                    const courseData = await convertToCreateCourseDto(state);
+                    
                     const response = await courseServiceAPI.createCourse(courseData);
-                    // Debug logs for server response
-                    console.log('[CreateCourse] Server response:', response);
 
                     if (response.success && response.response) {
+                        const createdCourseId = response.response;
+                        
+                        // Try to immediately fetch the created course to verify it exists
+                        setTimeout(async () => {
+                            try {
+                                const { courseServiceAPI } = await import('EduSmart/api/api-course-service');
+                                const fetchResponse = await courseServiceAPI.getCourseById(createdCourseId);
+                                
+                                if (fetchResponse.success && fetchResponse.response) {
+                                    // Course created and verified successfully
+                                } else {
+                                    console.warn('⚠️ [CreateCourse] Course created but verification failed:', fetchResponse);
+                                }
+                            } catch (fetchError) {
+                                console.error('❌ [CreateCourse] Error during course verification:', fetchError);
+                                // Error fetching created course - but creation was still successful
+                            }
+                        }, 1000); // Wait 1 second for potential DB commit delay
+                        
                         set({ 
-                            courseId: response.response,
+                            courseId: createdCourseId,
                             isSaving: false 
                         });
                         return true;
                     } else {
                         if (response.detailErrors && response.detailErrors.length > 0) {
-                            console.warn('[CreateCourse] Validation errors:', response.detailErrors);
+                            // Validation errors found
                         }
                         set({ 
                             error: response.message || 'Failed to create course',
@@ -675,7 +1022,6 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                 } catch (error: any) {
                     const status = error?.response?.status;
                     const data = error?.response?.data;
-                    console.error('Create course error:', { status, data, raw: error });
                     let message = 'Network error occurred while creating course';
                     if (status) {
                         message = `Create failed (HTTP ${status})`;
@@ -683,6 +1029,7 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                     if (data?.message) {
                         message = `${message}: ${data.message}`;
                     }
+                    
                     set({ 
                         error: message,
                         isSaving: false 
@@ -701,7 +1048,12 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                 set({ isSaving: true, error: null });
                 
                 try {
-                    const courseData = convertToUpdateCourseDto(state);
+                    const courseData = await convertToUpdateCourseDto(state);
+                    
+                    // Validation: Since modules are not part of basic course update,
+                    // we skip module validation for now
+                    // Modules would be updated via a separate API endpoint if needed
+                    
                     const response = await courseServiceAPI.updateCourse(state.courseId, courseData);
                     
                     if (response.success) {
@@ -715,7 +1067,6 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                         return false;
                     }
                 } catch (error) {
-                    console.error('Update course error:', error);
                     set({ 
                         error: 'Network error occurred while updating course',
                         isSaving: false 
@@ -742,7 +1093,11 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                                 title: course.title || '',
                                 shortDescription: course.shortDescription || '',
                                 description: course.description || '',
-                                courseImageUrl: course.courseImageUrl,
+                                courseImageUrl: course.courseImageUrl && !course.courseImageUrl.includes('example.com') 
+                                    ? course.courseImageUrl 
+                                    : undefined, // Remove example URLs
+                                // Initialize courseIntroVideoUrl as empty since API doesn't return it
+                                courseIntroVideoUrl: '', // Video giới thiệu khóa học - will be empty for editing
                                 durationMinutes: course.durationMinutes,
                                 level: course.level,
                                 price: course.price,
@@ -761,6 +1116,12 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                                 positionIndex: req.positionIndex,
                                 isActive: req.isActive,
                             })) || [],
+                            courseTags: course.courseTags?.map(tag => ({
+                                tagId: tag.tagId,
+                                tagName: tag.tagName || '',
+                            })) || [],
+                            // Initialize empty targetAudience array since API doesn't return this field
+                            targetAudience: [],
                             modules: course.modules?.map(module => ({
                                 id: module.moduleId,
                                 moduleName: module.moduleName || '',
@@ -779,14 +1140,22 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                                 lessons: module.guestLessons?.map(lesson => ({
                                     id: lesson.lessonId,
                                     title: lesson.title || '',
-                                    videoUrl: '',
-                                    videoDurationSec: 0,
+                                    videoUrl: '', // API doesn't provide videoUrl, will be empty for editing
+                                    videoDurationSec: 0, // API doesn't provide duration, will be 0 for editing  
                                     positionIndex: lesson.positionIndex,
                                     isActive: lesson.isActive,
+                                    // Initialize empty lesson quiz since API doesn't provide quiz details
+                                    lessonQuiz: undefined,
                                 })) || [],
+                                // Initialize empty arrays for discussions and materials since API doesn't return them
+                                // These will be available for editing but start empty
+                                discussions: [],
+                                materials: [],
                                 isExpanded: false,
                             })) || [],
                             isLoading: false,
+                            isSaving: false,
+                            error: null,
                         });
                         
                         return true;
@@ -813,15 +1182,75 @@ export const useCreateCourseStore = create<CreateCourseState>()(
         }),
         {
             name: 'create-course-storage',
-            storage: createJSONStorage(() => localStorage),
+            storage: createJSONStorage(() => {
+                // Enhanced SSR check - return proper no-op storage for server-side rendering
+                if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+                    return {
+                        getItem: () => null,
+                        setItem: () => {},
+                        removeItem: () => {},
+                    };
+                }
+                
+                // Add extra safety checks for localStorage
+                return {
+                    getItem: (name: string) => {
+                        try {
+                            const item = localStorage.getItem(name);
+                            if (item) {
+                                // Validate the JSON before returning
+                                JSON.parse(item);
+                                return item;
+                            }
+                            return null;
+                        } catch (error) {
+                            console.warn('[CreateCourseStore] Failed to get item from localStorage:', error);
+                            return null;
+                        }
+                    },
+                    setItem: (name: string, value: string) => {
+                        try {
+                            // Validate JSON before storing
+                            JSON.parse(value);
+                            localStorage.setItem(name, value);
+                        } catch (error) {
+                            console.warn('[CreateCourseStore] Failed to set item in localStorage:', error);
+                        }
+                    },
+                    removeItem: (name: string) => {
+                        try {
+                            localStorage.removeItem(name);
+                        } catch (error) {
+                            console.warn('[CreateCourseStore] Failed to remove item from localStorage:', error);
+                        }
+                    },
+                };
+            }),
             partialize: (state) => ({
                 currentStep: state.currentStep,
                 courseInformation: state.courseInformation,
                 objectives: state.objectives,
                 requirements: state.requirements,
+                targetAudience: state.targetAudience,
+                courseTags: state.courseTags,
                 modules: state.modules,
                 courseId: state.courseId,
             }),
+            // Add version and migration support
+            version: 1,
+            migrate: (persistedState: any, version: number) => {
+                return persistedState;
+            },
+            // Skip hydration errors and continue - prevent SSR issues
+            skipHydration: true,
+            onRehydrateStorage: () => {
+                return (state, error) => {
+                    if (error) {
+                        console.error('[CreateCourseStore] Rehydration error:', error);
+                    } else {
+                    }
+                };
+            },
         }
     )
 );

@@ -10,9 +10,10 @@ import ScrollToTopButton from 'EduSmart/components/Common/ScrollToTopButton';
 
 interface CreateCourseLayoutProps {
     children: ReactNode;
+    isEditMode?: boolean;
 }
 
-const CreateCourseLayout: FC<CreateCourseLayoutProps> = ({ children }) => {
+const CreateCourseLayout: FC<CreateCourseLayoutProps> = ({ children, isEditMode = false }) => {
     const { isDarkMode } = useTheme();
 
     return (
@@ -21,7 +22,9 @@ const CreateCourseLayout: FC<CreateCourseLayoutProps> = ({ children }) => {
                 <div className="container mx-auto px-4 py-8">
                     {/* Header */}
                     <div className="flex justify-between items-center mb-6 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-                        <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200">Tạo khóa học</h1>
+                        <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200">
+                            {isEditMode ? 'Chỉnh sửa khóa học' : 'Tạo khóa học'}
+                        </h1>
                         <div className="flex items-center gap-3">
 
                         </div>
@@ -37,7 +40,7 @@ const CreateCourseLayout: FC<CreateCourseLayoutProps> = ({ children }) => {
                                         algorithm: isDarkMode ? theme.darkAlgorithm : theme.defaultAlgorithm
                                     }}
                                 >
-                                    <AccessibleStepper />
+                                    <AccessibleStepper isEditMode={isEditMode} />
                                 </ConfigProvider>
                             </div>
 
