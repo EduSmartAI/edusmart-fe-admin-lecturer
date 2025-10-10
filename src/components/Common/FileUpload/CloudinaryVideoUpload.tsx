@@ -1,5 +1,6 @@
 "use client";
-import React, { useMemo, useState } from 'react';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import React, { useState } from 'react';
 import { Upload, UploadProps, App, Progress, Button } from 'antd';
 import { UploadOutlined } from '@ant-design/icons';
 import type { RcFile } from 'antd/es/upload/interface';
@@ -49,13 +50,14 @@ const CloudinaryVideoUpload: React.FC<CloudinaryVideoUploadProps> = ({
       setProgress(100);
       setIsUploading(false);
       onChange?.(res.secure_url || res.url);
-      onSuccess && onSuccess('ok');
+      if (onSuccess) onSuccess('ok');
       message.success('Tải video thành công');
-    } catch (e: any) {
+    } catch (e: unknown) {
       setIsUploading(false);
       setProgress(0);
-      message.error(e?.message || 'Tải video thất bại');
-      onError && onError(e);
+      const error = e as Error;
+      message.error(error?.message || 'Tải video thất bại');
+      if (onError) onError(e as any);
     }
   };
 

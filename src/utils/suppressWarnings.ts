@@ -5,7 +5,7 @@ if (typeof window !== 'undefined') {
   const originalWarn = console.warn;
   const originalError = console.error;
 
-  console.warn = (...args: any[]) => {
+  console.warn = (...args: unknown[]) => {
     const message = args.join(' ');
     
     // Skip Ant Design compatibility warnings
@@ -27,7 +27,7 @@ if (typeof window !== 'undefined') {
     originalWarn(...args);
   };
 
-  console.error = (...args: any[]) => {
+  console.error = (...args: unknown[]) => {
     const message = args.join(' ');
     
     // Skip Ant Design compatibility errors

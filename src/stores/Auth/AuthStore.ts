@@ -106,7 +106,8 @@ export const useAuthStore = create<AuthState>()(
             return true
           }
           return false
-        } catch {
+        } catch (error) {
+          console.error('[AuthStore] Login failed:', error);
           return false
         }
       },

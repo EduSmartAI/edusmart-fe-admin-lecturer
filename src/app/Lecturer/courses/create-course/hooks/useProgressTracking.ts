@@ -1,6 +1,7 @@
 'use client';
 import { useMemo } from 'react';
 import { useCreateCourseStore } from 'EduSmart/stores/CreateCourse/CreateCourseStore';
+/* eslint-disable react-hooks/exhaustive-deps */
 
 export interface StepProgress {
   stepId: number;

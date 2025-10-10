@@ -1,219 +1,97 @@
 'use client';
-import React, { FC } from 'react';
+import { FC } from 'react';
 import { Form } from 'antd';
 import SmartInput from '../../ui/SmartInput';
+import RichTextEditor from 'EduSmart/components/BaseControl/RichTextEditor';
 import ListFieldManager from '../../ui/ListFieldManager';
-
-// Standalone Rich Text Editor using CKEditor
-const RichTextFormField: React.FC<{
-  value?: string;
-  onChange?: (value: string) => void;
-}> = ({ value, onChange }) => {
-  const [editorComponents, setEditorComponents] = React.useState<{
-    CKEditor: any;
-    ClassicEditor: any;
-  } | null>(null);
-  
-  const [currentLength, setCurrentLength] = React.useState(0);
-  const editorRef = React.useRef<any>(null);
-
-  // Use value from form field
-  const editorValue = value || '';
-
-  // Load CKEditor dynamically
-  React.useEffect(() => {
-    const loadEditor = async () => {
-      try {
-        const [ckEditorModule, classicEditorModule] = await Promise.all([
-          import('@ckeditor/ckeditor5-react'),
-          import('@ckeditor/ckeditor5-build-classic')
-        ]);
-        
-        setEditorComponents({
-          CKEditor: ckEditorModule.CKEditor,
-          ClassicEditor: classicEditorModule.default
-        });
-      } catch (error) {
-        console.error('Failed to load CKEditor:', error);
-      }
-    };
-    
-    if (typeof window !== 'undefined') {
-      loadEditor();
-    }
-  }, []);
-
-  // Function to count plain text characters
-  const getPlainTextLength = (html: string): number => {
-    if (typeof window === 'undefined') return 0;
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = html;
-    return tempDiv.textContent?.length || 0;
-  };
-
-  // Update length when content changes
-  React.useEffect(() => {
-    setCurrentLength(getPlainTextLength(editorValue));
-  }, [editorValue]);
-
-  // Handle editor change
-  const handleEditorChange = React.useCallback((event: any, editor: any) => {
-    const data = editor.getData();
-    setCurrentLength(getPlainTextLength(data));
-    if (onChange) {
-      onChange(data);
-    }
-  }, [onChange]);
-
-  // Handle editor ready
-  const handleReady = React.useCallback((editor: any) => {
-    editorRef.current = editor;
-  }, []);
-
-  const maxLength = 2000;
-  const isOverLimit = currentLength > maxLength;
-
-  const editorConfig = {
-    toolbar: {
-      items: [
-        'heading',
-        '|',
-        'bold',
-        'italic',
-        'underline',
-        '|',
-        'fontSize',
-        'fontColor',
-        '|',
-        'bulletedList',
-        'numberedList',
-        '|',
-        'alignment',
-        '|',
-        'link',
-        'blockQuote',
-        '|',
-        'undo',
-        'redo'
-      ],
-    },
-    placeholder: 'Mô tả chi tiết về khóa học, nội dung, phương pháp giảng dạy...',
-    language: 'vi',
-    // Cấu hình để sử dụng <br> thay vì <p> tags khi Enter
-    enterMode: 'br', // hoặc có thể dùng 'div'
-    // Loại bỏ auto-paragraphing
-    autoParagraph: false,
-  };
-
-  return (
-    <div className="space-y-2">
-      <div className="flex justify-between items-center">
-        <span className="text-xs text-gray-500">
-          Sử dụng các công cụ định dạng để tạo nội dung chi tiết và hấp dẫn
-        </span>
-        <span className={`text-xs ${isOverLimit ? 'text-red-500' : 'text-gray-400'}`}>
-          {currentLength}/{maxLength}
-        </span>
-      </div>
-      <div 
-        className={`border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden bg-white ${isOverLimit ? 'border-red-300' : ''}`}
-        style={{ minHeight: 350 }}
-      >
-        {editorComponents ? (
-          <editorComponents.CKEditor
-            editor={editorComponents.ClassicEditor}
-            config={editorConfig}
-            data={editorValue}
-            onChange={handleEditorChange}
-            onReady={handleReady}
-          />
-        ) : (
-          <div className="h-32 bg-gray-100 dark:bg-gray-700 rounded animate-pulse flex items-center justify-center">
-            <span className="text-gray-500 dark:text-gray-400">Loading editor...</span>
-          </div>
-        )}
-      </div>
-      
-      {isOverLimit && (
-        <div className="text-red-500 text-xs">
-          Nội dung không được vượt quá {maxLength} ký tự!
-        </div>
-      )}
-    </div>
-  );
-};
 
 const DescriptionSection: FC = () => {
   return (
     <div className="mb-8">
-      <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1">Mô tả chi tiết</h3>
-      <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">Giúp học viên hiểu rõ về nội dung và mục tiêu của khóa học.</p>
+      <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1">Mô tả khóa học</h3>
+      <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+        Mô tả chi tiết về nội dung, lợi ích và giá trị mà học viên sẽ nhận được.
+      </p>
+
       <div className="space-y-6">
+        <SmartInput
+          name="subtitle"
+          label="Mô tả ngắn"
+          placeholder="Một đoạn mô tả ngắn gọn về khóa học (hiển thị trong danh sách khóa học)"
+          type="textarea"
+          validationType="subtitle"
+          required
+          maxLength={200}
+          showCount
+          rows={3}
+        />
+
         <div>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-              Mô tả chi tiết
-              <span className="text-red-500 ml-1">*</span>
-            </span>
-          </div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Mô tả chi tiết <span className="text-red-500">*</span>
+          </label>
           <Form.Item
             name="description"
             rules={[
-              { required: true, message: 'Vui lòng nhập mô tả chi tiết!' },
+              { required: true, message: 'Vui lòng nhập mô tả chi tiết' },
+              { min: 100, message: 'Mô tả chi tiết phải có ít nhất 100 ký tự' }
             ]}
-            className="mb-0"
           >
-            <RichTextFormField />
+            <RichTextEditor
+              name="description"
+              label=""
+              value=""
+              onChange={() => {}}
+              placeholder="Nhập mô tả chi tiết về khóa học..."
+            />
           </Form.Item>
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <ListFieldManager
-            name="learningObjectives"
-            label="Mục tiêu học tập"
-            placeholder="VD: Xây dựng ứng dụng React từ đầu"
-            minItems={4}
-            maxItems={10}
-            required
-            helpText="Mô tả những gì học viên sẽ đạt được sau khi hoàn thành khóa học. Sử dụng động từ hành động như 'Xây dựng', 'Tạo ra', 'Phân tích'..."
-            examples={[
-              "Xây dựng ứng dụng web hoàn chỉnh với React và Redux",
-              "Tạo ra các component tái sử dụng và hiệu quả",
-              "Triển khai ứng dụng lên production environment",
-              "Tối ưu hóa performance và SEO cho ứng dụng React"
-            ]}
-          />
-
-          <ListFieldManager
-            name="targetAudience"
-            label="Đối tượng học viên"
-            placeholder="VD: Sinh viên CNTT muốn học Frontend"
-            minItems={3}
-            maxItems={6}
-            required
-            helpText="Mô tả ai là đối tượng phù hợp nhất cho khóa học này. Giúp học viên tự đánh giá xem khóa học có phù hợp với họ không."
-            examples={[
-              "Sinh viên CNTT muốn học phát triển Frontend",
-              "Lập trình viên Backend muốn chuyển sang Fullstack",
-              "Người mới bắt đầu với kiến thức HTML/CSS cơ bản",
-              "Freelancer muốn nâng cao kỹ năng React"
-            ]}
-          />
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+            Mô tả chi tiết giúp học viên hiểu rõ hơn về nội dung và giá trị của khóa học.
+          </p>
         </div>
 
         <ListFieldManager
-          name="requirements"
-          label="Yêu cầu trước khi học"
-          placeholder="VD: Kiến thức HTML, CSS cơ bản"
-          minItems={2}
-          maxItems={7}
+          name="learningObjectives"
+          label="Mục tiêu học tập"
+          placeholder="VD: Hiểu và áp dụng được các khái niệm cơ bản của React"
+          minItems={4}
+          maxItems={15}
           required
-          helpText="Liệt kê những kiến thức, kỹ năng hoặc công cụ mà học viên cần có trước khi bắt đầu khóa học."
+          helpText="Những kỹ năng hoặc kiến thức cụ thể mà học viên sẽ đạt được sau khi hoàn thành khóa học"
           examples={[
-            "Kiến thức HTML và CSS cơ bản",
-            "Hiểu biết về JavaScript ES6+",
-            "Máy tính có cài đặt Node.js và VS Code",
-            "Kinh nghiệm sử dụng Git và GitHub",
-            "Không cần kinh nghiệm React trước đó"
+            "Hiểu và áp dụng được các khái niệm cơ bản của React",
+            "Xây dựng ứng dụng web với React Hooks",
+            "Quản lý state với Redux Toolkit"
+          ]}
+        />
+
+        <ListFieldManager
+          name="requirements"
+          label="Yêu cầu trước khóa học"
+          placeholder="VD: Hiểu biết cơ bản về HTML, CSS và JavaScript"
+          minItems={2}
+          maxItems={10}
+          required
+          helpText="Kiến thức hoặc kỹ năng cần thiết mà học viên phải có trước khi tham gia khóa học"
+          examples={[
+            "Hiểu biết cơ bản về HTML, CSS",
+            "Có kiến thức nền tảng về JavaScript",
+            "Đã cài đặt Node.js và npm"
+          ]}
+        />
+
+        <ListFieldManager
+          name="targetAudience"
+          label="Đối tượng học viên"
+          placeholder="VD: Sinh viên IT muốn học về React"
+          minItems={3}
+          maxItems={10}
+          required
+          helpText="Mô tả những đối tượng phù hợp nhất với khóa học này"
+          examples={[
+            "Sinh viên ngành Công nghệ thông tin",
+            "Lập trình viên mới bắt đầu với React",
+            "Người chuyển ngành sang lập trình web"
           ]}
         />
       </div>
@@ -222,4 +100,3 @@ const DescriptionSection: FC = () => {
 };
 
 export default DescriptionSection;
-

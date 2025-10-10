@@ -1,5 +1,5 @@
 'use client';
-import { FC, useEffect, useRef } from 'react';
+import { FC, useRef, useEffect } from 'react';
 
 interface AccessibilityAnnouncerProps {
   message: string;

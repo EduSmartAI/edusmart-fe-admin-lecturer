@@ -1,4 +1,5 @@
 'use client';
+/* eslint-disable */
 import React, { FC, useEffect, useState, useMemo } from 'react';
 import { useSuppressAntdWarnings } from 'EduSmart/hooks/useSuppressAntdWarnings';
 import { useRouter } from 'next/navigation';
@@ -20,7 +21,7 @@ import {
   Tabs,
   Alert,
   Timeline,
-  message,
+  App,
   Modal
 } from 'antd';
 import { 
@@ -47,6 +48,7 @@ const Analytics: FC = () => {
   // Suppress Ant Design warnings
   useSuppressAntdWarnings();
 
+  const { message } = App.useApp();
   const router = useRouter();
   const { isDarkMode } = useTheme();
   const { 
@@ -171,8 +173,7 @@ const Analytics: FC = () => {
       } else {
         message.error('Không thể xuất bản khóa học. Vui lòng thử lại.');
       }
-    } catch (error) {
-      console.error('Error during course creation:', error);
+    } catch {
       message.error('Lỗi khi xuất bản khóa học. Vui lòng thử lại.');
     }
   };

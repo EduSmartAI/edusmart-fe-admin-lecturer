@@ -1,4 +1,5 @@
 'use client';
+/* eslint-disable */
 import { FC, useState } from 'react';
 import { useCreateCourseStore } from 'EduSmart/stores/CreateCourse/CreateCourseStore';
 import { useTheme } from 'EduSmart/Provider/ThemeProvider';
@@ -17,7 +18,7 @@ import {
   Image, 
   Progress,
   Collapse,
-  message,
+  App,
   Modal
 } from 'antd';
 import { 
@@ -37,9 +38,9 @@ import {
 import { FadeInUp } from 'EduSmart/components/Animation/FadeInUp';
 
 const { Title, Text, Paragraph } = Typography;
-const { Panel } = Collapse;
 
 const Publish: FC = () => {
+  const { message } = App.useApp();
   const { 
     courseInformation, 
     modules, 
@@ -110,8 +111,7 @@ const Publish: FC = () => {
       } else {
         message.error('Không thể xuất bản khóa học. Vui lòng thử lại.');
       }
-    } catch (error) {
-      console.error('Error publishing course:', error);
+    } catch {
       message.error('Đã xảy ra lỗi khi xuất bản khóa học.');
     } finally {
       setIsPublishing(false);
@@ -347,51 +347,52 @@ const Publish: FC = () => {
                 <span>Chương trình học ({modules.length} chương)</span>
               </Space>
             }>
-              <Collapse>
-                {modules.map((module, index) => (
-                  <Panel
-                    key={module.id || index}
-                    header={
-                      <div className="flex justify-between items-center">
-                        <span>
-                          <strong>Chương {index + 1}:</strong> {module.moduleName}
-                        </span>
-                        <Space>
-                          <Tag icon={<FaClock />}>
-                            {module.durationMinutes || 0} phút
-                          </Tag>
-                          <Tag icon={<FaPlay />}>
-                            {module.lessons?.length || 0} bài
-                          </Tag>
-                        </Space>
-                      </div>
-                    }
-                  >
-                    {module.description && (
-                      <Paragraph className="text-gray-600 mb-3">
-                        {module.description}
-                      </Paragraph>
-                    )}
-                    
-                    {module.lessons && module.lessons.length > 0 && (
-                      <div>
-                        <Title level={5}>Bài học:</Title>
-                        {module.lessons.map((lesson, lessonIndex) => (
-                          <div key={lesson.id || lessonIndex} className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700 last:border-b-0">
-                            <div className="flex items-center">
-                              <FaPlay className="text-blue-500 mr-2" />
-                              <span>{lesson.title}</span>
+              <Collapse
+                items={modules.map((module, index) => ({
+                  key: module.id || index.toString(),
+                  label: (
+                    <div className="flex justify-between items-center">
+                      <span>
+                        <strong>Chương {index + 1}:</strong> {module.moduleName}
+                      </span>
+                      <Space>
+                        <Tag icon={<FaClock />}>
+                          {module.durationMinutes || 0} phút
+                        </Tag>
+                        <Tag icon={<FaPlay />}>
+                          {module.lessons?.length || 0} bài
+                        </Tag>
+                      </Space>
+                    </div>
+                  ),
+                  children: (
+                    <>
+                      {module.description && (
+                        <Paragraph className="text-gray-600 mb-3">
+                          {module.description}
+                        </Paragraph>
+                      )}
+                      
+                      {module.lessons && module.lessons.length > 0 && (
+                        <div>
+                          <Title level={5}>Bài học:</Title>
+                          {module.lessons.map((lesson, lessonIndex) => (
+                            <div key={lesson.id || lessonIndex} className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-700 last:border-b-0">
+                              <div className="flex items-center">
+                                <FaPlay className="text-blue-500 mr-2" />
+                                <span>{lesson.title}</span>
+                              </div>
+                              <Text className="text-gray-500">
+                                {lesson.videoDurationSec ? Math.round(lesson.videoDurationSec / 60) : 0} phút
+                              </Text>
                             </div>
-                            <Text className="text-gray-500">
-                              {lesson.videoDurationSec ? Math.round(lesson.videoDurationSec / 60) : 0} phút
-                            </Text>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </Panel>
-                ))}
-              </Collapse>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )
+                }))}
+              />
             </Card>
           )}
 

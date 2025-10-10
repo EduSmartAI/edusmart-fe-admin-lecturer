@@ -4,6 +4,7 @@ import { Upload, UploadFile, UploadProps, App } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import type { RcFile } from 'antd/es/upload/interface';
 import { uploadToCloudinaryImage, CloudinaryUploadResult } from 'EduSmart/utils/cloudinary';
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 export interface CloudinaryImageUploadProps {
   value?: string | UploadFile[];
@@ -20,24 +21,19 @@ const CloudinaryImageUpload: React.FC<CloudinaryImageUploadProps> = ({
   accept = "image/*",
   maxCount = 1,
   folder,
-  listType = "picture-card",
-  ...props
+  listType = "picture-card"
 }) => {
   const { message } = App.useApp();
   
-  const fileList: UploadFile[] = useMemo(() => {
-    if (Array.isArray(value)) return value;
+  const fileList: UploadFile[] = useMemo(() => {    if (Array.isArray(value)) return value;
     if (typeof value === 'string' && value) {
-      return [
-        {
-          uid: '1',
-          name: value.split('/').pop() || 'image',
-          status: 'done',
-          url: value,
-        },
-      ];
-    }
-    return [];
+      const fileItem = {
+        uid: '1',
+        name: value.split('/').pop() || 'image',
+        status: 'done' as const,
+        url: value,
+      };      return [fileItem];
+    }    return [];
   }, [value]);
 
   const beforeUpload = (file: RcFile) => {
@@ -54,19 +50,21 @@ const CloudinaryImageUpload: React.FC<CloudinaryImageUploadProps> = ({
     try {
       const res: CloudinaryUploadResult = await uploadToCloudinaryImage(file as File, { folder });
       const uploaded: UploadFile = {
-        uid: (file as any).uid || `${Date.now()}`,
+        uid: (file as { uid?: string }).uid || `${Date.now()}`,
         name: (file as File).name,
         status: 'done',
         url: res.secure_url || res.url,
         thumbUrl: res.secure_url || res.url,
       };
       const next = maxCount === 1 ? [uploaded] : [...fileList, uploaded];
-      onChange?.(maxCount === 1 ? (uploaded.url as string) : next);
-      onSuccess && onSuccess('ok');
+      const returnValue = maxCount === 1 ? (uploaded.url as string) : next;
+      onChange?.(returnValue);
+      if (onSuccess) onSuccess('ok');
       message.success('Tải ảnh thành công');
-    } catch (e: any) {
-      message.error(e?.message || 'Tải ảnh thất bại');
-      onError && onError(e);
+    } catch (e: unknown) {
+      const error = e as Error;
+      message.error(error?.message || 'Tải ảnh thất bại');
+      if (onError) onError(e as any);
     }
   };
 
@@ -106,6 +104,8 @@ const CloudinaryImageUpload: React.FC<CloudinaryImageUploadProps> = ({
 };
 
 export default CloudinaryImageUpload;
+
+
 
 
 

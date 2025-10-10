@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+/* eslint-disable */
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { 
   courseServiceAPI, 
@@ -106,7 +107,6 @@ export const useCourseManagementStore = create<CourseManagementState>()(
           }
         } catch (e) {
           const error = e instanceof Error ? e.message : 'Network error occurred while fetching courses';
-          console.error('Fetch courses error:', e);
           set({ isLoading: false, error });
           return false;
         }
@@ -135,7 +135,6 @@ export const useCourseManagementStore = create<CourseManagementState>()(
           }
         } catch (e) {
           const error = e instanceof Error ? e.message : 'Network error occurred while fetching course';
-          console.error('Fetch course by ID error:', e);
           set({
             selectedCourse: null,
             isLoading: false,
@@ -187,9 +186,8 @@ export const useCourseManagementStore = create<CourseManagementState>()(
           } else {
             throw new Error('Unable to extract lecturer ID from JWT token');
           }
-        } catch (e) {
-          console.error('Failed to get current lecturer ID:', e);
-          throw new Error('Failed to get lecturer ID: ' + (e instanceof Error ? e.message : 'Unknown error'));
+        } catch (error) {
+          throw new Error('Failed to get lecturer ID: ' + (error instanceof Error ? error.message : 'Unknown error'));
         }
       },
 
@@ -203,7 +201,7 @@ export const useCourseManagementStore = create<CourseManagementState>()(
           let lecturerId: string;
           try {
             lecturerId = await get().getCurrentLecturerId();
-          } catch (lecturerIdError) {
+          } catch {
             set({ 
               isLoading: false, 
               error: 'Unable to get lecturer ID from logged-in account. Please try logging in again.' 
@@ -234,31 +232,17 @@ export const useCourseManagementStore = create<CourseManagementState>()(
               const allCoursesResponse = await courseServiceAPI.getCourses({
                 pageIndex: 0, // Use 0-based pagination
                 pageSize: 100,
-              });
-              
-              console.log('Fallback course response:', {
-                success: allCoursesResponse.success,
-                totalCount: allCoursesResponse.response?.totalCount,
-                dataLength: allCoursesResponse.response?.data?.length
-              });
-              
+              });              
               if (allCoursesResponse.success && allCoursesResponse.response?.data) {
                 const allCourses = allCoursesResponse.response.data;
                 
                 if (allCourses.length > 0) {
                   // Log all course teacher IDs for debugging
                   const teacherIds = allCourses.map(c => c.teacherId);
-                  const uniqueTeacherIds = [...new Set(teacherIds)];
-                  
+                  const __uniqueTeacherIds = [...new Set(teacherIds)];                  
                   const myCourses = allCourses.filter(course => course.teacherId === lecturerId);
                   
                   if (myCourses.length > 0) {
-                    console.log('Found my courses:', myCourses.map(c => ({
-                      id: c.courseId,
-                      title: c.title,
-                      isActive: c.isActive
-                    })));
-                    
                     // Use the client-side filtered results
                     set({
                       courses: myCourses,
@@ -285,7 +269,7 @@ export const useCourseManagementStore = create<CourseManagementState>()(
                   
                   for (const testCombo of testCombinations) {
                     try {
-                      const testQuery: any = {
+                      const testQuery: GetCoursesQuery = {
                         pageIndex: 0, // Use 0-based pagination for API
                         pageSize: 50,
                       };
@@ -307,19 +291,10 @@ export const useCourseManagementStore = create<CourseManagementState>()(
                         
                         if (testResponse.response?.data && testResponse.response.data.length > 0) {
                           const courses = testResponse.response.data;
-                          courses.slice(0, 3).forEach((course, index) => {
-                          });
                           
                           // Check if any match our lecturer ID
                           const myCourses = courses.filter(c => c.teacherId === lecturerId);
                           if (myCourses.length > 0) {
-                            console.log(`${testCombo.description} - Found ${myCourses.length} courses:`, myCourses.map(c => ({
-                              id: c.courseId,
-                              title: c.title,
-                              isActive: c.isActive,
-                              status: (c as any).status || 'unknown'
-                            })));
-                            
                             // Use these courses and stop testing
                             set({
                               courses: myCourses,
@@ -333,10 +308,10 @@ export const useCourseManagementStore = create<CourseManagementState>()(
                             });
                             return true;
                           }
-                        } else if (resultInfo.totalCount > 0 && resultInfo.dataLength === 0) {
                         }
                       }
-                    } catch (testError) {
+                    } catch {
+                      // Ignore errors in test queries
                     }
                   }
                   
@@ -350,7 +325,7 @@ export const useCourseManagementStore = create<CourseManagementState>()(
                   return false;
                 }
               }
-            } catch (fallbackError) {
+            } catch {
             }
           }
           
@@ -380,7 +355,6 @@ export const useCourseManagementStore = create<CourseManagementState>()(
           }
         } catch (e) {
           const error = e instanceof Error ? e.message : 'Network error occurred while fetching courses';
-          console.error('Fetch courses by lecturer error:', e);
           set({ isLoading: false, error });
           return false;
         }

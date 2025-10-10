@@ -1,9 +1,9 @@
 'use client';
-import { FC, useEffect, useState, useCallback, useRef } from 'react';
+import { FC, useState, useCallback, useRef, useEffect } from 'react';
 import { useCreateCourseStore } from 'EduSmart/stores/CreateCourse/CreateCourseStore';
 
 import { useTheme } from 'EduSmart/Provider/ThemeProvider';
-import { ConfigProvider, Form, theme, App, Button } from 'antd';
+import { ConfigProvider, Form, theme, Button } from 'antd';
 
 import { FaArrowRight, FaCheck, FaSpinner, FaTrash } from 'react-icons/fa';
 import { FadeInUp } from 'EduSmart/components/Animation/FadeInUp';
@@ -13,6 +13,7 @@ import { scheduleAutoClear } from '../../utils/autoSave';
 import BasicInfoSection from './course-information/BasicInfoSection';
 import DescriptionSection from './course-information/DescriptionSection';
 import ClassificationSection from './course-information/ClassificationSection';
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 
 // Auto-save configuration
 const AUTO_SAVE_KEY = 'course_creation_draft';
@@ -47,7 +48,17 @@ const showDebouncedNotification = (type: 'success' | 'error' | 'warning', conten
 
 
 const CourseInformation: FC = () => {
-    const { updateCourseInformation, setCurrentStep, currentStep } = useCreateCourseStore();
+    const { 
+        updateCourseInformation, 
+        setCurrentStep, 
+        currentStep, 
+        isCreateMode,
+        courseInformation,
+        objectives,
+        requirements,
+        targetAudience,
+        courseTags
+    } = useCreateCourseStore();
     const form = Form.useFormInstance(); // Use the parent form instance instead of creating a new one
     const { isDarkMode } = useTheme();
 
@@ -57,13 +68,25 @@ const CourseInformation: FC = () => {
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const isInitialLoadRef = useRef(true);
     const listOperationRef = useRef(false); // Track if list operations are happening
+    const isProgrammaticSetRef = useRef(false); // Guard to ignore programmatic form sets
     
-    // Add effect to handle returning to this step
+    // Add effect to handle returning to this step OR edit mode initial load
     useEffect(() => {
-        // Reset the initial load flag when returning to step 0
-        if (currentStep === 0 && !isInitialLoadRef.current) {
-            // Refresh form data from store
-            const storeState = useCreateCourseStore.getState();
+        // Refresh form data from store in these cases:
+        // 1. Returning to step 0 in create mode
+        // 2. Any time in edit mode (when currentStep === 0)
+        if (currentStep === 0 && (!isInitialLoadRef.current || !isCreateMode)) {
+            // Build a lightweight snapshot from current hook values
+            const storeState = {
+                courseInformation,
+                objectives,
+                requirements,
+                targetAudience,
+                courseTags
+            };
+            
+            // Preserve current form value for promoVideo to avoid overwriting freshly uploaded URL
+            const currentPromo = form.getFieldValue('promoVideo');
             const formData = {
                 title: storeState.courseInformation.title,
                 subtitle: storeState.courseInformation.shortDescription,
@@ -75,18 +98,85 @@ const CourseInformation: FC = () => {
                 level: storeState.courseInformation.level === 1 ? 'Beginner' : 
                        storeState.courseInformation.level === 2 ? 'Intermediate' : 
                        storeState.courseInformation.level === 3 ? 'Advanced' : 'Beginner',
-                promoVideo: storeState.courseInformation.courseIntroVideoUrl,
+                promoVideo: currentPromo ?? storeState.courseInformation.courseIntroVideoUrl,
                 learningObjectives: storeState.objectives.map(obj => obj.content),
                 requirements: storeState.requirements.map(req => req.content),
                 targetAudience: storeState.targetAudience.map(aud => aud.content),
                 courseTags: storeState.courseTags,
             };
             
+            isProgrammaticSetRef.current = true;
             setTimeout(() => {
                 form.setFieldsValue(formData);
+                isProgrammaticSetRef.current = false;
             }, 50);
         }
-    }, [currentStep, form]);
+        
+        // Mark as not initial load after first run
+        if (isInitialLoadRef.current) {
+            isInitialLoadRef.current = false;
+        }
+    }, [currentStep, form, isCreateMode, courseInformation, objectives, requirements, targetAudience, courseTags]);
+
+    // Additional effect to sync form when store data changes (for both create and edit mode)
+    useEffect(() => {
+        if (currentStep === 0 && !isProgrammaticSetRef.current && !listOperationRef.current) {
+            // Preserve current form values that might have been just updated by user interaction
+            const currentPromo = form.getFieldValue('promoVideo');
+            const currentCoverImage = form.getFieldValue('courseImageUrl');
+            
+            // Also preserve current list values to avoid overwriting during user input
+            const currentLearningObjectives = form.getFieldValue('learningObjectives');
+            const currentRequirements = form.getFieldValue('requirements');
+            const currentTargetAudience = form.getFieldValue('targetAudience');
+            
+            const formData = {
+                title: courseInformation.title,
+                subtitle: courseInformation.shortDescription,
+                subjectId: courseInformation.subjectId,
+                description: courseInformation.description,
+                courseImageUrl: currentCoverImage || courseInformation.courseImageUrl,
+                price: courseInformation.price,
+                dealPrice: courseInformation.dealPrice,
+                level: courseInformation.level === 1 ? 'Beginner' : 
+                       courseInformation.level === 2 ? 'Intermediate' : 
+                       courseInformation.level === 3 ? 'Advanced' : 'Beginner',
+                promoVideo: currentPromo || courseInformation.courseIntroVideoUrl,
+                // Only sync from store if current form values are empty or undefined
+                learningObjectives: currentLearningObjectives && currentLearningObjectives.length > 0 
+                    ? currentLearningObjectives 
+                    : objectives.map(obj => obj.content),
+                requirements: currentRequirements && currentRequirements.length > 0 
+                    ? currentRequirements 
+                    : requirements.map(req => req.content),
+                targetAudience: currentTargetAudience && currentTargetAudience.length > 0 
+                    ? currentTargetAudience 
+                    : targetAudience.map(aud => aud.content),
+                courseTags: courseTags,
+            };
+            
+            // Set form values without triggering the programmatic flag to avoid loops
+            form.setFieldsValue(formData);
+        }
+    }, [courseInformation, objectives, requirements, targetAudience, courseTags, currentStep, form]);
+
+    // Effect to handle immediate field updates (for file uploads and dropdowns)
+    useEffect(() => {
+        if (currentStep === 0) {
+            // Force update specific fields that might not be syncing properly
+            const currentValues = form.getFieldsValue();
+            
+            // Update courseImageUrl if it's different from store
+            if (courseInformation.courseImageUrl && currentValues.courseImageUrl !== courseInformation.courseImageUrl) {
+                form.setFieldValue('courseImageUrl', courseInformation.courseImageUrl);
+            }
+            
+            // Update subjectId if it's different from store
+            if (courseInformation.subjectId && currentValues.subjectId !== courseInformation.subjectId) {
+                form.setFieldValue('subjectId', courseInformation.subjectId);
+            }
+        }
+    }, [courseInformation.courseImageUrl, courseInformation.subjectId, currentStep, form]);
 
     // Auto-save functions
     const saveToLocalStorage = useCallback((formData: CourseFormData) => {
@@ -117,8 +207,7 @@ const CourseInformation: FC = () => {
             setTimeout(() => {
                 setSaveStatus('idle');
             }, 3000);
-        } catch (error) {
-            console.error('Failed to save to localStorage:', error);
+        } catch (e) {
             setSaveStatus('error');
             showDebouncedNotification('error', 'Không thể lưu dữ liệu tự động', 2000);
 
@@ -186,8 +275,7 @@ const CourseInformation: FC = () => {
                 setTimeout(() => scrollToTop(), 100);
                 return true;
             }
-        } catch (error) {
-            console.error('Failed to load from localStorage:', error);
+        } catch (e) {
             showDebouncedNotification('warning', 'Không thể khôi phục dữ liệu đã lưu', 1000);
         }
         return false;
@@ -196,8 +284,14 @@ const CourseInformation: FC = () => {
     // Load saved data on component mount - prioritize Zustand store over localStorage
     useEffect(() => {
         if (isInitialLoadRef.current) {
-            // First, try to load from Zustand store (persisted data)
-            const storeState = useCreateCourseStore.getState();
+            // First, try to load from current values (adapter-backed store)
+            const storeState = {
+                courseInformation,
+                objectives,
+                requirements,
+                targetAudience,
+                courseTags
+            };
             
             if (storeState.courseInformation && (
                 storeState.courseInformation.title ||
@@ -205,7 +299,8 @@ const CourseInformation: FC = () => {
                 storeState.courseInformation.shortDescription
             )) {
                 
-                // Sync Zustand store data back to form
+                // Sync data back to form, but preserve current form promoVideo if user just uploaded
+                const currentPromo = form.getFieldValue('promoVideo');
                 const formData = {
                     title: storeState.courseInformation.title,
                     subtitle: storeState.courseInformation.shortDescription, // Map back to form field name
@@ -217,7 +312,7 @@ const CourseInformation: FC = () => {
                     level: storeState.courseInformation.level === 1 ? 'Beginner' : 
                            storeState.courseInformation.level === 2 ? 'Intermediate' : 
                            storeState.courseInformation.level === 3 ? 'Advanced' : 'Beginner',
-                    promoVideo: storeState.courseInformation.courseIntroVideoUrl,
+                    promoVideo: currentPromo ?? storeState.courseInformation.courseIntroVideoUrl,
                     // Map arrays back to form format
                     learningObjectives: storeState.objectives.map(obj => obj.content),
                     requirements: storeState.requirements.map(req => req.content),
@@ -225,15 +320,16 @@ const CourseInformation: FC = () => {
                     courseTags: storeState.courseTags,
                 };
                 
-                
+                isProgrammaticSetRef.current = true;
                 // Use setTimeout to ensure form is ready before setting values
                 setTimeout(() => {
                     form.setFieldsValue(formData);
+                    isProgrammaticSetRef.current = false;
                     setLastSaved(new Date());
                     showDebouncedNotification('success', 'Đã khôi phục dữ liệu từ phiên trước', 500);
                 }, 100);
             } else {
-                // Fallback to localStorage if no Zustand data
+                // Fallback to localStorage if no data
                 setTimeout(() => {
                     loadFromLocalStorage();
                 }, 100);
@@ -241,14 +337,20 @@ const CourseInformation: FC = () => {
             
             isInitialLoadRef.current = false;
         }
-    }, [loadFromLocalStorage, form]);
+    }, [loadFromLocalStorage, form, courseInformation, objectives, requirements, targetAudience, courseTags]);
 
     const allValues = Form.useWatch([], form);
-    const prevValuesRef = useRef<any>(null);
+    const prevValuesRef = useRef<unknown>(null);
     const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     useEffect(() => {
         if (!isInitialLoadRef.current && allValues) {
+            // Ignore programmatic updates
+            if (isProgrammaticSetRef.current) {
+                prevValuesRef.current = { ...allValues };
+                return;
+            }
+
             // Skip update if values haven't actually changed
             if (prevValuesRef.current && JSON.stringify(prevValuesRef.current) === JSON.stringify(allValues)) {
                 return;
@@ -261,12 +363,12 @@ const CourseInformation: FC = () => {
             
             // Check if array lengths changed (indicating add/remove operations)
             if (prevValuesRef.current) {
-                const prevObj = prevValuesRef.current.learningObjectives || [];
-                const currObj = allValues.learningObjectives || [];
-                const prevReq = prevValuesRef.current.requirements || [];
-                const currReq = allValues.requirements || [];
-                const prevAud = prevValuesRef.current.targetAudience || [];
-                const currAud = allValues.targetAudience || [];
+                const prevObj = (prevValuesRef.current as any).learningObjectives || [];
+                const currObj = (allValues as any).learningObjectives || [];
+                const prevReq = (prevValuesRef.current as any).requirements || [];
+                const currReq = (allValues as any).requirements || [];
+                const prevAud = (prevValuesRef.current as any).targetAudience || [];
+                const currAud = (allValues as any).targetAudience || [];
                 
                 if (prevObj.length !== currObj.length || 
                     prevReq.length !== currReq.length || 
@@ -278,18 +380,23 @@ const CourseInformation: FC = () => {
             // Auto-save to localStorage (for backup) only
             
             // Log specific array values to debug add/remove operations
-            if (allValues.learningObjectives) {
+            if ((allValues as any).learningObjectives) {
             }
-            if (allValues.requirements) {
+            if ((allValues as any).requirements) {
             }
-            if (allValues.targetAudience) {
+            if ((allValues as any).targetAudience) {
             }
             
-            debouncedSave(allValues);
+            // Normalize video field before saving locally to avoid losing value on sync
+            const normalizedForSave = {
+                ...(allValues as any),
+                courseIntroVideoUrl: (allValues as any)?.promoVideo ?? (allValues as any)?.courseIntroVideoUrl
+            };
+            debouncedSave(normalizedForSave as any);
             
             // Use a longer delay to allow Form.List operations to complete properly
             // Check if list operations are happening and adjust delay accordingly
-            const delay = listOperationRef.current ? 1500 : 1000;
+            const delay = listOperationRef.current ? 2500 : 1000;
             
             updateTimeoutRef.current = setTimeout(() => {
                 try {
@@ -304,35 +411,40 @@ const CourseInformation: FC = () => {
                     // Only update store if values have actually changed
                     const currentStoreState = useCreateCourseStore.getState();
                     const hasChanges = (
-                        currentStoreState.courseInformation.title !== (allValues.title || '') ||
-                        currentStoreState.courseInformation.shortDescription !== (allValues.subtitle || '') ||
-                        normalizeHtml(currentStoreState.courseInformation.description) !== normalizeHtml(allValues.description || '') ||
-                        currentStoreState.courseInformation.subjectId !== (allValues.subjectId || '') ||
-                        currentStoreState.objectives.length !== (allValues.learningObjectives || []).length ||
-                        currentStoreState.requirements.length !== (allValues.requirements || []).length ||
-                        currentStoreState.targetAudience.length !== (allValues.targetAudience || []).length
+                        currentStoreState.courseInformation.title !== ((allValues as any).title || '') ||
+                        currentStoreState.courseInformation.shortDescription !== ((allValues as any).subtitle || '') ||
+                        normalizeHtml(currentStoreState.courseInformation.description) !== normalizeHtml((allValues as any).description || '') ||
+                        currentStoreState.courseInformation.subjectId !== ((allValues as any).subjectId || '') ||
+                        currentStoreState.courseInformation.courseImageUrl !== ((allValues as any).courseImageUrl || '') ||
+                        currentStoreState.objectives.length !== (((allValues as any).learningObjectives || []).length) ||
+                        currentStoreState.requirements.length !== (((allValues as any).requirements || []).length) ||
+                        currentStoreState.targetAudience.length !== (((allValues as any).targetAudience || []).length) ||
+                        // Include video intro field compare to ensure store sync on upload
+                        (currentStoreState.courseInformation.courseIntroVideoUrl || '') !== (((allValues as any).promoVideo || (allValues as any).courseIntroVideoUrl || '') as string)
                     );
                     
                     if (hasChanges) {
-                        updateCourseInformation(allValues);
-                    } else {
+                        // Normalize form values → store shape to prevent UI clearing
+                        const normalized = {
+                            ...(allValues as any),
+                            courseIntroVideoUrl: (allValues as any)?.promoVideo ?? (allValues as any)?.courseIntroVideoUrl,
+                        };
+                        updateCourseInformation(normalized as any);
                     }
                     
                     listOperationRef.current = false; // Reset after successful update
-                } catch (error) {
-                    console.warn('[CourseInformation] Failed to update Zustand store:', error);
-                }
+                } catch (e) {                }
             }, delay);
             
             // Store current values for next comparison
-            prevValuesRef.current = { ...allValues };
+            prevValuesRef.current = { ...(allValues as any) };
         }
     }, [allValues, debouncedSave, updateCourseInformation]);
 
     const handleNext = async () => {
         try {
             // Get current form values (don't validate yet to allow checking what's there)
-            const currentValues = form.getFieldsValue();
+            const _currentValues = form.getFieldsValue();
             
             // Validate all form fields
             const values = await form.validateFields();
@@ -371,7 +483,7 @@ const CourseInformation: FC = () => {
                 }
                 setCurrentStep(1);
             }, 100);
-        } catch (error) {
+        } catch {
             // Scroll to first error field if validation fails
             const errorField = document.querySelector('.ant-form-item-has-error');
             if (errorField) {

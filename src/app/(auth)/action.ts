@@ -2,7 +2,7 @@
 "use server";
 
 import { DetailError, StudentInsertCommand, StudentInsertResponse } from "EduSmart/api/api-auth-service";
-import { destroySession, exchangePassword, getAccessTokenFromCookie, getSidFromCookie, hasRefreshToken, refreshTokens, revokeRefreshLocal, getIdTokenFromCookie } from "EduSmart/lib/authServer";
+import { destroySession, exchangePassword, getAccessTokenFromCookie, getSidFromCookie, hasRefreshToken, refreshTokens, revokeRefreshLocal } from "EduSmart/lib/authServer";
 const BACKEND = process.env.NEXT_PUBLIC_API_URL;
 export async function loginAction({
   email,
@@ -13,7 +13,7 @@ export async function loginAction({
 }) {
   if (!email || !password) return { ok: false, error: "Thiếu email/password" };
   try {
-    const result = await exchangePassword(email, password);
+    await exchangePassword(email, password);
     const accessToken = await getAccessTokenFromCookie();
     if(accessToken) return { ok: true, accessToken: accessToken};
     return { ok: false, accessToken: null};
@@ -207,11 +207,6 @@ export async function insertStudentAction(
 
 export async function getAccessTokenAction() {
   try {
-    
-    // Check if session ID exists
-    const { getSidFromCookie } = await import('EduSmart/lib/authServer');
-    const sid = await getSidFromCookie();
-    
     const accessToken = await getAccessTokenFromCookie();
     
     if (accessToken) {

@@ -20,7 +20,7 @@ const SUPPRESSED_WARNINGS = [
 ];
 
 // Override console.warn to filter out specific Ant Design warnings
-console.warn = (...args: any[]) => {
+console.warn = (...args: unknown[]) => {
   const message = args.join(' ');
   
   // Check if this warning should be suppressed
@@ -34,4 +34,6 @@ console.warn = (...args: any[]) => {
   }
 };
 
-export default {};
+const suppressAntdWarnings = {};
+
+export default suppressAntdWarnings;;

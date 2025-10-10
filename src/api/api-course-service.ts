@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 
 import axios, { AxiosRequestConfig, AxiosResponse } from "axios";
 
@@ -355,8 +356,10 @@ export interface CourseDto {
 }
 
 export interface CourseDetailDto extends CourseDto {
+  courseIntroVideoUrl?: string; // Video giới thiệu khóa học
   objectives?: CourseObjectiveDto[];
   requirements?: CourseRequirementDto[];
+  audiences?: CourseAudienceDto[]; // Đối tượng học viên
   courseTags?: CourseTagDto[];
   modules?: ModuleDetailDto[];
 }
@@ -380,6 +383,13 @@ export interface CourseRequirementDto {
   isActive: boolean;
 }
 
+export interface CourseAudienceDto {
+  audienceId: string;
+  content?: string;
+  positionIndex: number;
+  isActive: boolean;
+}
+
 export interface ModuleDetailDto {
   moduleId: string;
   moduleName?: string;
@@ -391,7 +401,11 @@ export interface ModuleDetailDto {
   durationHours?: number;
   level?: number;
   objectives?: ModuleObjectiveDto[];
-  guestLessons?: GuestLessonDetailDto[];
+  guestLessons?: GuestLessonDetailDto[]; // For guest endpoint compatibility
+  lessons?: LectureLessonDetailDto[]; // For lecturer endpoint
+  moduleDiscussionDetails?: ModuleDiscussionDto[]; // For lecturer endpoint
+  moduleMaterialDetails?: ModuleMaterialDto[]; // For lecturer endpoint
+  moduleQuiz?: ModuleQuizDto; // For lecturer endpoint
 }
 
 export interface ModuleObjectiveDto {
@@ -401,11 +415,80 @@ export interface ModuleObjectiveDto {
   isActive: boolean;
 }
 
+// Guest lesson detail (limited info)
 export interface GuestLessonDetailDto {
   lessonId: string;
   title?: string;
   positionIndex: number;
   isActive: boolean;
+}
+
+// Lecturer lesson detail (full info including video URL and quiz)
+export interface LectureLessonDetailDto {
+  lessonId: string;
+  title?: string;
+  videoUrl?: string;
+  videoDurationSec?: number;
+  positionIndex: number;
+  isActive: boolean;
+  lessonQuiz?: LessonQuizDto;
+}
+
+// Module discussion
+export interface ModuleDiscussionDto {
+  discussionId: string;
+  title?: string;
+  description?: string;
+  discussionQuestion?: string;
+  isActive: boolean;
+}
+
+// Module material
+export interface ModuleMaterialDto {
+  materialId: string;
+  title?: string;
+  description?: string;
+  fileUrl?: string;
+  isActive: boolean;
+}
+
+// Module quiz
+export interface ModuleQuizDto {
+  id?: string;
+  quizSettings?: QuizSettingsDto;
+  questions?: QuestionDto[];
+}
+
+// Lesson quiz
+export interface LessonQuizDto {
+  id?: string;
+  quizSettings?: QuizSettingsDto;
+  questions?: QuestionDto[];
+}
+
+// Quiz settings
+export interface QuizSettingsDto {
+  durationMinutes?: number;
+  passingScorePercentage?: number;
+  shuffleQuestions?: boolean;
+  showResultsImmediately?: boolean;
+  allowRetake?: boolean;
+}
+
+// Question DTO
+export interface QuestionDto {
+  questionId?: string;
+  questionType: QuestionType;
+  questionText?: string;
+  explanation?: string;
+  answers?: AnswerDto[];
+}
+
+// Answer DTO
+export interface AnswerDto {
+  answerId?: string;
+  answerText?: string;
+  isCorrect: boolean;
 }
 
 // Request types
@@ -773,11 +856,11 @@ export class ApiCourseModule extends HttpClient {
     },
 
     /**
-     * @description Lấy thông tin chi tiết khóa học theo ID
-     * @request GET:/api/v1/Courses/{id}
+     * @description Lấy thông tin chi tiết khóa học theo ID cho giảng viên (authenticated)
+     * @request GET:/api/v1/Courses/auth/{id}
      */
     getById: (id: string, params?: RequestParams) =>
-      this.request<GetCourseByIdResponse>(`/api/v1/Courses/${id}`, "GET", undefined, params),
+      this.request<GetCourseByIdResponse>(`/api/v1/Courses/auth/${id}`, "GET", undefined, params),
 
     /**
      * @description Tạo khóa học mới
@@ -843,6 +926,124 @@ export class ApiCourseModule extends HttpClient {
         throw new Error('Video upload failed: ' + error.message);
       }
     },
+
+    /**
+     * @description Upload video với utility API (trả về .m3u8 URL)
+     * @request POST:/utility/api/v1/UploadVideos
+     */
+    uploadVideosUtility: async (file: File): Promise<string> => {
+      try {
+        // Get auth token
+        let accessToken: string | null = null;
+        
+        if (typeof window !== 'undefined') {
+          try {
+            const authStorage = localStorage.getItem('auth-storage');
+            if (authStorage) {
+              const parsedAuth = JSON.parse(authStorage);
+              accessToken = parsedAuth?.state?.accessToken;
+            }
+          } catch (error) {
+            // Silent error handling
+          }
+          
+          if (!accessToken) {
+            try {
+              const { getAccessTokenAction } = await import('EduSmart/app/(auth)/action');
+              const result = await getAccessTokenAction();
+              if (result.ok && result.accessToken) {
+                accessToken = result.accessToken;
+              }
+            } catch (error) {
+              // Silent error handling
+            }
+          }
+        }
+        
+        const formData = new FormData();
+        formData.append('formFile', file);
+        const response = await fetch('https://api.edusmart.pro.vn/utility/api/v1/UploadVideos', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'accept': 'text/plain'
+          },
+          body: formData
+        });        
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Upload failed: ${response.status} - ${errorText}`);
+        }
+
+        const result = await response.json();        
+        if (result.success && result.response) {
+          return result.response;
+        } else {
+          throw new Error(result.message || 'Upload failed');
+        }
+      } catch (error) {
+        throw error;
+      }
+    },
+
+    /**
+     * @description Upload tài liệu (file zip) với utility API
+     * @request POST:/utility/api/UploadFiles
+     */
+    uploadDocuments: async (file: File): Promise<string> => {
+      try {
+        // Get auth token
+        let accessToken: string | null = null;
+        
+        if (typeof window !== 'undefined') {
+          try {
+            const authStorage = localStorage.getItem('auth-storage');
+            if (authStorage) {
+              const parsedAuth = JSON.parse(authStorage);
+              accessToken = parsedAuth?.state?.accessToken;
+            }
+          } catch (error) {
+            // Silent error handling
+          }
+          
+          if (!accessToken) {
+            try {
+              const { getAccessTokenAction } = await import('EduSmart/app/(auth)/action');
+              const result = await getAccessTokenAction();
+              if (result.ok && result.accessToken) {
+                accessToken = result.accessToken;
+              }
+            } catch (error) {
+              // Silent error handling
+            }
+          }
+        }
+        
+        const formData = new FormData();
+        formData.append('formFile', file);
+        const response = await fetch('https://api.edusmart.pro.vn/utility/api/UploadFiles', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'accept': 'text/plain'
+          },
+          body: formData
+        });        
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Document upload failed: ${response.status} - ${errorText}`);
+        }
+
+        const result = await response.json();        
+        if (result.success && result.response) {
+          return result.response;
+        } else {
+          throw new Error(result.message || 'Document upload failed');
+        }
+      } catch (error) {
+        throw error;
+      }
+    },
   };
 }
 
@@ -864,6 +1065,8 @@ export const courseServiceAPI = {
   updateCourse: courseService.courses.update,
   uploadImage: courseService.media.uploadImage,
   uploadVideo: courseService.media.uploadVideo,
+  uploadVideosUtility: courseService.media.uploadVideosUtility,
+  uploadDocuments: courseService.media.uploadDocuments,
   
   // Full service access for new code
   courses: courseService.courses,

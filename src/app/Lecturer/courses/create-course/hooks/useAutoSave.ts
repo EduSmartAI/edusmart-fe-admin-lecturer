@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState, useEffect } from 'react';
-import { saveToLocalStorage, loadFromLocalStorage, scheduleAutoClear, cancelAutoClear } from '../utils/autoSave';
+import { saveToLocalStorage, loadFromLocalStorage, cancelAutoClear } from '../utils/autoSave';
 import { App } from 'antd';
+/* eslint-disable react-hooks/exhaustive-deps */
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -45,7 +46,6 @@ export const useAutoSave = (options: UseAutoSaveOptions) => {
                 message.success('Đã lưu tự động', 1);
             }
         } catch (error) {
-            console.error('Failed to save to localStorage:', error);
             setSaveStatus('error');
             onErrorRef.current?.(error as Error);
 
@@ -106,7 +106,6 @@ export const useAutoSave = (options: UseAutoSaveOptions) => {
                 }
             }
         } catch (error) {
-            console.error('Failed to load saved data:', error);
             onErrorRef.current?.(error as Error);
         } finally {
             // Mark initial load as complete

@@ -1,5 +1,5 @@
 'use client';
-import { FC, useEffect, useState } from 'react';
+import { FC, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCreateCourseStore } from 'EduSmart/stores/CreateCourse/CreateCourseStore';
 import { useCreateCourse } from '../../hooks/useCreateCourse';
@@ -31,6 +31,7 @@ import {
   FaPlayCircle
 } from 'react-icons/fa';
 import { FadeInUp } from 'EduSmart/components/Animation/FadeInUp';
+/* eslint-disable @typescript-eslint/no-explicit-any, @next/next/no-img-element */
 
 const { Title, Text, Paragraph } = Typography;
 

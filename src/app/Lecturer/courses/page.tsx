@@ -34,10 +34,12 @@ import {
 } from '@ant-design/icons';
 import type { TableColumnsType } from 'antd';
 import { useCourseManagementStore } from 'EduSmart/stores/CourseManagement/CourseManagementStore';
+import { useCreateCourseStore } from 'EduSmart/stores/CreateCourse/CreateCourseStore';
 import BaseControlTable from 'EduSmart/components/Table/BaseControlTable';
 import { Course, CourseDto } from 'EduSmart/types/course';
 import { FadeInUp } from 'EduSmart/components/Animation/FadeInUp';
 import Image from 'next/image';
+/* eslint-disable react-hooks/exhaustive-deps */
 
 type CourseWithKey = Course & { key: React.Key };
 
@@ -50,6 +52,8 @@ const CourseManagementPage: React.FC = () => {
     fetchCoursesByLecturer,
     clearError,
   } = useCourseManagementStore();
+
+  const { /* resetForm, */ forceResetForCreateMode, setCreateMode } = useCreateCourseStore();
 
   // State for view and filters
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
@@ -70,6 +74,20 @@ const CourseManagementPage: React.FC = () => {
       clearError();
     }
   }, [error]); // Remove clearError from dependencies to prevent infinite loop
+
+  // Handle navigation to create course
+  const handleCreateCourse = () => {
+    console.log('🔄 Resetting course creation form...');
+    
+    // Set create mode and force reset
+    setCreateMode(true);
+    forceResetForCreateMode();
+    
+    // Small delay to ensure reset completes before navigation
+    setTimeout(() => {
+      router.push('/Lecturer/courses/create-course');
+    }, 100);
+  };
 
 
 
@@ -325,16 +343,15 @@ const CourseManagementPage: React.FC = () => {
                     Thống kê
                   </Button>
                 </Link>
-                <Link href="/Lecturer/courses/create-course">
-                  <Button 
-                    type="primary" 
-                    icon={<PlusOutlined />} 
-                    size="large"
-                    className="bg-emerald-600 hover:bg-emerald-700 border-emerald-600"
-                  >
-                    Tạo khóa học mới
-                  </Button>
-                </Link>
+                <Button 
+                  type="primary" 
+                  icon={<PlusOutlined />} 
+                  size="large"
+                  className="bg-emerald-600 hover:bg-emerald-700 border-emerald-600"
+                  onClick={handleCreateCourse}
+                >
+                  Tạo khóa học mới
+                </Button>
               </Space>
             </div>
 
@@ -457,11 +474,9 @@ const CourseManagementPage: React.FC = () => {
                 description="Không tìm thấy khóa học nào"
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
               >
-                <Link href="/Lecturer/courses/create-course">
-                  <Button type="primary" icon={<PlusOutlined />}>
-                    Tạo khóa học đầu tiên
-                  </Button>
-                </Link>
+                <Button type="primary" icon={<PlusOutlined />} onClick={handleCreateCourse}>
+                  Tạo khóa học đầu tiên
+                </Button>
               </Empty>
             ) : viewMode === 'card' ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6">

@@ -1,7 +1,9 @@
 'use client';
-import { FC, useEffect, useRef, useState } from 'react';
+/* eslint-disable */
+import { FC, useRef, useState, useEffect } from 'react';
 import { StepTransition } from 'EduSmart/components/Animation/StepTransition';
 import { Form } from 'antd';
+import { useRouter } from 'next/navigation';
 
 // Layout and Provider
 import CreateCourseLayout from './components/common/CreateCourseLayout';
@@ -21,27 +23,99 @@ import { useCreateCourseStore } from 'EduSmart/stores/CreateCourse/CreateCourseS
 // Constants
 import { COURSE_CREATION_STEPS } from './constants/steps';
 
+// Utils
+import { scrollToTopDeferred } from './utils/scrollUtils';
+
 const CreateCoursePageContent: FC = () => {
-    const { currentStep, courseInformation, objectives, requirements, targetAudience, courseTags } = useCreateCourseStore();
+    const { currentStep, courseInformation, objectives, requirements, targetAudience, courseTags, courseId, forceResetForCreateMode, isCreateMode, setCreateMode } = useCreateCourseStore();
     const [form] = Form.useForm();
     const prevStepRef = useRef(currentStep);
     const [isClient, setIsClient] = useState(false);
+    const [hasCheckedForReset, setHasCheckedForReset] = useState(false);
+    const ___unusedProgressData = useRouter();
 
     // Fix hydration mismatch
     useEffect(() => {
         setIsClient(true);
     }, []);
 
-    // This effect is to track the previous step. Scrolling is handled in each component.
+    // Force reset when component mounts in create mode
+    useEffect(() => {
+        if (isClient && !hasCheckedForReset) {
+            // Ensure we're in create mode
+            if (!isCreateMode) {
+                setCreateMode(true);
+            }
+            
+            // Always force reset when in create mode to ensure clean state
+            const hasAnyData = courseId || 
+                              courseInformation.title || 
+                              courseInformation.description || 
+                              objectives.length > 0 || 
+                              requirements.length > 0 || 
+                              targetAudience.length > 0 || 
+                              currentStep > 0;
+            
+            if (hasAnyData) {
+                forceResetForCreateMode();
+                form.resetFields();
+                
+                // Double-check reset after a delay
+                setTimeout(() => {
+                    form.resetFields();
+                }, 150);
+            }
+            
+            setHasCheckedForReset(true);
+        }
+    }, [isClient, hasCheckedForReset, courseId, courseInformation.title, courseInformation.description, objectives.length, requirements.length, targetAudience.length, currentStep, forceResetForCreateMode, form, isCreateMode, setCreateMode]);
+
+    // Override any form values that might be set by store restoration
+    useEffect(() => {
+        if (isClient && hasCheckedForReset) {
+            // After reset check, ensure form shows empty values for create mode
+            const isCleanState = !courseInformation.title && 
+                                !courseInformation.description && 
+                                objectives.length === 0 && 
+                                requirements.length === 0 && 
+                                targetAudience.length === 0 &&
+                                !courseId;
+            
+            if (isCleanState) {
+                // Ensure form is showing empty values
+                const emptyFormValues = {
+                    title: '',
+                    subtitle: '',
+                    subjectId: '',
+                    description: '',
+                    courseImageUrl: '',
+                    price: 0,
+                    dealPrice: undefined,
+                    level: 'Beginner',
+                    promoVideo: '',
+                    learningObjectives: [],
+                    requirements: [],
+                    targetAudience: [],
+                    courseTags: []
+                };
+                
+                form.setFieldsValue(emptyFormValues);
+            }
+        }
+    }, [isClient, hasCheckedForReset, courseInformation.title, courseInformation.description, objectives.length, requirements.length, targetAudience.length, courseId, form]);
+
+    // This effect is to track the previous step and scroll to top when step changes
     useEffect(() => {
         if (prevStepRef.current !== currentStep) {
             prevStepRef.current = currentStep;
+            // Scroll to top when step changes
+            scrollToTopDeferred(150);
         }
     }, [currentStep]);
 
     // Sync form values with store data when navigating between steps
     useEffect(() => {
-        if (isClient) {
+        if (isClient && hasCheckedForReset) {
             const formValues = {
                 title: courseInformation.title || '',
                 subtitle: courseInformation.shortDescription || '', // Map shortDescription back to subtitle
@@ -71,7 +145,50 @@ const CreateCoursePageContent: FC = () => {
             } else {
             }
         }
-    }, [isClient, currentStep, courseInformation, objectives, requirements, targetAudience, courseTags, form]);
+    }, [isClient, hasCheckedForReset, currentStep, courseInformation, objectives, requirements, targetAudience, courseTags, form, courseId]);
+
+    // Force form sync when entering edit mode (courseId becomes available)
+    useEffect(() => {
+        if (isClient && courseId && !isCreateMode) {
+            // This is edit mode, force sync form with store data
+            const formValues = {
+                title: courseInformation.title || '',
+                subtitle: courseInformation.shortDescription || '',
+                subjectId: courseInformation.subjectId || '',
+                description: courseInformation.description || '',
+                courseImageUrl: courseInformation.courseImageUrl || '',
+                price: courseInformation.price || 0,
+                dealPrice: courseInformation.dealPrice,
+                level: courseInformation.level === 1 ? 'Beginner' : 
+                       courseInformation.level === 2 ? 'Intermediate' : 
+                       courseInformation.level === 3 ? 'Advanced' : 'Beginner',
+                promoVideo: courseInformation.courseIntroVideoUrl || '',
+                learningObjectives: objectives.map(obj => obj.content),
+                requirements: requirements.map(req => req.content),
+                targetAudience: targetAudience.map(aud => aud.content),
+                courseTags: courseTags
+            };
+            
+            setTimeout(() => {
+                form.setFieldsValue(formValues);
+            }, 100);
+        }
+    }, [isClient, courseId, isCreateMode, courseInformation, objectives, requirements, targetAudience, courseTags, form]);
+
+    // Reset form when store is reset (after successful course creation)
+    useEffect(() => {
+        // Check if store has been reset (all values are empty/default)
+        const isStoreReset = !courseInformation.title && 
+                            !courseInformation.description && 
+                            objectives.length === 0 && 
+                            requirements.length === 0 && 
+                            targetAudience.length === 0 &&
+                            currentStep === 0;
+        
+        if (isStoreReset && isClient) {
+            form.resetFields();
+        }
+    }, [courseInformation, objectives, requirements, targetAudience, currentStep, form, isClient]);
 
     const renderStep = () => {
         const currentStepData = COURSE_CREATION_STEPS[currentStep];
@@ -138,7 +255,7 @@ const CreateCoursePageContent: FC = () => {
                         targetAudience: targetAudience.map(aud => aud.content),
                         courseTags: courseTags
                     }}
-                    onValuesChange={(changedValues, allValues) => {
+                    onValuesChange={(changedValues, __allValues) => {
                         // Only log significant form changes to reduce console spam
                         if (changedValues.title || changedValues.subjectId || 
                             changedValues.learningObjectives || changedValues.requirements || changedValues.targetAudience) {

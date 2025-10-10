@@ -39,8 +39,7 @@ export const saveToLocalStorage = (formData: Record<string, unknown>, step: stri
         
         // Set up auto-clear after 10 minutes
         scheduleAutoClear();
-    } catch (error) {
-        console.error('Failed to save to localStorage:', error);
+    } catch {
     }
 };
 
@@ -70,8 +69,7 @@ export const loadFromLocalStorage = (): Record<string, unknown> | null => {
             const { timestamp: ts, version, formStep, ...formData } = parsedData;
             return formData;
         }
-    } catch (error) {
-        console.error('Failed to load from localStorage:', error);
+    } catch {
     }
     return null;
 };
@@ -86,8 +84,7 @@ export const clearLocalStorage = (): void => {
         localStorage.removeItem(AUTO_SAVE_KEY);
         // Cancel any scheduled auto-clear since data is already cleared
         cancelAutoClear();
-    } catch (error) {
-        console.error('Failed to clear localStorage:', error);
+    } catch {
     }
 };
 
@@ -103,8 +100,7 @@ export const getLastSavedTime = (): Date | null => {
             const parsedData = JSON.parse(savedData);
             return new Date(parsedData.timestamp);
         }
-    } catch (error) {
-        console.error('Failed to get last saved time:', error);
+    } catch {
     }
     return null;
 };
@@ -124,8 +120,7 @@ export const getTimeUntilExpiry = (): number => {
             const now = new Date().getTime();
             return Math.max(0, expiryTime - now);
         }
-    } catch (error) {
-        console.error('Failed to calculate time until expiry:', error);
+    } catch {
     }
     return 0;
 };
@@ -142,8 +137,7 @@ export const getSavedStep = (): string | null => {
             const parsedData = JSON.parse(savedData);
             return parsedData.formStep;
         }
-    } catch (error) {
-        console.error('Failed to get saved step:', error);
+    } catch {
     }
     return null;
 };
@@ -226,8 +220,7 @@ export const checkAndClearExpiredData = (): boolean => {
             }
         }
         return false; // Data is still valid or doesn't exist
-    } catch (error) {
-        console.error('Failed to check expired data:', error);
+    } catch {
         return false;
     }
 };

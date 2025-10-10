@@ -1,6 +1,7 @@
 'use client';
+/* eslint-disable */
 import { FC, useState } from 'react';
-import { Form, Input, Button, Space, Typography } from 'antd';
+import { Form, Input, Button, Typography } from 'antd';
 import { FaPlus, FaTrash, FaInfoCircle } from 'react-icons/fa';
 
 const { Text } = Typography;

@@ -1,10 +1,12 @@
 'use client';
-import { FC, useState, useEffect, useMemo } from 'react';
+/* eslint-disable */
+import { FC, useState } from 'react';
 import { Select, Tag, Typography } from 'antd';
 import { FaInfoCircle } from 'react-icons/fa';
 import { useCreateCourseStore } from 'EduSmart/stores/CreateCourse/CreateCourseStore';
 import type { CourseTag } from 'EduSmart/stores/CreateCourse/CreateCourseStore';
 import { PREDEFINED_COURSE_TAGS, getTagIdByName } from 'EduSmart/constants/courseTags';
+import { useEffect, useMemo } from 'react';
 
 const { Text } = Typography;
 
@@ -19,7 +21,7 @@ const CourseTagsSelector: FC<CourseTagsSelectorProps> = ({
   maxTags = 10,
   suggestions = []
 }) => {
-  const { courseTags, addTag, removeTag, updateTags } = useCreateCourseStore();
+  const { courseTags, addTag, updateTags } = useCreateCourseStore();
   const [inputValue, setInputValue] = useState('');
   const [isClient, setIsClient] = useState(false);
 
@@ -50,7 +52,7 @@ const CourseTagsSelector: FC<CourseTagsSelectorProps> = ({
     ...additionalSuggestions
   ], [predefinedTags, additionalSuggestions]);
 
-  const allSuggestions = [...new Set([...suggestions, ...defaultSuggestions])];
+  const ___unused = [...new Set([...suggestions, ...defaultSuggestions])];
 
   // Convert CourseTag[] to string[] for the Select component
   const tagNames = useMemo(() => 

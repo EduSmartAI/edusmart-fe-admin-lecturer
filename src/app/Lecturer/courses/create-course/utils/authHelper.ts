@@ -85,6 +85,7 @@ export const getOrRefreshToken = async (): Promise<{
         }
       } catch (refreshError) {
         // If refresh fails, try fresh login
+        console.error('[AuthHelper] Refresh failed:', refreshError);
         return await loginForCourseCreation();
       }
     }
@@ -168,6 +169,7 @@ export const validateCourseCreationAuth = async (): Promise<{
 export const debugAuthState = (): void => {
   const { token, isAuthen, refreshTokenValue } = useAuthStore.getState();
   
+  console.log({
     hasToken: !!token,
     tokenPreview: token ? `${token.slice(0, 8)}...` : 'none',
     isAuthenticated: isAuthen,

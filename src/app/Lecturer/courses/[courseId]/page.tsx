@@ -14,10 +14,8 @@ import {
   Row, 
   Col, 
   Tabs, 
-  Table, 
-  Progress, 
-  Avatar, 
-  List,
+  
+  
   message, 
   Rate, 
   Breadcrumb,
@@ -35,9 +33,9 @@ import {
   DollarOutlined,
   ShareAltOutlined,
   MoreOutlined,
-  FileTextOutlined,
-  QuestionCircleOutlined,
-  VideoCameraOutlined,
+  
+  
+  
   PlusOutlined,
   BarChartOutlined
 } from '@ant-design/icons';
@@ -65,34 +63,7 @@ const mapCourseForUI = (course: CourseDto) => {
   };
 };
 
-interface CourseContent {
-  id: string;
-  title: string;
-  type: 'video' | 'quiz' | 'document' | 'assignment';
-  duration: number;
-  completionRate: number;
-  watchTime: number;
-}
 
-interface StudentProgress {
-  id: string;
-  name: string;
-  email: string;
-  avatar?: string;
-  progress: number;
-  lastAccessed: Date;
-  completedLessons: number;
-  totalLessons: number;
-}
-
-interface CourseReview {
-  id: string;
-  studentName: string;
-  studentAvatar?: string;
-  rating: number;
-  comment: string;
-  date: Date;
-}
 
 const CourseDetailPage: React.FC = () => {
   const params = useParams();
@@ -149,7 +120,7 @@ const CourseDetailPage: React.FC = () => {
       message.error(error);
       clearError();
     }
-  }, [error]); // Remove clearError from dependencies to prevent infinite loop
+  }, [error, clearError]);
 
   if (!course) {
     if (loading) {
@@ -234,80 +205,9 @@ const CourseDetailPage: React.FC = () => {
     }
   ];
 
-  const contentColumns = [
-    {
-      title: 'Tên bài học',
-      dataIndex: 'title',
-      key: 'title',
-      render: (text: string, record: CourseContent) => (
-        <div className="flex items-center gap-2">
-          {record.type === 'video' && <VideoCameraOutlined className="text-blue-500" />}
-          {record.type === 'quiz' && <QuestionCircleOutlined className="text-green-500" />}
-          {record.type === 'document' && <FileTextOutlined className="text-orange-500" />}
-          <span className="font-medium">{text}</span>
-        </div>
-      )
-    },
-    {
-      title: 'Thời lượng',
-      dataIndex: 'duration',
-      key: 'duration',
-      render: (duration: number) => `${duration} phút`
-    },
-    {
-      title: 'Tỷ lệ hoàn thành',
-      dataIndex: 'completionRate',
-      key: 'completionRate',
-      render: (rate: number) => (
-        <div className="flex items-center gap-2">
-          <Progress percent={rate} size="small" className="flex-1" />
-          <span>{rate}%</span>
-        </div>
-      )
-    },
-    {
-      title: 'Thời gian xem',
-      dataIndex: 'watchTime',
-      key: 'watchTime',
-      render: (time: number) => `${time} phút`
-    }
-  ];
-
-  const progressColumns = [
-    {
-      title: 'Học viên',
-      dataIndex: 'name',
-      key: 'name',
-      render: (name: string, record: StudentProgress) => (
-        <div className="flex items-center gap-2">
-          <Avatar src={record.avatar} icon={<UserOutlined />} />
-          <div>
-            <div className="font-medium">{name}</div>
-            <div className="text-sm text-gray-500">{record.email}</div>
-          </div>
-        </div>
-      )
-    },
-    {
-      title: 'Tiến độ',
-      dataIndex: 'progress',
-      key: 'progress',
-      render: (progress: number, record: StudentProgress) => (
-        <div>
-          <Progress percent={progress} size="small" />
-          <div className="text-sm text-gray-500 mt-1">
-            {record.completedLessons}/{record.totalLessons} bài học
-          </div>
-        </div>
-      )
-    },
-    {
-      title: 'Lần truy cập cuối',
-      dataIndex: 'lastAccessed',
-      key: 'lastAccessed',
-      render: (date: Date) => date.toLocaleDateString('vi-VN')
-    }
-  ];
+  // Future use: Content and progress columns for analytics
+  // const contentColumns = [...];
+  // const progressColumns = [...];
 
   return (
     <div className="bg-gray-100 dark:bg-gray-900 min-h-screen w-full">

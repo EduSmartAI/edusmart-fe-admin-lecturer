@@ -32,14 +32,14 @@ if (typeof window !== 'undefined') {
   };
 
   // Override console methods
-  console.warn = (...args: any[]) => {
+  console.warn = (...args: unknown[]) => {
     const message = args.join(' ');
     if (!shouldSuppress(message)) {
       originalWarn.apply(console, args);
     }
   };
 
-  console.error = (...args: any[]) => {
+  console.error = (...args: unknown[]) => {
     const message = args.join(' ');
     if (!shouldSuppress(message)) {
       originalError.apply(console, args);

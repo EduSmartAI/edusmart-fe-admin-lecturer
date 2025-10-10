@@ -4,6 +4,7 @@ import { Upload, Button, Progress, Input, Typography, App } from 'antd';
 import { FaVideo, FaPlay, FaTrash, FaLink } from 'react-icons/fa';
 import type { UploadProps } from 'antd/es/upload/interface';
 import { courseServiceAPI } from 'EduSmart/api/api-course-service';
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 const { Text } = Typography;
 const { Dragger } = Upload;
@@ -45,12 +46,12 @@ const VideoUploader: FC<VideoUploaderProps> = ({
       onChange?.(url);
       onSuccess?.('ok');
       message.success('Video đã được tải lên thành công!');
-    } catch (e) {
-      console.error('[VideoUpload] Upload failed:', e);
+    } catch (error) {
+      console.error('[VideoUpload] Upload failed:', error);
       setIsUploading(false);
       setUploadProgress(0);
       message.error('Tải video thất bại');
-      onError?.(e as any);
+      onError?.(error as any);
     }
   };
 

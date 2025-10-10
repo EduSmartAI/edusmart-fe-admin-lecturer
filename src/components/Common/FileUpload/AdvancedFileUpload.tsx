@@ -3,6 +3,7 @@ import { FC, useState, useCallback, useRef } from 'react';
 import { Progress, Button, App } from 'antd';
 import { FaUpload, FaFile, FaVideo, FaImage, FaFilePdf, FaFileWord, FaFileExcel, FaFilePowerpoint, FaTrash, FaEye } from 'react-icons/fa';
 import Image from 'next/image';
+/* eslint-disable react-hooks/exhaustive-deps */
 
 interface FileItem {
   uid: string;

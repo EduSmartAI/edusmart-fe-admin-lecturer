@@ -6,6 +6,7 @@ import { ConfigProvider, Input, InputNumber, Button, theme, Modal, Form, Checkbo
 import { FaArrowLeft, FaArrowRight, FaPlus, FaTrash, FaBook } from 'react-icons/fa';
 import { FadeInUp } from 'EduSmart/components/Animation/FadeInUp';
 import { useAutoSave } from '../../hooks/useAutoSave';
+/* eslint-disable react-hooks/exhaustive-deps */
 
 const Curriculum: FC = () => {
     const { setCurrentStep, modules, addModule, updateModule, removeModule, error, clearError } = useCreateCourseStore();

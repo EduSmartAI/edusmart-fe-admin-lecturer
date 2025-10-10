@@ -5,42 +5,50 @@ import { FaInfoCircle } from 'react-icons/fa';
 
 const { Text } = Typography;
 
+// Define tag structure with ID and name
+interface CourseTag {
+  tagId: number;
+  tagName: string;
+}
+
 interface TagsSelectorProps {
-  value?: string[];
-  onChange?: (value: string[]) => void;
+  value?: CourseTag[];
+  onChange?: (value: CourseTag[]) => void;
   placeholder?: string;
   maxTags?: number;
-  suggestions?: string[];
 }
 
 const TagsSelector: FC<TagsSelectorProps> = ({
   value = [],
   onChange,
   placeholder = "Nhập và chọn tags...",
-  maxTags = 10,
-  suggestions = []
+  maxTags = 10
 }) => {
   const [inputValue, setInputValue] = useState('');
 
-  // Default suggestions for course tags
-  const defaultSuggestions = [
-    'ReactJS', 'JavaScript', 'TypeScript', 'Node.js', 'Python', 'Java', 'C#',
-    'HTML', 'CSS', 'Bootstrap', 'Tailwind CSS', 'Vue.js', 'Angular',
-    'Express.js', 'Spring Boot', 'Django', 'Flask', 'MongoDB', 'MySQL',
-    'PostgreSQL', 'Redis', 'Docker', 'Kubernetes', 'AWS', 'Azure',
-    'Git', 'GitHub', 'API', 'REST', 'GraphQL', 'Microservices',
-    'Machine Learning', 'Data Science', 'AI', 'Deep Learning',
-    'Mobile Development', 'React Native', 'Flutter', 'iOS', 'Android',
-    'Web Development', 'Frontend', 'Backend', 'Full Stack',
-    'DevOps', 'Testing', 'Unit Testing', 'Integration Testing',
-    'Agile', 'Scrum', 'Project Management', 'Software Architecture'
+  // Hardcoded course tags based on system requirements with IDs
+  const availableTags: CourseTag[] = [
+    { tagId: 1, tagName: 'Software Engineering' },
+    { tagId: 2, tagName: '.NET' },
+    { tagId: 3, tagName: 'Java' },
+    { tagId: 4, tagName: 'ReactJS' },
+    { tagId: 5, tagName: 'Android (Kotlin)' },
+    { tagId: 6, tagName: 'iOS (Swift)' },
+    { tagId: 7, tagName: 'DevOps' },
+    { tagId: 8, tagName: 'Data Engineering' },
+    { tagId: 9, tagName: 'Artificial Intelligence' },
+    { tagId: 10, tagName: 'Cyber Security' },
+    { tagId: 11, tagName: 'AI & Machine Learning' }
   ];
 
-  const allSuggestions = [...new Set([...suggestions, ...defaultSuggestions])];
-
-  const handleChange = (newValue: string[]) => {
-    if (newValue.length <= maxTags) {
-      onChange?.(newValue);
+  const handleChange = (selectedTagNames: string[]) => {
+    if (selectedTagNames.length <= maxTags) {
+      // Convert tag names back to CourseTag objects with IDs
+      const selectedTags = selectedTagNames.map(tagName => {
+        const foundTag = availableTags.find(t => t.tagName === tagName);
+        return foundTag || { tagId: 0, tagName }; // Fallback for custom tags
+      });
+      onChange?.(selectedTags);
     }
   };
 
@@ -48,10 +56,13 @@ const TagsSelector: FC<TagsSelectorProps> = ({
     setInputValue(searchValue);
   };
 
-  const filteredOptions = allSuggestions
-    .filter(tag => 
-      !value.includes(tag) && 
-      tag.toLowerCase().includes(inputValue.toLowerCase())
+  // Get currently selected tag names for comparison
+  const selectedTagNames = value.map(tag => tag.tagName);
+
+  const filteredOptions = availableTags
+    .filter((tag: CourseTag) => 
+      !selectedTagNames.includes(tag.tagName) && 
+      tag.tagName.toLowerCase().includes(inputValue.toLowerCase())
     )
     .slice(0, 20); // Limit to 20 suggestions
 
@@ -72,7 +83,7 @@ const TagsSelector: FC<TagsSelectorProps> = ({
 
       <Select
         mode="tags"
-        value={value}
+        value={selectedTagNames}
         onChange={handleChange}
         onSearch={handleSearch}
         placeholder={placeholder}
@@ -80,7 +91,11 @@ const TagsSelector: FC<TagsSelectorProps> = ({
         className="w-full"
         maxTagCount="responsive"
         tokenSeparators={[',', ' ']}
-        options={filteredOptions.map(tag => ({ label: tag, value: tag }))}
+        options={filteredOptions.map((tag: CourseTag) => ({ 
+          label: tag.tagName, 
+          value: tag.tagName,
+          key: tag.tagId 
+        }))}
         filterOption={false}
         notFoundContent={
           inputValue ? (
@@ -89,7 +104,7 @@ const TagsSelector: FC<TagsSelectorProps> = ({
             </div>
           ) : (
             <div className="p-2 text-center text-gray-500">
-              Nhập để tìm kiếm hoặc thêm tag mới
+              Nhập để tìm kiếm hoặc chọn tag
             </div>
           )
         }
@@ -120,20 +135,20 @@ const TagsSelector: FC<TagsSelectorProps> = ({
       {value.length === 0 && (
         <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
           <Text className="text-sm text-blue-700 dark:text-blue-300 font-medium">
-            💡 Tags phổ biến:
+            💡 Tags khóa học có sẵn:
           </Text>
           <div className="mt-2 flex flex-wrap gap-1">
-            {defaultSuggestions.slice(0, 12).map(tag => (
+            {availableTags.map((tag: CourseTag) => (
               <Tag
-                key={tag}
+                key={tag.tagId}
                 className="cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-800 transition-colors"
                 onClick={() => {
                   if (value.length < maxTags) {
-                    handleChange([...value, tag]);
+                    handleChange([...selectedTagNames, tag.tagName]);
                   }
                 }}
               >
-                {tag}
+                {tag.tagName}
               </Tag>
             ))}
           </div>

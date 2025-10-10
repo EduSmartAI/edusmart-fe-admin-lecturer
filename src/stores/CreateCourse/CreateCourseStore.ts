@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { 
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
   courseServiceAPI, 
   CreateCourseDto, 
   UpdateCourseDto,
@@ -155,6 +156,7 @@ export interface CreateCourseState {
     isSaving: boolean;
     error: string | null;
     courseId?: string; // Set when editing existing course
+    isCreateMode: boolean; // Flag to indicate if we're in create mode
     
     // Step management
     setCurrentStep: (step: number) => void;
@@ -212,6 +214,8 @@ export interface CreateCourseState {
     clearError: () => void;
     resetForm: () => void;
     setCourseId: (id: string) => void;
+    forceResetForCreateMode: () => void;
+    setCreateMode: (isCreateMode: boolean) => void;
 }
 
 // Legacy interface for backward compatibility
@@ -256,6 +260,7 @@ const initialState = {
     isSaving: false,
     error: null,
     courseId: undefined,
+    isCreateMode: true, // Default to create mode
 };
 
 // Helper functions
@@ -296,11 +301,9 @@ const convertToCreateCourseDto = async (state: CreateCourseState): Promise<Creat
         if (userInfo.ok && userInfo.userId) {
             teacherId = userInfo.userId;
         } else {
-            console.error('[CreateCourse] Failed to get lecturer ID from JWT:', userInfo);
             throw new Error('Unable to get lecturer ID from logged-in account');
         }
     } catch (error) {
-        console.error('[CreateCourse] Error extracting lecturer ID:', error);
         throw new Error('Failed to get lecturer ID: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
     
@@ -533,7 +536,8 @@ const convertToUpdateCourseDto = async (state: CreateCourseState): Promise<Updat
         shortDescription: state.courseInformation.shortDescription,
         description: state.courseInformation.description,
         courseImageUrl: state.courseInformation.courseImageUrl,
-        courseIntroVideoUrl: state.courseInformation.courseIntroVideoUrl, // Video giới thiệu khóa học
+        // DO NOT send courseIntroVideoUrl in update - it's managed separately
+        // courseIntroVideoUrl: state.courseInformation.courseIntroVideoUrl,
         durationMinutes: state.courseInformation.durationMinutes,
         level: state.courseInformation.level,
         price: state.courseInformation.price,
@@ -543,21 +547,24 @@ const convertToUpdateCourseDto = async (state: CreateCourseState): Promise<Updat
             // Only include objectiveId if it exists (for existing objectives)
             ...(obj.id && { objectiveId: obj.id }),
             content: obj.content,
-            positionIndex: obj.positionIndex ?? idx,
+            // Always ensure 1-based indexing for API (idx + 1)
+            positionIndex: idx + 1,
             isActive: obj.isActive,
         })),
         requirements: state.requirements.map((req, idx) => ({
             // Only include requirementId if it exists (for existing requirements)  
             ...(req.id && { requirementId: req.id }),
             content: req.content,
-            positionIndex: req.positionIndex ?? idx,
+            // Always ensure 1-based indexing for API (idx + 1)
+            positionIndex: idx + 1,
             isActive: req.isActive,
         })),
-        audiences: state.targetAudience.length > 0 ? state.targetAudience.map(aud => ({
+        audiences: state.targetAudience.length > 0 ? state.targetAudience.map((aud, idx) => ({
             // Use audienceId instead of targetAudienceId to match API
             ...(aud.id && { audienceId: aud.id }),
             content: aud.content,
-            positionIndex: aud.positionIndex,
+            // Always ensure 1-based indexing for API (idx + 1)
+            positionIndex: idx + 1,
             isActive: aud.isActive,
         })) : [], // Include empty array explicitly - API might expect this
         // Add courseTags in the format API expects
@@ -585,11 +592,24 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                     // Copy basic fields - only update if value is provided and meaningful
                     if (data.title !== undefined && data.title !== null) cleanData.title = String(data.title).trim();
                     if (data.description !== undefined && data.description !== null) cleanData.description = String(data.description);
-                    if (data.courseImageUrl !== undefined) cleanData.courseImageUrl = data.courseImageUrl;
                     if (data.durationMinutes !== undefined) cleanData.durationMinutes = data.durationMinutes;
                     if (data.price !== undefined && data.price !== null) cleanData.price = Number(data.price) || 0;
                     if (data.dealPrice !== undefined) cleanData.dealPrice = data.dealPrice;
                     if (data.isActive !== undefined) cleanData.isActive = data.isActive;
+                    
+                    // Handle courseImageUrl - CloudinaryImageUpload returns string when maxCount=1
+                    if (data.courseImageUrl !== undefined) {
+                        if (typeof data.courseImageUrl === 'string') {
+                            cleanData.courseImageUrl = data.courseImageUrl;
+                        } else if (Array.isArray(data.courseImageUrl) && data.courseImageUrl.length > 0) {
+                            // Handle array format (fallback)
+                            const first = data.courseImageUrl[0];
+                            const url = (first?.baseUrl || first?.url || '').toString();
+                            if (url) {
+                                cleanData.courseImageUrl = url;
+                            }
+                        }
+                    }
                     
                     // Map promoVideo → courseIntroVideoUrl
                     if (data.promoVideo !== undefined) {
@@ -605,9 +625,57 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                         }
                     }
                     
-                    // Subject mapping: form now provides subjectId directly
+                    // Subject mapping: handle both subjectId and derive subjectCode
                     if (data.subjectId !== undefined && data.subjectId !== null && data.subjectId !== '') {
                         cleanData.subjectId = String(data.subjectId);
+                        
+                        // Map subjectId to subjectCode using the predefined mapping
+                        const subjectCodeMap: Record<string, string> = {
+                            'a4917fc0-bbcc-46b1-a7c8-f32e1d2aa298': 'PRF192',
+                            'a83eabde-fb96-4732-88f3-3e7a846796bc': 'MAE101',
+                            '432cabc2-79bd-42ac-a67b-fc233dd3a6bc': 'CEA201',
+                            '3ed33ae3-da55-49f7-b563-41ca0503fab5': 'SSL101C',
+                            '63368d18-6112-413d-9815-4e31597b6e4c': 'CSI104',
+                            '5e8967c9-2971-4250-a7fc-a8a26ca7f106': 'NWC203C',
+                            '0611fe1b-416d-49eb-b0bd-b0ff73cc00c9': 'SSG104',
+                            'e70ee6db-2fc9-4176-adae-904973bcc475': 'PRO192',
+                            'ec341342-0993-42b2-a4df-ff0433381605': 'MAD101',
+                            'b47af2e8-ac4c-4328-b61a-7ba0446556a7': 'OSG202',
+                            'ed305e62-8cdc-49af-b7d0-290c54a6dbfb': 'CSD201',
+                            '16299387-cb9f-476c-aff1-a93fcd3d9266': 'DBI202',
+                            '75ef24fc-2915-4a76-9c26-b4ff1af07f2e': 'LAB211',
+                            '8d6297cd-98df-4ed0-9c52-cce0be2642da': 'JPD113',
+                            'c1604ae9-5ee3-457d-b7d0-186546f490ba': 'WED201C',
+                            'c61bfce2-fc50-478f-a33d-cd2031211125': 'SWE201C',
+                            '006449aa-5a7e-4d91-990a-5ffefaa6d220': 'JPD123',
+                            'bc1cedaa-4279-4bca-b5d2-60cd4705b4dc': 'IOT102',
+                            '4bbc5bf7-bfe9-4762-90cd-7825ca9bffde': 'PRJ301',
+                            'a7a8d965-8564-4ad9-ac34-2c8c76f7103b': 'MAS291',
+                            '7d6c6094-fcd2-4521-b568-09c5fb796c75': 'SWR302',
+                            'de4982a0-82aa-48b0-b824-8267edb15a55': 'SWT301',
+                            'a4b86226-5d71-4e97-a822-284ab4bca343': 'SWP391',
+                            '898e94b7-cbab-4b6d-857b-3a3a09dfbe0e': 'ITE302C',
+                            '2a56f88e-29c4-4482-92c3-23ae0de88d72': 'OJT202',
+                            '810cc767-1a1f-42ab-8510-d670aa11a69b': 'ENW492C',
+                            '9b9b36a8-5dbf-4ba3-8caf-3645716918c2': 'EXE101',
+                            '3ccd8b12-32a5-451d-9cc7-e034c3c544f0': 'PRU212',
+                            '7b8bbd5b-abdf-4203-800c-1890144a6159': 'PMG201C',
+                            'fa1f6445-3fc7-4284-b8ac-0338148cd10a': 'SWD392',
+                            'd3d0a48d-ba44-4c8a-b9b3-d6cf9e6e2166': 'MLN122',
+                            'a9030ae8-8799-4548-82ab-6df7e5fd0fef': 'MLN111',
+                            '0773bda7-4280-4dbe-aed2-40bbc6ecf324': 'EXE201',
+                            '6c8111e7-0bb2-45a4-b0c3-13ebc34bb621': 'WDU203C',
+                            '9119e3a2-1471-4521-99bc-d28e981c2bfd': 'PRM392',
+                            'df536a34-ad72-423d-b398-bf8727287d12': 'MLN131',
+                            '5e0350ac-c664-4818-93f0-8b3b1eb244df': 'VNR202',
+                            '15f5dda4-68b9-4b97-81d5-800a250e0a4e': 'HCM202',
+                            '7f0174b9-2a64-480e-9be5-df87092c9f70': 'SEP490',
+                            '888a4c89-ea86-4653-aea7-9c8d87139928': 'PRN212',
+                            '2857f69c-c1c7-4d87-a365-79a59af754fb': 'PRN222',
+                            'b48cb061-4bc6-4eb7-a5b7-856e01d9c283': 'PRN232',
+                        };
+                        
+                        cleanData.subjectCode = subjectCodeMap[cleanData.subjectId] || 'PRF192';
                     }
                     
                     // Convert level from string to number if provided
@@ -625,15 +693,6 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                         cleanData.shortDescription = String(data.subtitle).trim();
                     }
 
-                    // Map cover image uploader → courseImageUrl (first item)
-                    if (Array.isArray(data.coverImage) && data.coverImage.length > 0) {
-                        const first = data.coverImage[0];
-                        const url = (first?.baseUrl || first?.url || '').toString();
-                        if (url) {
-                            cleanData.courseImageUrl = url;
-                        }
-                    }
-
                     // Map learning objectives (array of strings) → objectives DTO in store
                     // PRESERVE EXISTING IDs to prevent creating duplicates
                     let mappedObjectives = state.objectives;
@@ -642,10 +701,10 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                             .filter((s: unknown) => typeof s === 'string' && s.trim().length > 0);
                         
                         mappedObjectives = filteredObjectives.map((content: string, index: number) => {
-                            // Try to preserve existing ID if content matches
-                            const existingObjective = state.objectives.find(obj => obj.content === content);
+                            // Preserve existing ID by index position (not by content match to handle duplicate content)
+                            const existingObjective = state.objectives[index];
                             return {
-                                id: existingObjective?.id, // Preserve existing ID if found
+                                id: existingObjective?.id, // Preserve existing ID if found at same index
                                 content,
                                 positionIndex: index,
                                 isActive: true,
@@ -661,10 +720,10 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                             .filter((s: unknown) => typeof s === 'string' && s.trim().length > 0);
                             
                         mappedRequirements = filteredRequirements.map((content: string, index: number) => {
-                            // Try to preserve existing ID if content matches
-                            const existingRequirement = state.requirements.find(req => req.content === content);
+                            // Preserve existing ID by index position (not by content match to handle duplicate content)
+                            const existingRequirement = state.requirements[index];
                             return {
-                                id: existingRequirement?.id, // Preserve existing ID if found
+                                id: existingRequirement?.id, // Preserve existing ID if found at same index
                                 content,
                                 positionIndex: index,
                                 isActive: true,
@@ -680,10 +739,10 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                             .filter((s: unknown) => typeof s === 'string' && s.trim().length > 0);
                             
                         mappedTargetAudience = filteredTargetAudience.map((content: string, index: number) => {
-                            // Try to preserve existing ID if content matches
-                            const existingTargetAudience = state.targetAudience.find(aud => aud.content === content);
+                            // Preserve existing ID by index position (not by content match to handle duplicate content)
+                            const existingTargetAudience = state.targetAudience[index];
                             return {
-                                id: existingTargetAudience?.id, // Preserve existing ID if found
+                                id: existingTargetAudience?.id, // Preserve existing ID if found at same index
                                 content,
                                 positionIndex: index,
                                 isActive: true,
@@ -982,6 +1041,7 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                 try {
                     const courseData = await convertToCreateCourseDto(state);
                     
+                    // Debug: Log the payload being sent to API                    
                     const response = await courseServiceAPI.createCourse(courseData);
 
                     if (response.success && response.response) {
@@ -995,11 +1055,8 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                                 
                                 if (fetchResponse.success && fetchResponse.response) {
                                     // Course created and verified successfully
-                                } else {
-                                    console.warn('⚠️ [CreateCourse] Course created but verification failed:', fetchResponse);
-                                }
+                                } else {                                }
                             } catch (fetchError) {
-                                console.error('❌ [CreateCourse] Error during course verification:', fetchError);
                                 // Error fetching created course - but creation was still successful
                             }
                         }, 1000); // Wait 1 second for potential DB commit delay
@@ -1050,10 +1107,6 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                 try {
                     const courseData = await convertToUpdateCourseDto(state);
                     
-                    // Validation: Since modules are not part of basic course update,
-                    // we skip module validation for now
-                    // Modules would be updated via a separate API endpoint if needed
-                    
                     const response = await courseServiceAPI.updateCourse(state.courseId, courseData);
                     
                     if (response.success) {
@@ -1078,6 +1131,11 @@ export const useCreateCourseStore = create<CreateCourseState>()(
             loadCourseData: async (courseId: string) => {
                 set({ isLoading: true, error: null });
                 
+                // Clear localStorage to prevent interference with fresh data
+                try {
+                    localStorage.removeItem('create-course-storage');
+                } catch (e) {                }
+                
                 try {
                     const response = await courseServiceAPI.getCourseById(courseId);
                     
@@ -1086,6 +1144,8 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                         
                         set({
                             courseId,
+                            currentStep: 0, // Reset to step 1 when entering edit mode
+                            isCreateMode: false, // Set edit mode
                             courseInformation: {
                                 teacherId: course.teacherId,
                                 subjectId: course.subjectId,
@@ -1096,8 +1156,8 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                                 courseImageUrl: course.courseImageUrl && !course.courseImageUrl.includes('example.com') 
                                     ? course.courseImageUrl 
                                     : undefined, // Remove example URLs
-                                // Initialize courseIntroVideoUrl as empty since API doesn't return it
-                                courseIntroVideoUrl: '', // Video giới thiệu khóa học - will be empty for editing
+                                // Load courseIntroVideoUrl from API - try both 'videoUrl' and 'courseIntroVideoUrl'
+                                courseIntroVideoUrl: (course as any).videoUrl || course.courseIntroVideoUrl || '', // Always provide empty string if undefined
                                 durationMinutes: course.durationMinutes,
                                 level: course.level,
                                 price: course.price,
@@ -1116,43 +1176,113 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                                 positionIndex: req.positionIndex,
                                 isActive: req.isActive,
                             })) || [],
-                            courseTags: course.courseTags?.map(tag => ({
-                                tagId: tag.tagId,
-                                tagName: tag.tagName || '',
-                            })) || [],
-                            // Initialize empty targetAudience array since API doesn't return this field
-                            targetAudience: [],
-                            modules: course.modules?.map(module => ({
-                                id: module.moduleId,
-                                moduleName: module.moduleName || '',
-                                description: module.description,
-                                positionIndex: module.positionIndex,
-                                isActive: module.isActive,
-                                isCore: module.isCore,
-                                durationMinutes: module.durationMinutes,
-                                level: module.level,
-                                objectives: module.objectives?.map(obj => ({
-                                    id: obj.objectiveId,
-                                    content: obj.content || '',
-                                    positionIndex: obj.positionIndex,
-                                    isActive: obj.isActive,
-                                })) || [],
-                                lessons: module.guestLessons?.map(lesson => ({
-                                    id: lesson.lessonId,
-                                    title: lesson.title || '',
-                                    videoUrl: '', // API doesn't provide videoUrl, will be empty for editing
-                                    videoDurationSec: 0, // API doesn't provide duration, will be 0 for editing  
-                                    positionIndex: lesson.positionIndex,
-                                    isActive: lesson.isActive,
-                                    // Initialize empty lesson quiz since API doesn't provide quiz details
-                                    lessonQuiz: undefined,
-                                })) || [],
-                                // Initialize empty arrays for discussions and materials since API doesn't return them
-                                // These will be available for editing but start empty
-                                discussions: [],
-                                materials: [],
-                                isExpanded: false,
-                            })) || [],
+                            courseTags: ((course as any).tags || course.courseTags)?.map((tag: any) => ({
+                                tagId: tag.tagId || tag.id || tag.tagID,
+                                tagName: tag.tagName || tag.name || tag.tag_name || '',
+                            })) || [], // Always provide empty array if undefined
+                            // Load targetAudience from API - use correct field 'audiences'
+                            targetAudience: course.audiences?.map((aud: any) => ({
+                                id: aud.audienceId || aud.id,
+                                content: aud.content || '',
+                                positionIndex: aud.positionIndex || 0,
+                                isActive: aud.isActive !== false,
+                            })) || [], // Always provide empty array if undefined
+                            modules: course.modules?.map(module => {
+                                // Cast module to any to access fields not in TypeScript interface but present in API
+                                const moduleData = module as any;
+                                
+                                return {
+                                    id: moduleData.moduleId,
+                                    moduleName: moduleData.moduleName || '',
+                                    description: moduleData.description,
+                                    positionIndex: moduleData.positionIndex,
+                                    isActive: moduleData.isActive,
+                                    isCore: moduleData.isCore,
+                                    durationMinutes: moduleData.durationMinutes,
+                                    level: moduleData.level,
+                                    objectives: moduleData.objectives?.map((obj: any) => ({
+                                        id: obj.objectiveId,
+                                        content: obj.content || '',
+                                        positionIndex: obj.positionIndex,
+                                        isActive: obj.isActive,
+                                    })) || [],
+                                    lessons: (moduleData.lessons || moduleData.guestLessons)?.map((lesson: any) => ({
+                                        id: lesson.lessonId,
+                                        title: lesson.title || '',
+                                        // Use the correct field 'videoUrl' from API response
+                                        videoUrl: lesson.videoUrl || 
+                                                 lesson.lessonVideoUrl || 
+                                                 lesson.contentUrl || '', 
+                                        // Use the correct field 'videoDurationSec' from API response
+                                        videoDurationSec: lesson.videoDurationSec || 
+                                                         lesson.durationSeconds || 
+                                                         lesson.duration || 0,
+                                        positionIndex: lesson.positionIndex,
+                                        isActive: lesson.isActive,
+                                        // Load lesson quiz from API response if it exists
+                                        lessonQuiz: lesson.lessonQuiz ? {
+                                            id: lesson.lessonQuiz.id || `lesson-quiz-${lesson.lessonId}`,
+                                            quizSettings: lesson.lessonQuiz.quizSettings ? {
+                                                durationMinutes: lesson.lessonQuiz.quizSettings.durationMinutes,
+                                                passingScorePercentage: lesson.lessonQuiz.quizSettings.passingScorePercentage,
+                                                shuffleQuestions: lesson.lessonQuiz.quizSettings.shuffleQuestions,
+                                                showResultsImmediately: lesson.lessonQuiz.quizSettings.showResultsImmediately,
+                                                allowRetake: lesson.lessonQuiz.quizSettings.allowRetake,
+                                            } : undefined,
+                                            questions: lesson.lessonQuiz.questions?.map((q: any) => ({
+                                                id: q.questionId || `question-${Math.random()}`,
+                                                questionType: q.questionType,
+                                                questionText: q.questionText,
+                                                explanation: q.explanation,
+                                                options: q.answers?.map((ans: any) => ({
+                                                    id: ans.answerId || `answer-${Math.random()}`,
+                                                    text: ans.answerText,
+                                                    isCorrect: ans.isCorrect || false,
+                                                })) || [],
+                                            })) || [],
+                                        } : undefined,
+                                    })) || [],
+                                    // Load discussions from moduleDiscussionDetails
+                                    discussions: moduleData.moduleDiscussionDetails?.map((discussion: any) => ({
+                                        id: discussion.discussionId,
+                                        title: discussion.title || '',
+                                        description: discussion.description || '',
+                                        discussionQuestion: discussion.discussionQuestion || '',
+                                        isActive: true,
+                                    })) || [],
+                                    // Load materials from moduleMaterialDetails
+                                    materials: moduleData.moduleMaterialDetails?.map((material: any) => ({
+                                        id: material.materialId,
+                                        title: material.title || '',
+                                        description: material.description || '',
+                                        fileUrl: material.fileUrl || '',
+                                        isActive: true,
+                                    })) || [],
+                                    // Load module quiz from moduleQuiz
+                                    moduleQuiz: moduleData.moduleQuiz ? {
+                                        id: moduleData.moduleQuiz.id || `module-quiz-${moduleData.moduleId}`,
+                                        quizSettings: moduleData.moduleQuiz.quizSettings ? {
+                                            durationMinutes: moduleData.moduleQuiz.quizSettings.durationMinutes,
+                                            passingScorePercentage: moduleData.moduleQuiz.quizSettings.passingScorePercentage,
+                                            shuffleQuestions: moduleData.moduleQuiz.quizSettings.shuffleQuestions,
+                                            showResultsImmediately: moduleData.moduleQuiz.quizSettings.showResultsImmediately,
+                                            allowRetake: moduleData.moduleQuiz.quizSettings.allowRetake,
+                                        } : undefined,
+                                        questions: moduleData.moduleQuiz.questions?.map((q: any) => ({
+                                            id: q.questionId || `question-${Math.random()}`,
+                                            questionType: q.questionType,
+                                            questionText: q.questionText,
+                                            explanation: q.explanation,
+                                            options: q.answers?.map((ans: any) => ({
+                                                id: ans.answerId || `answer-${Math.random()}`,
+                                                text: ans.answerText,
+                                                isCorrect: ans.isCorrect || false,
+                                            })) || [],
+                                        })) || [],
+                                    } : undefined,
+                                    isExpanded: false,
+                                };
+                            }) || [],
                             isLoading: false,
                             isSaving: false,
                             error: null,
@@ -1167,7 +1297,6 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                         return false;
                     }
                 } catch (error) {
-                    console.error('Load course data error:', error);
                     set({ 
                         error: 'Network error occurred while loading course data',
                         isLoading: false 
@@ -1177,8 +1306,28 @@ export const useCreateCourseStore = create<CreateCourseState>()(
             },
             
             // Form management
-            resetForm: () => set(initialState),
+            resetForm: () => {
+                // Reset state to initial
+                set(initialState);
+                
+                // Also clear localStorage to prevent restoration
+                try {
+                    if (typeof window !== 'undefined' && window.localStorage) {
+                        localStorage.removeItem('create-course-storage');                    }
+                } catch (error) {                }
+            },
             setCourseId: (id) => set({ courseId: id }),
+            forceResetForCreateMode: () => {
+                // Force reset for create mode - clear everything including localStorage
+                try {
+                    if (typeof window !== 'undefined' && window.localStorage) {
+                        localStorage.removeItem('create-course-storage');
+                    }
+                } catch (error) {                }
+                
+                // Reset state completely
+                set({ ...initialState, isCreateMode: true });            },
+            setCreateMode: (isCreateMode) => set({ isCreateMode }),
         }),
         {
             name: 'create-course-storage',
@@ -1203,9 +1352,7 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                                 return item;
                             }
                             return null;
-                        } catch (error) {
-                            console.warn('[CreateCourseStore] Failed to get item from localStorage:', error);
-                            return null;
+                        } catch (error) {                            return null;
                         }
                     },
                     setItem: (name: string, value: string) => {
@@ -1213,16 +1360,12 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                             // Validate JSON before storing
                             JSON.parse(value);
                             localStorage.setItem(name, value);
-                        } catch (error) {
-                            console.warn('[CreateCourseStore] Failed to set item in localStorage:', error);
-                        }
+                        } catch (error) {                        }
                     },
                     removeItem: (name: string) => {
                         try {
                             localStorage.removeItem(name);
-                        } catch (error) {
-                            console.warn('[CreateCourseStore] Failed to remove item from localStorage:', error);
-                        }
+                        } catch (error) {                        }
                     },
                 };
             }),
@@ -1235,6 +1378,7 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                 courseTags: state.courseTags,
                 modules: state.modules,
                 courseId: state.courseId,
+                isCreateMode: state.isCreateMode,
             }),
             // Add version and migration support
             version: 1,
@@ -1246,7 +1390,6 @@ export const useCreateCourseStore = create<CreateCourseState>()(
             onRehydrateStorage: () => {
                 return (state, error) => {
                     if (error) {
-                        console.error('[CreateCourseStore] Rehydration error:', error);
                     } else {
                     }
                 };

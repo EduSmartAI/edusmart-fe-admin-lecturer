@@ -24,7 +24,7 @@ export const SafeAnimatedDiv: React.FC<SafeAnimatedDivProps> = ({ style = {}, cl
 };
 
 // Safe useSpring replacement that returns static values
-export const useSafeSpring = (config: any) => {
+export const useSafeSpring = () => {
   return {
     opacity: 1,
     transform: 'scale(1)',
@@ -32,7 +32,7 @@ export const useSafeSpring = (config: any) => {
 };
 
 // Safe useTrail replacement
-export const useSafeTrail = (count: number, config: any) => {
+export const useSafeTrail = (count: number) => {
   return Array(count).fill({
     opacity: 1,
     transform: 'translate3d(0,0,0)',

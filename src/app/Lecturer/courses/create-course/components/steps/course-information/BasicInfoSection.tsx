@@ -2,11 +2,10 @@
 import { FC } from 'react';
 import { Form, Select } from 'antd';
 import SmartInput from '../../ui/SmartInput';
-import { CloudinaryImageUpload, CloudinaryVideoUpload } from 'EduSmart/components/Common/FileUpload';
+import { CloudinaryImageUpload } from 'EduSmart/components/Common/FileUpload';
+import StreamingVideoUploader from 'EduSmart/components/Video/StreamingVideoUploader';
 
 const BasicInfoSection: FC = () => {
-  const form = Form.useFormInstance();
-
   return (
     <div className="mb-8">
       <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-1">Thông tin cơ bản</h3>
@@ -104,8 +103,16 @@ const BasicInfoSection: FC = () => {
           </p>
         </div>
 
-        <Form.Item name="promoVideo" label="Video giới thiệu khóa học" valuePropName="value">
-          <CloudinaryVideoUpload maxSizeMB={300} />
+        <Form.Item 
+          name="promoVideo" 
+          label="Video giới thiệu khóa học" 
+          valuePropName="value"
+          getValueFromEvent={(value) => value}
+        >
+          <StreamingVideoUploader 
+            maxSizeMB={300}
+            placeholder="Chọn hoặc kéo thả video giới thiệu vào đây"
+          />
         </Form.Item>
       </div>
     </div>

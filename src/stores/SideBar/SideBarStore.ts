@@ -20,7 +20,7 @@ export const useSidebarStore = create<SidebarState>()(
     {
       name: "sidebar-storage",
       storage: createJSONStorage(() => localStorage),
-      onRehydrateStorage: () => (state) => {
+      onRehydrateStorage: () => () => {
       },
     },
   ),

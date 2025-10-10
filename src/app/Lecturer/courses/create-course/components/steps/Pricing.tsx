@@ -1,11 +1,12 @@
 'use client';
-import { FC, useEffect, useCallback, useRef, useMemo } from 'react';
+import { FC, useCallback, useRef, useMemo, useEffect } from 'react';
 import { useCreateCourseStore } from 'EduSmart/stores/CreateCourse/CreateCourseStore';
 import { useTheme } from 'EduSmart/Provider/ThemeProvider';
 import { Button, ConfigProvider, Form, InputNumber, theme, App } from 'antd';
 import { FaArrowLeft, FaArrowRight } from 'react-icons/fa';
 import { FadeInUp } from 'EduSmart/components/Animation/FadeInUp';
 import { useAutoSave } from '../../hooks/useAutoSave';
+/* eslint-disable react-hooks/exhaustive-deps */
 
 const Pricing: FC = () => {
     const { isDarkMode } = useTheme();

@@ -51,14 +51,14 @@ const QuizBuilder: FC<QuizBuilderProps> = ({
   }, [initialQuestions]);
 
   useEffect(() => {
-    setSettings(prev => ({
+    setSettings({
       timeLimit: 30,
       passingScore: 70,
       shuffleQuestions: false,
       showResults: true,
       allowRetake: true,
       ...initialSettings
-    }));
+    });
   }, [initialSettings]);
 
   // Add new question
@@ -85,8 +85,7 @@ const QuizBuilder: FC<QuizBuilderProps> = ({
   }, [editingIndex]);
 
   // Update question
-  const updateQuestion = useCallback((index: number, updatedQuestion: Partial<QuizQuestion>) => {
-    setQuestions(prev => prev.map((q, i) => 
+  const updateQuestion = useCallback((index: number, updatedQuestion: Partial<QuizQuestion>) => {    setQuestions(prev => prev.map((q, i) => 
       i === index ? { ...q, ...updatedQuestion } : q
     ));
   }, []);

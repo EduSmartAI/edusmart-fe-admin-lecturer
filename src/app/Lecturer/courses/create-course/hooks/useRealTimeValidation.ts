@@ -1,8 +1,8 @@
 'use client';
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useCallback, useMemo } from 'react';
 
 // Custom debounce function
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const debounce = <T extends (...args: any[]) => any>(
   func: T,
   delay: number
