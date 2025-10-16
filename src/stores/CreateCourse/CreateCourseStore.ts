@@ -1159,7 +1159,7 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                                 // Load courseIntroVideoUrl from API - try both 'videoUrl' and 'courseIntroVideoUrl'
                                 courseIntroVideoUrl: (course as any).videoUrl || course.courseIntroVideoUrl || '', // Always provide empty string if undefined
                                 durationMinutes: course.durationMinutes,
-                                level: course.level,
+                                level: typeof course.level === 'string' ? parseInt(course.level, 10) : (course.level || 1), // Ensure level is a number
                                 price: course.price,
                                 dealPrice: course.dealPrice,
                                 isActive: course.isActive,

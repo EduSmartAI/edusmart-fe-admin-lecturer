@@ -72,8 +72,15 @@ interface QuizSettings {
 
 const CourseContent: FC = () => {
   const { isDarkMode } = useTheme();
-  const store = useCreateCourseStore();
-  const { setCurrentStep, modules, updateModule, addLesson, updateLesson, removeLesson } = store;
+  
+  // Subscribe to modules separately to ensure re-renders when it changes
+  const modules = useCreateCourseStore((state) => state.modules);
+  const setCurrentStep = useCreateCourseStore((state) => state.setCurrentStep);
+  const updateModule = useCreateCourseStore((state) => state.updateModule);
+  const addLesson = useCreateCourseStore((state) => state.addLesson);
+  const updateLesson = useCreateCourseStore((state) => state.updateLesson);
+  const removeLesson = useCreateCourseStore((state) => state.removeLesson);
+  
   const { message } = App.useApp();
   
   // State management
@@ -186,6 +193,26 @@ const CourseContent: FC = () => {
           }
         }));
       items.push(...materialItems);
+    }
+    
+    // Add module quiz (if exists)
+    if (courseModule.moduleQuiz && courseModule.moduleQuiz.questions && courseModule.moduleQuiz.questions.length > 0) {
+      const questionCount = courseModule.moduleQuiz.questions.length;
+      const moduleQuizItem = {
+        id: courseModule.moduleQuiz.id || `module-quiz-${courseModule.id}`,
+        type: ContentType.QUIZ,
+        title: `Quiz Chương`,
+        description: `${questionCount} câu hỏi${courseModule.moduleQuiz.quizSettings?.durationMinutes ? ` • ${courseModule.moduleQuiz.quizSettings.durationMinutes} phút` : ''}`,
+        duration: courseModule.moduleQuiz.quizSettings?.durationMinutes,
+        url: '',
+        order: 3000, // Place module quiz at the end
+        metadata: {
+          contentType: ContentType.QUIZ,
+          isModuleQuiz: true, // Flag to identify this as a module quiz
+          quizData: courseModule.moduleQuiz
+        }
+      };
+      items.push(moduleQuizItem);
     }
     
     // Sort by order
@@ -694,17 +721,16 @@ const CourseContent: FC = () => {
             }
           };
           updateLesson(moduleIndex, lessonIndex, updatedLesson);
+          
+          // Force a re-render by updating refreshKey
+          setRefreshKey(prev => prev + 1);
+          
           message.success('Quiz đã được thêm vào bài học thành công!');
         }
       }
     } else {
       // Create NEW module quiz when using "Thêm nội dung" → "Bài Kiểm Tra"
-      // But also create a lesson item for UI display
-      const quizCount = modules[moduleIndex].lessons.filter(l => 
-        l.title && (l.title.toLowerCase().includes('kiểm tra') || l.title.toLowerCase().includes('quiz'))
-      ).length + 1;
-
-      // Create module quiz with correct API format
+      // Only create the moduleQuiz, NOT a lesson
       const moduleQuiz = {
         quizSettings: {
           durationMinutes: settings.timeLimit || 30,
@@ -728,22 +754,10 @@ const CourseContent: FC = () => {
         }))
       };
 
-      // Create a lesson item for UI display (but mark it as quiz type)
-      const quizLesson = {
-        id: `quiz-${Date.now()}`,
-        title: `Bài kiểm tra ${quizCount}`,
-        videoUrl: '',
-        videoDurationSec: settings.timeLimit ? settings.timeLimit * 60 : 1800,
-        positionIndex: modules[moduleIndex].lessons.length,
-        isActive: true,
-        type: 'quiz' // Mark as quiz type for identification
-      };
-
-      // Update module with both the moduleQuiz and the display lesson
+      // Update module with the moduleQuiz only (no lesson)
       const updatedModule = {
         ...modules[moduleIndex],
-        moduleQuiz,
-        lessons: [...modules[moduleIndex].lessons, quizLesson]
+        moduleQuiz
       };
       
       updateModule(moduleIndex, updatedModule);
@@ -855,17 +869,14 @@ const CourseContent: FC = () => {
     
     // Handle quiz editing differently
     if (contentType === ContentType.QUIZ) {
-      // Find the actual lesson data to get quiz information
+      // Find the module
       const moduleIndex = modules.findIndex((m, index) => 
         m.id === moduleId || `module-${index}` === moduleId
       );
+      
       if (moduleIndex !== -1) {
-        const lesson = modules[moduleIndex].lessons?.find(l => 
-          l.id === item.id || `lesson-${modules[moduleIndex].lessons.findIndex(le => le === l)}` === item.id
-        );
-        
-        // Check if this is a module quiz (lesson marked as type 'quiz' but data in moduleQuiz)
-        if (lesson && lesson.type === 'quiz' && modules[moduleIndex].moduleQuiz) {
+        // Check if this is a MODULE QUIZ (not a lesson quiz)
+        if (item.metadata?.isModuleQuiz && modules[moduleIndex].moduleQuiz) {
           // Convert module quiz format to builder format
           const convertModuleQuizToBuilderFormat = (moduleQuiz: any) => {
             if (!moduleQuiz || !moduleQuiz.questions) return { questions: [], settings: {} };
@@ -898,12 +909,18 @@ const CourseContent: FC = () => {
 
           const quizData = convertModuleQuizToBuilderFormat(modules[moduleIndex].moduleQuiz);
           setQuizInitialData(quizData);
-        } else if (lesson && lesson.lessonQuiz) {
-          // Regular lesson quiz
-          const quizData = convertStoreQuizToBuilderFormat(lesson.lessonQuiz);
-          setQuizInitialData(quizData);
         } else {
-          setQuizInitialData(null);
+          // This is a LESSON QUIZ - find the lesson
+          const lesson = modules[moduleIndex].lessons?.find(l => 
+            l.id === item.id || `lesson-${modules[moduleIndex].lessons.findIndex(le => le === l)}` === item.id
+          );
+          
+          if (lesson && lesson.lessonQuiz) {
+            const quizData = convertStoreQuizToBuilderFormat(lesson.lessonQuiz);
+            setQuizInitialData(quizData);
+          } else {
+            setQuizInitialData(null);
+          }
         }
       }
       setIsQuizBuilderOpen(true);
@@ -1136,12 +1153,16 @@ const CourseContent: FC = () => {
 
           {/* Action buttons */}
           <div className="flex-shrink-0 flex items-center gap-2 opacity-100 transition-opacity duration-200">
-            {/* Add Quiz button for video lessons without quiz */}
-            {item.type === ContentType.VIDEO && !(item.metadata?.hasQuiz as boolean) && (
+            {/* Quiz button for video lessons - add or edit quiz */}
+            {item.type === ContentType.VIDEO && (
               <button
                 onClick={() => handleAddQuizToLesson(moduleId, item)}
-                className="p-2 text-gray-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-lg transition-colors duration-200"
-                title="Thêm Quiz cho bài học"
+                className={`p-2 rounded-lg transition-colors duration-200 ${
+                  (item.metadata?.hasQuiz as boolean)
+                    ? 'text-green-500 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30'
+                    : 'text-gray-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/30'
+                }`}
+                title={(item.metadata?.hasQuiz as boolean) ? "Chỉnh sửa Quiz" : "Thêm Quiz cho bài học"}
               >
                 <FaClipboardList />
               </button>

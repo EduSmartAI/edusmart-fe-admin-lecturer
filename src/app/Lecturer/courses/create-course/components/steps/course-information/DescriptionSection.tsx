@@ -14,18 +14,6 @@ const DescriptionSection: FC = () => {
       </p>
 
       <div className="space-y-6">
-        <SmartInput
-          name="subtitle"
-          label="Mô tả ngắn"
-          placeholder="Một đoạn mô tả ngắn gọn về khóa học (hiển thị trong danh sách khóa học)"
-          type="textarea"
-          validationType="subtitle"
-          required
-          maxLength={200}
-          showCount
-          rows={3}
-        />
-
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Mô tả chi tiết <span className="text-red-500">*</span>

@@ -97,7 +97,8 @@ const CourseInformation: FC = () => {
                 dealPrice: storeState.courseInformation.dealPrice,
                 level: storeState.courseInformation.level === 1 ? 'Beginner' : 
                        storeState.courseInformation.level === 2 ? 'Intermediate' : 
-                       storeState.courseInformation.level === 3 ? 'Advanced' : 'Beginner',
+                       storeState.courseInformation.level === 3 ? 'Advanced' : 
+                       (storeState.courseInformation.level ? 'Beginner' : 'Beginner'), // Fallback to Beginner if undefined
                 promoVideo: currentPromo ?? storeState.courseInformation.courseIntroVideoUrl,
                 learningObjectives: storeState.objectives.map(obj => obj.content),
                 requirements: storeState.requirements.map(req => req.content),

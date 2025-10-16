@@ -66,7 +66,7 @@ const Curriculum: FC = () => {
                 description: values.description || '',
                 durationMinutes: values.durationMinutes,
                 level: values.level || 1,
-                isCore: values.isCore || true,
+                isCore: values.isCore || false,
                 isActive: true,
                 objectives: [],
                 lessons: []

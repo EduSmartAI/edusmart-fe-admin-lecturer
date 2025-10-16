@@ -14,14 +14,13 @@ import {
   Row, 
   Col, 
   Tabs, 
-  
-  
   message, 
   Rate, 
   Breadcrumb,
   Typography,
   Dropdown,
-  Empty
+  Empty,
+  Collapse
 } from 'antd';
 import {
   EditOutlined,
@@ -33,17 +32,19 @@ import {
   DollarOutlined,
   ShareAltOutlined,
   MoreOutlined,
-  
-  
-  
   PlusOutlined,
-  BarChartOutlined
+  BarChartOutlined,
+  PlayCircleOutlined,
+  FileTextOutlined,
+  QuestionCircleOutlined,
+  MessageOutlined,
+  CheckCircleOutlined
 } from '@ant-design/icons';
 import { FadeInUp } from 'EduSmart/components/Animation/FadeInUp';
 import { useCourseManagementStore } from 'EduSmart/stores/CourseManagement/CourseManagementStore';
-import { CourseDto } from 'EduSmart/api/api-course-service';
+import { CourseDto, CourseDetailDto, ModuleDetailDto } from 'EduSmart/api/api-course-service';
 
-const { Title, Text } = Typography;
+const { Title, Text, Paragraph } = Typography;
 
 // Helper function to map API course data to UI format
 const mapCourseForUI = (course: CourseDto) => {
@@ -275,9 +276,10 @@ const CourseDetailPage: React.FC = () => {
                     {course.duration && <Tag color="orange">{course.duration}h</Tag>}
                   </div>
                   
-                  <div className="text-sm text-gray-600 dark:text-gray-400">
-                    {course.description}
-                  </div>
+                  <div 
+                    className="text-sm text-gray-600 dark:text-gray-400 prose prose-sm dark:prose-invert max-w-none"
+                    dangerouslySetInnerHTML={{ __html: course.description || '' }}
+                  />
                 </div>
               </div>
 
@@ -406,20 +408,273 @@ const CourseDetailPage: React.FC = () => {
                   label: 'Nội dung',
                   children: (
                     <div className="space-y-4">
-                      <div className="flex justify-between items-center">
-                        <Title level={4}>Danh sách bài học</Title>
+                      <div className="flex justify-between items-center mb-6">
+                        <Title level={4}>Nội dung khóa học</Title>
                         <Button 
                           type="primary" 
                           icon={<PlusOutlined />}
                           onClick={() => router.push(`/Lecturer/courses/edit/${course.courseId}`)}
                         >
-                          Thêm nội dung
+                          Chỉnh sửa nội dung
                         </Button>
                       </div>
-                      <Empty 
-                        description="Chưa có nội dung bài học"
-                        image={Empty.PRESENTED_IMAGE_SIMPLE}
-                      />
+                      
+                      {selectedCourse?.modules && selectedCourse.modules.length > 0 ? (
+                        <div className="space-y-4">
+                          {/* Course Summary */}
+                          <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+                            <Row gutter={[16, 16]}>
+                              <Col xs={12} sm={6}>
+                                <Statistic
+                                  title="Tổng chương"
+                                  value={selectedCourse.modules.length}
+                                  prefix={<BookOutlined />}
+                                />
+                              </Col>
+                              <Col xs={12} sm={6}>
+                                <Statistic
+                                  title="Tổng bài học"
+                                  value={selectedCourse.modules.reduce((acc, m) => acc + (m.lessons?.length || 0), 0)}
+                                  prefix={<PlayCircleOutlined />}
+                                />
+                              </Col>
+                              <Col xs={12} sm={6}>
+                                <Statistic
+                                  title="Tổng Quiz"
+                                  value={
+                                    selectedCourse.modules.filter(m => m.moduleQuiz).length +
+                                    selectedCourse.modules.reduce((acc, m) => 
+                                      acc + (m.lessons?.filter(l => l.lessonQuiz).length || 0), 0
+                                    )
+                                  }
+                                  prefix={<QuestionCircleOutlined />}
+                                />
+                              </Col>
+                              <Col xs={12} sm={6}>
+                                <Statistic
+                                  title="Thời lượng"
+                                  value={Math.round(selectedCourse.durationHours || 0)}
+                                  suffix="giờ"
+                                  prefix={<ClockCircleOutlined />}
+                                />
+                              </Col>
+                            </Row>
+                          </Card>
+
+                          {/* Modules List */}
+                          {selectedCourse.modules.map((module: ModuleDetailDto, moduleIndex: number) => (
+                            <Card 
+                              key={module.moduleId}
+                              className="border-l-4 border-l-emerald-500"
+                            >
+                              <div className="space-y-4">
+                                {/* Module Header */}
+                                <div>
+                                  <div className="flex items-start justify-between mb-2">
+                                    <div className="flex-1">
+                                      <Title level={5} className="mb-1">
+                                        <BookOutlined className="mr-2" />
+                                        Chương {module.positionIndex}: {module.moduleName}
+                                      </Title>
+                                      {module.description && (
+                                        <Paragraph className="text-gray-600 dark:text-gray-400 mb-2">
+                                          {module.description}
+                                        </Paragraph>
+                                      )}
+                                      <Space wrap className="text-sm">
+                                        <Tag color="blue">
+                                          <ClockCircleOutlined className="mr-1" />
+                                          {module.durationMinutes} phút
+                                        </Tag>
+                                        <Tag color="purple">
+                                          Cấp độ {module.level}
+                                        </Tag>
+                                        {module.isCore && <Tag color="gold">Chương chính</Tag>}
+                                        <Tag color="green">
+                                          {module.lessons?.length || 0} bài học
+                                        </Tag>
+                                        {module.moduleQuiz && (
+                                          <Tag color="orange" icon={<QuestionCircleOutlined />}>
+                                            Có quiz chương ({module.moduleQuiz.questions?.length || 0} câu)
+                                          </Tag>
+                                        )}
+                                        {module.lessons && module.lessons.filter(l => l.lessonQuiz).length > 0 && (
+                                          <Tag color="cyan" icon={<QuestionCircleOutlined />}>
+                                            {module.lessons.filter(l => l.lessonQuiz).length} quiz bài học
+                                          </Tag>
+                                        )}
+                                      </Space>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Lessons */}
+                                {module.lessons && module.lessons.length > 0 && (
+                                  <div className="ml-6 space-y-2">
+                                    {module.lessons.map((lesson, lessonIndex) => (
+                                      <Card 
+                                        key={lesson.lessonId}
+                                        size="small"
+                                        className="bg-gray-50 dark:bg-gray-800"
+                                      >
+                                        <div className="flex items-center justify-between">
+                                          <div className="flex items-center gap-3 flex-1">
+                                            <PlayCircleOutlined className="text-blue-500 text-lg" />
+                                            <div>
+                                              <Text strong>
+                                                Bài {lesson.positionIndex}: {lesson.title}
+                                              </Text>
+                                              <div className="text-xs text-gray-500 mt-1">
+                                                <ClockCircleOutlined className="mr-1" />
+                                                {Math.floor((lesson.videoDurationSec || 0) / 60)} phút
+                                              </div>
+                                            </div>
+                                          </div>
+                                          <Space>
+                                            {lesson.lessonQuiz && (
+                                              <Tag color="orange" icon={<QuestionCircleOutlined />}>
+                                                Có Quiz ({lesson.lessonQuiz.questions?.length || 0} câu hỏi)
+                                              </Tag>
+                                            )}
+                                            {lesson.videoUrl && (
+                                              <Tag color="green" icon={<CheckCircleOutlined />}>
+                                                Có video
+                                              </Tag>
+                                            )}
+                                          </Space>
+                                        </div>
+                                      </Card>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {/* Module Quiz */}
+                                {module.moduleQuiz && (
+                                  <Card 
+                                    size="small"
+                                    className="ml-6 mt-3 bg-orange-50 dark:bg-orange-900/20 border-2 border-orange-300 dark:border-orange-700 shadow-md"
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-3">
+                                        <div className="bg-orange-500 text-white p-2 rounded-lg">
+                                          <QuestionCircleOutlined className="text-xl" />
+                                        </div>
+                                        <div>
+                                          <Text strong className="text-orange-700 dark:text-orange-400 text-base">
+                                            🎯 Quiz Chương
+                                          </Text>
+                                          <div className="text-sm text-gray-600 dark:text-gray-400 mt-1 flex items-center gap-2">
+                                            <span className="font-semibold">{module.moduleQuiz.questions?.length || 0} câu hỏi</span>
+                                            {module.moduleQuiz.quizSettings && (
+                                              <>
+                                                <span>•</span>
+                                                <span>{module.moduleQuiz.quizSettings.durationMinutes || 0} phút</span>
+                                                <span>•</span>
+                                                <span>Đạt {module.moduleQuiz.quizSettings.passingScorePercentage || 0}%</span>
+                                              </>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <Space direction="vertical" size="small">
+                                        {module.moduleQuiz.quizSettings && (
+                                          <>
+                                            {module.moduleQuiz.quizSettings.allowRetake && (
+                                              <Tag color="blue" icon={<CheckCircleOutlined />}>Cho phép làm lại</Tag>
+                                            )}
+                                            {module.moduleQuiz.quizSettings.showResultsImmediately && (
+                                              <Tag color="green" icon={<CheckCircleOutlined />}>Hiện kết quả ngay</Tag>
+                                            )}
+                                            {module.moduleQuiz.quizSettings.shuffleQuestions && (
+                                              <Tag color="purple">Xáo trộn câu hỏi</Tag>
+                                            )}
+                                          </>
+                                        )}
+                                      </Space>
+                                    </div>
+                                  </Card>
+                                )}                                {/* Module Discussion */}
+                                {module.moduleDiscussionDetails && module.moduleDiscussionDetails.length > 0 && (
+                                  <div className="ml-6 space-y-2">
+                                    {module.moduleDiscussionDetails.map((discussion) => (
+                                      <Card 
+                                        key={discussion.discussionId}
+                                        size="small"
+                                        className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800"
+                                      >
+                                        <div className="flex items-center gap-3">
+                                          <MessageOutlined className="text-blue-500 text-lg" />
+                                          <div className="flex-1">
+                                            <Text strong className="text-blue-700 dark:text-blue-400">
+                                              {discussion.title}
+                                            </Text>
+                                            {discussion.description && (
+                                              <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                                {discussion.description}
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </Card>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {/* Module Materials */}
+                                {module.moduleMaterialDetails && module.moduleMaterialDetails.length > 0 && (
+                                  <div className="ml-6 space-y-2">
+                                    {module.moduleMaterialDetails.map((material) => (
+                                      <Card 
+                                        key={material.materialId}
+                                        size="small"
+                                        className="bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800"
+                                      >
+                                        <div className="flex items-center justify-between">
+                                          <div className="flex items-center gap-3">
+                                            <FileTextOutlined className="text-amber-600 text-lg" />
+                                            <div>
+                                              <Text strong className="text-amber-700 dark:text-amber-400">
+                                                {material.title}
+                                              </Text>
+                                              {material.description && (
+                                                <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                                  {material.description}
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
+                                          {material.fileUrl && (
+                                            <Button 
+                                              size="small" 
+                                              type="link"
+                                              onClick={() => window.open(material.fileUrl, '_blank')}
+                                            >
+                                              Xem tài liệu
+                                            </Button>
+                                          )}
+                                        </div>
+                                      </Card>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </Card>
+                          ))}
+                        </div>
+                      ) : (
+                        <Empty 
+                          description="Chưa có nội dung bài học"
+                          image={Empty.PRESENTED_IMAGE_SIMPLE}
+                        >
+                          <Button 
+                            type="primary" 
+                            icon={<PlusOutlined />}
+                            onClick={() => router.push(`/Lecturer/courses/edit/${course.courseId}`)}
+                          >
+                            Thêm nội dung
+                          </Button>
+                        </Empty>
+                      )}
                     </div>
                   )
                 },
