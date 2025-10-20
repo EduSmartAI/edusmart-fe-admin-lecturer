@@ -1,7 +1,6 @@
 'use client';
 import { FC } from 'react';
 import { Form } from 'antd';
-import SmartInput from '../../ui/SmartInput';
 import RichTextEditor from 'EduSmart/components/BaseControl/RichTextEditor';
 import ListFieldManager from '../../ui/ListFieldManager';
 

@@ -38,6 +38,7 @@ export default function MoreSection() {
               src={teacherPNG}
               alt="Giảng viên"
               fill
+              sizes="(max-width: 768px) 100vw, 480px"
               className="object-cover"
             />
             <div className="absolute inset-0 bg-white dark:bg-gray-800 opacity-40 backdrop-blur-sm"></div>
@@ -57,6 +58,7 @@ export default function MoreSection() {
               src={studentPNG}
               alt="Sinh viên"
               fill
+              sizes="(max-width: 768px) 100vw, 480px"
               className="object-cover"
             />
             <div className="absolute inset-0 bg-black opacity-40"></div>

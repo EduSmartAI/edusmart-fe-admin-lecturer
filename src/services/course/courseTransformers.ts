@@ -16,6 +16,12 @@ import type {
   CreateModuleDto,
   UpdateModuleDto
 } from 'EduSmart/api/api-course-service';
+import type {
+  UpdateCourseQuizPayload,
+  QuizPayload,
+  QuizQuestionPayload,
+  QuizAnswerPayload,
+} from 'EduSmart/api/api-quiz-service';
 
 // Type alias for the modules DTO (since it doesn't exist in API)
 type UpdateCourseWithModulesDto = UpdateCourseDto & { modules?: any[] };
@@ -35,8 +41,9 @@ const transformQuizSettings = (settings?: unknown) => {
     allowRetake?: boolean;
   };
   
+  // Note: quizSettingsId should NOT be included inside quizSettings object
+  // It's only needed at the quiz level (lessonQuizId/moduleQuizId)
   return {
-    quizSettingsId: s.id,
     durationMinutes: s.durationMinutes,
     passingScorePercentage: s.passingScorePercentage,
     shuffleQuestions: s.shuffleQuestions,
@@ -62,9 +69,9 @@ const transformQuestions = (questions?: unknown[]) => {
       questionType: question.questionType,
       questionText: question.questionText,
       explanation: question.explanation,
-      options: question.options?.map(opt => ({
-        optionId: opt.id,
-        text: opt.text,
+      answers: question.options?.map(opt => ({
+        answerId: opt.id,
+        answerText: opt.text,
         isCorrect: opt.isCorrect
       }))
     };
@@ -227,44 +234,72 @@ export const transformToUpdateWithModulesDto = async (
   } as UpdateCourseWithModulesDto;
 };
 
-const transformModulesForUpdate = (modules: CourseModule[]): UpdateModuleDto[] => {
-  return modules.map((module, index) => ({
-    moduleId: module.id,
-    moduleName: module.moduleName,
-    description: module.description,
-    positionIndex: index,
-    isActive: module.isActive,
-    isCore: module.isCore,
-    durationMinutes: module.durationMinutes,
-    level: module.level,
-    
-    objectives: module.objectives.map((obj, objIdx) => ({
-      objectiveId: obj.id,
-      content: obj.content,
-      positionIndex: objIdx,
-      isActive: obj.isActive
-    })),
-    
-    lessons: module.lessons.map((lesson, idx) => transformLessonForUpdate(lesson, idx)),
-    
-    moduleDiscussionDetails: module.discussions?.map((disc) => ({
-      discussionId: disc.id,
-      title: disc.title,
-      description: disc.description,
-      discussionQuestion: disc.discussionQuestion,
-      isActive: disc.isActive
-    })),
-    
-    moduleMaterialDetails: module.materials?.map((mat) => ({
-      materialId: mat.id,
-      title: mat.title,
-      description: mat.description,
-      fileUrl: mat.fileUrl,
-      isActive: mat.isActive
-    })),
-    
-    moduleQuiz: module.moduleQuiz ? transformModuleQuizForUpdate(module.moduleQuiz) : undefined
-  }));
+export const transformModulesForUpdate = (modules: CourseModule[]): UpdateModuleDto[] => {
+  return modules.map((module, index) => {
+    const currentTime = new Date().toISOString();
+
+    const discussions = module.discussions?.map((disc) => {
+      const storedCreatedAt = disc.createdAt;
+      const createdAt = storedCreatedAt || currentTime;
+
+      return {
+        discussionId: disc.id,
+        title: disc.title,
+        description: disc.description,
+        discussionQuestion: disc.discussionQuestion,
+        isActive: disc.isActive !== undefined ? disc.isActive : true,
+        createdAt,
+        updatedAt: currentTime,
+      };
+    });
+
+    const materials = module.materials?.map((mat) => {
+      const storedCreatedAt = mat.createdAt;
+      const createdAt = storedCreatedAt || currentTime;
+
+      return {
+        materialId: mat.id,
+        title: mat.title,
+        description: mat.description,
+        fileUrl: mat.fileUrl,
+        isActive: mat.isActive !== undefined ? mat.isActive : true,
+        createdAt,
+        updatedAt: currentTime,
+      };
+    });
+
+    return {
+      moduleId: module.id,
+      moduleName: module.moduleName,
+      description: module.description,
+      positionIndex: index + 1, // API uses 1-based index
+      isActive: module.isActive,
+      isCore: module.isCore,
+      durationMinutes: module.durationMinutes,
+      durationHours: module.durationMinutes ? module.durationMinutes / 60 : undefined,
+      level: index + 1, // Level is typically same as position
+      objectives: module.objectives.map((obj, objIdx) => ({
+        objectiveId: obj.id,
+        content: obj.content,
+        positionIndex: objIdx,
+        isActive: obj.isActive,
+      })),
+      lessons: module.lessons.map((lesson, idx) => transformLessonForUpdate(lesson, idx)),
+      moduleDiscussionDetails: discussions,
+      discussions,
+      moduleMaterialDetails: materials,
+      materials,
+      ...(module.moduleQuiz
+        ? {
+            moduleQuiz: {
+              moduleQuizId: module.moduleQuiz.id,
+              quizSettings: transformQuizSettings(module.moduleQuiz.quizSettings),
+              questions: transformQuestions(module.moduleQuiz.questions) ?? [],
+            },
+          }
+        : {}),
+    };
+  });
 };
 
 const transformLessonForUpdate = (lesson: Lesson, index: number) => ({
@@ -272,18 +307,156 @@ const transformLessonForUpdate = (lesson: Lesson, index: number) => ({
   title: lesson.title,
   videoUrl: lesson.videoUrl,
   videoDurationSec: lesson.videoDurationSec,
-  positionIndex: index,
+  positionIndex: index + 1, // API uses 1-based index
   isActive: lesson.isActive,
-  lessonQuiz: lesson.lessonQuiz ? {
-    lessonQuizId: lesson.lessonQuiz.id,
-    quizSettings: transformQuizSettings(lesson.lessonQuiz.quizSettings),
-    questions: transformQuestions(lesson.lessonQuiz.questions)
-  } : undefined
+  ...(lesson.lessonQuiz
+    ? {
+        lessonQuiz: {
+          lessonQuizId: lesson.lessonQuiz.id,
+          quizSettings: transformQuizSettings(lesson.lessonQuiz.quizSettings),
+          questions: transformQuestions(lesson.lessonQuiz.questions) ?? [],
+        },
+      }
+    : {}),
 });
 
-const transformModuleQuizForUpdate = (quiz: ModuleQuiz) => ({
-  moduleQuizId: quiz.id,
-  quizSettings: transformQuizSettings(quiz.quizSettings),
-  questions: transformQuestions(quiz.questions)
-});
+const mapAnswersForQuiz = (options?: Array<{ id?: string; text?: string; isCorrect?: boolean }>): QuizAnswerPayload[] => {
+  if (!options) return [];
+
+  return options.map((opt) => ({
+    // Only include answerId if it's a real UUID (not temporary like "answer-0.123")
+    ...(isRealQuizId(opt.id) ? { answerId: opt.id } : {}),
+    answerText: opt.text,
+    isCorrect: opt.isCorrect ?? false,
+  }));
+};
+
+const mapQuestionsForQuiz = (questions?: unknown[]): QuizQuestionPayload[] => {
+  if (!questions || !Array.isArray(questions)) return [];
+
+  return questions.map((q) => {
+    const question = q as {
+      id?: string;
+      questionType: number;
+      questionText?: string;
+      explanation?: string;
+      options?: Array<{ id?: string; text?: string; isCorrect?: boolean }>;
+    };
+
+    return {
+      // Only include questionId if it's a real UUID (not temporary like "question-0.123")
+      ...(isRealQuizId(question.id) ? { questionId: question.id } : {}),
+      questionText: question.questionText,
+      questionType: question.questionType,
+      explanation: question.explanation,
+      answers: mapAnswersForQuiz(question.options),
+    } satisfies QuizQuestionPayload;
+  });
+};
+
+// Helper to check if ID is a real database ID (UUID format) vs temporary client ID
+const isRealQuizId = (id?: string): boolean => {
+  if (!id) return false;
+  // Check if it's a UUID format (real database ID) vs temporary ID like "lesson-quiz-1234"
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(id);
+};
+
+const mapQuizForPayload = (quiz?: ModuleQuiz | Lesson['lessonQuiz']): QuizPayload | null => {
+  if (!quiz) return null;
+
+  const extendedQuiz = quiz as (ModuleQuiz & {
+    quizId?: string;
+    moduleQuizId?: string;
+    lessonQuizId?: string;
+  }) | (Lesson['lessonQuiz'] & {
+    quizId?: string;
+    lessonQuizId?: string;
+    moduleQuizId?: string;
+  });
+
+  const candidateQuizId = typeof extendedQuiz.quizId === 'string' ? extendedQuiz.quizId : quiz.id;
+
+  // Skip temporary IDs - these quizzes don't exist in the database yet
+  if (!isRealQuizId(candidateQuizId)) {
+    return null;
+  }
+
+  const settings = quiz.quizSettings ?? {};
+
+  return {
+    quizId: candidateQuizId,
+    durationMinutes: settings.durationMinutes,
+    passingScorePercentage: settings.passingScorePercentage,
+    shuffleQuestions: settings.shuffleQuestions,
+    showResultsImmediately: settings.showResultsImmediately,
+    allowRetake: settings.allowRetake,
+    questions: mapQuestionsForQuiz(quiz.questions),
+  } satisfies QuizPayload;
+};
+
+export const buildCourseQuizUpdatePayload = (
+  modules: CourseModule[],
+  editedQuizIds?: Set<string>
+): UpdateCourseQuizPayload => {
+  const quizzes: QuizPayload[] = [];
+
+  modules.forEach((module) => {
+    const moduleQuiz = module.moduleQuiz as (ModuleQuiz & { lastModified?: number; quizId?: string }) | undefined;
+    
+    // Only include module quiz if it was EXPLICITLY edited in this session
+    if (moduleQuiz) {
+      const quizId = moduleQuiz.quizId || moduleQuiz.id;
+      
+      if (editedQuizIds && quizId && editedQuizIds.has(quizId)) {
+        const mapped = mapQuizForPayload(moduleQuiz);
+        if (mapped) {
+          quizzes.push(mapped);
+        }
+      } else if (editedQuizIds) {
+        // Quiz not in edited set, skip it
+      } else {
+        // Fallback: if no editedQuizIds provided, use old time-based logic
+        const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+        if (!moduleQuiz.lastModified || moduleQuiz.lastModified >= fiveMinutesAgo) {
+          const mapped = mapQuizForPayload(moduleQuiz);
+          if (mapped) {
+            quizzes.push(mapped);
+          }
+        }
+      }
+    }
+
+    module.lessons.forEach((lesson) => {
+      const lessonQuiz = lesson.lessonQuiz as (Lesson['lessonQuiz'] & { lastModified?: number; quizId?: string }) | undefined;
+      
+      // Only include lesson quiz if it was EXPLICITLY edited in this session
+      if (lessonQuiz) {
+        const quizId = lessonQuiz.quizId || lessonQuiz.id;
+        
+        if (editedQuizIds && quizId && editedQuizIds.has(quizId)) {
+          const mapped = mapQuizForPayload(lessonQuiz);
+          if (mapped) {
+            quizzes.push(mapped);
+          }
+        } else if (editedQuizIds) {
+          // Quiz not in edited set, skip it
+        } else {
+          // Fallback: if no editedQuizIds provided, use old time-based logic
+          const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+          if (!lessonQuiz.lastModified || lessonQuiz.lastModified >= fiveMinutesAgo) {
+            const mapped = mapQuizForPayload(lessonQuiz);
+            if (mapped) {
+              quizzes.push(mapped);
+            }
+          }
+        }
+      }
+    });
+  });
+
+  return {
+    quizzes,
+  };
+};
 

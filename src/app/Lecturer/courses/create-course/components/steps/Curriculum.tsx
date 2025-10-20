@@ -60,23 +60,27 @@ const Curriculum: FC = () => {
     const handleSubmit = async () => {
         try {
             const values = await form.validateFields();
-            
-            const moduleData = {
+
+            const baseModuleData = {
                 moduleName: values.moduleName,
                 description: values.description || '',
                 durationMinutes: values.durationMinutes,
                 level: values.level || 1,
                 isCore: values.isCore || false,
-                isActive: true,
-                objectives: [],
-                lessons: []
             };
 
             if (editingIndex !== null) {
-                updateModule(editingIndex, moduleData);
+                updateModule(editingIndex, baseModuleData);
                 message.success('Cập nhật chương thành công!');
             } else {
-                addModule(moduleData);
+                addModule({
+                    ...baseModuleData,
+                    isActive: true,
+                    objectives: [],
+                    lessons: [],
+                    discussions: [],
+                    materials: [],
+                });
                 message.success('Thêm chương thành công!');
             }
 

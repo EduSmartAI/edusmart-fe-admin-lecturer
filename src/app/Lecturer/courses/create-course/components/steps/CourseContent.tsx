@@ -52,11 +52,18 @@ enum ContentType {
 
 
 
+interface OptionMetadata {
+  id: string;
+  text: string;
+  isCorrect: boolean;
+}
+
 interface QuizQuestion {
   id: string;
   question: string;
   type: 'multiple-choice' | 'true-false' | 'short-answer';
   options?: string[];
+  optionsMetadata?: OptionMetadata[]; // Preserve backend IDs
   correctAnswer: string | number;
   explanation?: string;
 }
@@ -69,6 +76,36 @@ interface QuizSettings {
   allowRetake?: boolean;
 }
 
+const resolveQuizIdentifiers = (quiz?: unknown) => {
+  if (!quiz || typeof quiz !== 'object') {
+    return {
+      quizId: undefined as string | undefined,
+      backendId: undefined as string | undefined,
+    };
+  }
+
+  const data = quiz as {
+    id?: string;
+    quizId?: string;
+    moduleQuizId?: string;
+    lessonQuizId?: string;
+  };
+
+  const quizId = typeof data.quizId === 'string'
+    ? data.quizId
+    : typeof data.id === 'string'
+      ? data.id
+      : undefined;
+
+  const backendId = typeof data.moduleQuizId === 'string'
+    ? data.moduleQuizId
+    : typeof data.lessonQuizId === 'string'
+      ? data.lessonQuizId
+      : quizId;
+
+  return { quizId, backendId };
+};
+
 
 const CourseContent: FC = () => {
   const { isDarkMode } = useTheme();
@@ -80,6 +117,7 @@ const CourseContent: FC = () => {
   const addLesson = useCreateCourseStore((state) => state.addLesson);
   const updateLesson = useCreateCourseStore((state) => state.updateLesson);
   const removeLesson = useCreateCourseStore((state) => state.removeLesson);
+  const markQuizAsEdited = useCreateCourseStore((state) => state.markQuizAsEdited);
   
   const { message } = App.useApp();
   
@@ -240,6 +278,11 @@ const CourseContent: FC = () => {
       question: q.questionText || '',
       type: convertQuestionTypeToString(q.questionType),
       options: q.options ? q.options.map((opt: any) => opt.text) : [],
+      optionsMetadata: q.options ? q.options.map((opt: any) => ({
+        id: opt.id,
+        text: opt.text,
+        isCorrect: opt.isCorrect,
+      })) : [],
       correctAnswer: q.options ? 
         (q.questionType === 1 ? // Multiple choice
           q.options.findIndex((opt: any) => opt.isCorrect) :
@@ -420,13 +463,12 @@ const CourseContent: FC = () => {
   }, [getModuleItems, modules, updateModule]);
 
   // Handle content creation/editing
-  const handleSubmitContent = useCallback(async () => {
+  const handleSubmitContent = useCallback(async (values: Record<string, any>) => {
     try {
-      // Use Antd form validation
-      const values = await form.validateFields();
-      
+      const formValues = values || {};
+
       // Additional validation for different content types
-      if (selectedType === ContentType.FILE && !values.fileUrl) {
+      if (selectedType === ContentType.FILE && !formValues.fileUrl) {
         message.error('Vui lòng tải lên file!');
         return;
       }
@@ -437,8 +479,8 @@ const CourseContent: FC = () => {
         const videoUploadComponent = document.querySelector('video');
         if (videoUploadComponent && videoUploadComponent.src) {
           // If video is in the DOM but not in form values, use the DOM source
-          if (!values.url) {
-            values.url = videoUploadComponent.src;
+          if (!formValues.url) {
+            formValues.url = videoUploadComponent.src;
           }
         }
       }
@@ -464,15 +506,15 @@ const CourseContent: FC = () => {
         // Video lessons go to lessons array
         const newLesson = {
           id: editingItem?.id,
-          title: values.title,
-          videoUrl: values.url || '',
-          videoDurationSec: values.duration ? values.duration * 60 : 0,
+          title: formValues.title,
+          videoUrl: formValues.url || '',
+          videoDurationSec: formValues.duration ? formValues.duration * 60 : 0,
           positionIndex: editingItem?.order ?? currentModule.lessons.length,
           isActive: true,
           // Store metadata for UI purposes
           metadata: {
             contentType: selectedType,
-            description: values.description || undefined
+            description: formValues.description || undefined
           }
         };
 
@@ -495,73 +537,91 @@ const CourseContent: FC = () => {
       } 
       else if (selectedType === ContentType.QUESTION) {
         // Discussions go to discussions array
+        const existingDiscussions = currentModule.discussions || [];
+        const existingDiscussion = editingItem
+          ? existingDiscussions.find(d => d.id === editingItem.id)
+          : undefined;
+        const timestamp = new Date().toISOString();
+
         const newDiscussion = {
-          id: editingItem?.id || `discussion-${Date.now()}`,
-          title: values.title,
-          description: values.description || '',
-          discussionQuestion: values.question || '',
-          isActive: true,
+          id: existingDiscussion?.id || editingItem?.id || `discussion-${Date.now()}`,
+          title: formValues.title,
+          description: formValues.description || '',
+          discussionQuestion: formValues.question || '',
+          isActive: existingDiscussion?.isActive ?? true,
+          createdAt: existingDiscussion?.createdAt || timestamp,
+          updatedAt: timestamp,
           // Store metadata for UI purposes
           metadata: {
+            ...(existingDiscussion?.metadata || {}),
             contentType: selectedType
           }
         };
 
-        const updatedModule = {
-          ...currentModule,
-          discussions: currentModule.discussions || []
-        };
+        const updatedDiscussions = [...existingDiscussions];
 
         if (editingItem) {
           // Find and update existing discussion
-          const discussionIndex = updatedModule.discussions.findIndex(d => 
+          const discussionIndex = updatedDiscussions.findIndex(d => 
             d.id === editingItem.id
           );
           if (discussionIndex !== -1) {
-            updatedModule.discussions[discussionIndex] = newDiscussion;
+            updatedDiscussions[discussionIndex] = newDiscussion;
           } else {
-            updatedModule.discussions.push(newDiscussion);
+            updatedDiscussions.push(newDiscussion);
           }
         } else {
-          updatedModule.discussions.push(newDiscussion);
+          updatedDiscussions.push(newDiscussion);
         }
 
-        updateModule(moduleIndex, updatedModule);
+        updateModule(moduleIndex, {
+          ...currentModule,
+          discussions: updatedDiscussions
+        });
       }
       else if (selectedType === ContentType.FILE) {
         // Materials go to materials array
+        const existingMaterials = currentModule.materials || [];
+        const existingMaterial = editingItem
+          ? existingMaterials.find(m => m.id === editingItem.id)
+          : undefined;
+        const timestamp = new Date().toISOString();
+
         const newMaterial = {
-          id: editingItem?.id || `material-${Date.now()}`,
-          title: values.title,
-          description: values.description || '',
-          fileUrl: values.fileUrl || '',
-          isActive: true,
+          id: existingMaterial?.id || editingItem?.id || `material-${Date.now()}`,
+          title: formValues.title,
+          description: formValues.description || '',
+          fileUrl: formValues.fileUrl || existingMaterial?.fileUrl || '',
+          isActive: existingMaterial?.isActive ?? true,
+          createdAt: existingMaterial?.createdAt || timestamp,
+          updatedAt: timestamp,
           // Store metadata for UI purposes
           metadata: {
+            ...(existingMaterial?.metadata || {}),
             contentType: selectedType
           }
         };
 
-        const updatedModule = {
-          ...currentModule,
-          materials: currentModule.materials || []
-        };
+        const updatedMaterials = [...existingMaterials];
 
         if (editingItem) {
           // Find and update existing material
-          const materialIndex = updatedModule.materials.findIndex(m => 
+          const materialIndex = updatedMaterials.findIndex(m => 
             m.id === editingItem.id
           );
           if (materialIndex !== -1) {
-            updatedModule.materials[materialIndex] = newMaterial;
+            updatedMaterials[materialIndex] = newMaterial;
           } else {
-            updatedModule.materials.push(newMaterial);
+            updatedMaterials.push(newMaterial);
           }
         } else {
-          updatedModule.materials.push(newMaterial);
+          updatedMaterials.push(newMaterial);
         }
 
-        updateModule(moduleIndex, updatedModule);
+        updateModule(moduleIndex, {
+          ...currentModule,
+          materials: updatedMaterials
+        });
       }
 
       setIsModalOpen(false);
@@ -572,7 +632,7 @@ const CourseContent: FC = () => {
     } catch (error) {
       message.error('Có lỗi xảy ra khi lưu nội dung');
     }
-  }, [form, activeModuleId, modules, editingItem, updateLesson, addLesson, selectedType, resetFormCompletely, updateModule]);
+  }, [activeModuleId, modules, editingItem, updateLesson, addLesson, selectedType, resetFormCompletely, updateModule]);
 
   // Handle quiz creation from QuizBuilder
   const handleQuizSave = useCallback((questions: QuizQuestion[], settings: QuizSettings) => {
@@ -605,19 +665,22 @@ const CourseContent: FC = () => {
       questionType: convertQuestionType(q.type),
       questionText: q.question,
       explanation: q.explanation || '',
-      options: q.options ? q.options.map((text, index) => ({
-        id: `option-${q.id}-${index}`,
-        text: text,
-        isCorrect: q.type === 'multiple-choice' ? 
-          (Array.isArray(q.correctAnswer) ? q.correctAnswer.includes(index) : q.correctAnswer === index) :
-          q.type === 'true-false' ?
-          (index === 0 ? q.correctAnswer === 'true' : q.correctAnswer === 'false') :
-          q.correctAnswer === text
-      })) : []
+      options: q.options ? q.options.map((text, index) => {
+        const metadataOptions = Array.isArray((q as any).optionsMetadata) ? (q as any).optionsMetadata : [];
+        const originalOption = metadataOptions[index];
+        return {
+          id: originalOption?.id || `option-${q.id}-${index}`,
+          text: text,
+          isCorrect: q.type === 'multiple-choice' ? 
+            (Array.isArray(q.correctAnswer) ? q.correctAnswer.includes(index) : q.correctAnswer === index) :
+            q.type === 'true-false' ?
+            (index === 0 ? q.correctAnswer === 'true' : q.correctAnswer === 'false') :
+            q.correctAnswer === text
+        };
+      }) : []
     }));
 
     const convertedSettings = {
-      id: `settings-${Date.now()}`,
       durationMinutes: settings.timeLimit || 30,
       passingScorePercentage: settings.passingScore || 70,
       shuffleQuestions: settings.shuffleQuestions || false,
@@ -628,9 +691,14 @@ const CourseContent: FC = () => {
     if (editingItem) {
       // We're editing an existing item
       if (editingItem.type === 'module-quiz') {
-        // Update existing module quiz
+        // Update existing module quiz - PRESERVE THE EXISTING QUIZ ID!
+        const existingQuiz = modules[moduleIndex].moduleQuiz;
+        const { quizId: existingModuleQuizId, backendId: existingModuleBackendId } = resolveQuizIdentifiers(existingQuiz);
+        const persistentQuizId = existingModuleQuizId || `module-quiz-${Date.now()}`;
         const moduleQuiz = {
-          id: `module-quiz-${Date.now()}`,
+          id: persistentQuizId,
+          quizId: persistentQuizId,
+          moduleQuizId: existingModuleBackendId || persistentQuizId,
           quizSettings: convertedSettings,
           questions: convertedQuestions
         };
@@ -642,12 +710,20 @@ const CourseContent: FC = () => {
         updateModule(moduleIndex, updatedModule);
         message.success('Bài kiểm tra chương đã được cập nhật thành công!');
       }
-      else if (editingItem.type === ContentType.QUIZ) {
-        // Check if this is editing a module quiz display lesson
-        const lesson = modules[moduleIndex].lessons.find(l => l.id === editingItem.id);
-        if (lesson && lesson.type === 'quiz') {
-          // This is editing a module quiz, update the moduleQuiz data
+  else if (editingItem.type === ContentType.QUIZ) {
+        // Check if this is a MODULE QUIZ (by checking metadata flag)
+  if (editingItem.metadata?.isModuleQuiz) {
+          // This is a module quiz - update the moduleQuiz data with preserved IDs
+          const existingQuiz = modules[moduleIndex].moduleQuiz;
+          const { quizId: existingModuleQuizId, backendId: existingModuleBackendId } = resolveQuizIdentifiers(existingQuiz);
+          const persistentQuizId = existingModuleQuizId || `module-quiz-${Date.now()}`;
+          // Track this quiz as edited in THIS session
+          markQuizAsEdited(persistentQuizId);
+          
           const moduleQuiz = {
+            id: persistentQuizId,
+            quizId: persistentQuizId,
+            moduleQuizId: existingModuleBackendId || persistentQuizId,
             quizSettings: {
               durationMinutes: settings.timeLimit || 30,
               passingScorePercentage: settings.passingScore || 70,
@@ -655,18 +731,25 @@ const CourseContent: FC = () => {
               showResultsImmediately: settings.showResults || true,
               allowRetake: settings.allowRetake || true
             },
+            lastModified: Date.now(), // Mark as modified NOW
             questions: questions.map(q => ({
+              id: q.id,
               questionType: convertQuestionType(q.type),
               questionText: q.question,
               explanation: q.explanation || '',
-              options: q.options ? q.options.map((text, index) => ({
-                text: text,
-                isCorrect: q.type === 'multiple-choice' ? 
-                  (Array.isArray(q.correctAnswer) ? q.correctAnswer.includes(index) : q.correctAnswer === index) :
-                  q.type === 'true-false' ?
-                  (index === 0 ? q.correctAnswer === 'true' : q.correctAnswer === 'false') :
-                  q.correctAnswer === text
-              })) : []
+              options: q.options ? q.options.map((text, index) => {
+                const metadataOptions = Array.isArray((q as any).optionsMetadata) ? (q as any).optionsMetadata : [];
+                const originalOption = metadataOptions[index];
+                return {
+                  id: originalOption?.id || `option-${q.id}-${index}`,
+                  text: text,
+                  isCorrect: q.type === 'multiple-choice' ? 
+                    (Array.isArray(q.correctAnswer) ? q.correctAnswer.includes(index) : q.correctAnswer === index) :
+                    q.type === 'true-false' ?
+                    (index === 0 ? q.correctAnswer === 'true' : q.correctAnswer === 'false') :
+                    q.correctAnswer === text
+                };
+              }) : []
             }))
           };
 
@@ -678,10 +761,18 @@ const CourseContent: FC = () => {
           message.success('Bài kiểm tra chương đã được cập nhật thành công!');
         } else {
           // Regular lesson quiz editing - this handles the case where lesson has lessonQuiz
+          const lesson = modules[moduleIndex].lessons.find(l => l.id === editingItem.id);
+          const existingLessonQuiz = lesson?.lessonQuiz;
+          const { quizId: existingLessonQuizId, backendId: existingLessonBackendId } = resolveQuizIdentifiers(existingLessonQuiz);
+          const persistentLessonQuizId = existingLessonQuizId || `lesson-quiz-${Date.now()}`;
+
           const quizCount = modules[moduleIndex].lessons.filter(l => 
             l.title && (l.title.toLowerCase().includes('kiểm tra') || l.title.toLowerCase().includes('quiz'))
           ).length;
-
+          
+          // Track this quiz as edited in THIS session
+          markQuizAsEdited(persistentLessonQuizId);
+          
           const newQuizLesson = {
             id: editingItem?.id || `quiz-${Date.now()}`,
             title: editingItem ? editingItem.title : `Bài kiểm tra ${quizCount}`,
@@ -690,8 +781,11 @@ const CourseContent: FC = () => {
             positionIndex: editingItem?.order ?? modules[moduleIndex].lessons.length,
             isActive: true,
             lessonQuiz: {
-              id: `lesson-quiz-${Date.now()}`,
+              id: persistentLessonQuizId,
+              quizId: persistentLessonQuizId,
+              lessonQuizId: existingLessonBackendId || persistentLessonQuizId,
               quizSettings: convertedSettings,
+              lastModified: Date.now(), // Mark as modified NOW
               questions: convertedQuestions
             }
           };
@@ -702,6 +796,8 @@ const CourseContent: FC = () => {
           if (lessonIndex !== -1) {
             updateLesson(moduleIndex, lessonIndex, newQuizLesson);
             message.success('Bài kiểm tra đã được cập nhật thành công!');
+          } else {
+            console.warn('⚠️ Lesson index not found for quiz update');
           }
         }
       }
@@ -712,11 +808,21 @@ const CourseContent: FC = () => {
         );
         if (lessonIndex !== -1) {
           const existingLesson = modules[moduleIndex].lessons[lessonIndex];
+          const existingLessonQuiz = existingLesson.lessonQuiz;
+          const { quizId: existingLessonQuizId, backendId: existingLessonBackendId } = resolveQuizIdentifiers(existingLessonQuiz);
+          const persistentLessonQuizId = existingLessonQuizId || `lesson-quiz-${Date.now()}`;
+
+          // Track this quiz as edited in THIS session
+          markQuizAsEdited(persistentLessonQuizId);
+          
           const updatedLesson = {
             ...existingLesson,
             lessonQuiz: {
-              id: `lesson-quiz-${Date.now()}`,
+              id: persistentLessonQuizId,
+              quizId: persistentLessonQuizId,
+              lessonQuizId: existingLessonBackendId || persistentLessonQuizId,
               quizSettings: convertedSettings,
+              lastModified: Date.now(), // Mark as modified NOW
               questions: convertedQuestions
             }
           };
@@ -731,7 +837,11 @@ const CourseContent: FC = () => {
     } else {
       // Create NEW module quiz when using "Thêm nội dung" → "Bài Kiểm Tra"
       // Only create the moduleQuiz, NOT a lesson
+      const newQuizId = `module-quiz-${Date.now()}`;
       const moduleQuiz = {
+        id: newQuizId,
+        quizId: newQuizId,
+        moduleQuizId: newQuizId,
         quizSettings: {
           durationMinutes: settings.timeLimit || 30,
           passingScorePercentage: settings.passingScore || 70,
@@ -886,6 +996,8 @@ const CourseContent: FC = () => {
               question: q.questionText || '',
               type: q.questionType === 1 ? 'multiple-choice' : q.questionType === 2 ? 'true-false' : 'short-answer',
               options: q.options ? q.options.map((opt: any) => opt.text) : [],
+              // Store original option data in metadata so we can preserve IDs
+              optionsMetadata: q.options ? q.options.map((opt: any) => ({ id: opt.id, text: opt.text, isCorrect: opt.isCorrect })) : [],
               correctAnswer: q.options ? 
                 (q.questionType === 1 ? // Multiple choice
                   q.options.findIndex((opt: any) => opt.isCorrect) :
@@ -1198,6 +1310,8 @@ const CourseContent: FC = () => {
         form={form}
         layout="vertical"
         key={formKey} // Use dynamic key to force complete re-render
+        id="course-content-modal-form"
+        onFinish={handleSubmitContent}
       >
         <div className="space-y-6">
           {/* Header */}
@@ -1450,7 +1564,7 @@ const CourseContent: FC = () => {
                           resetFormCompletely(); 
                           setSelectedType(null); 
                         }}>Hủy</Button>
-                        <Button type="primary" onClick={handleSubmitContent}>{editingItem ? 'Cập nhật' : 'Thêm nội dung'}</Button>
+                        <Button type="primary" htmlType="submit" form="course-content-modal-form">{editingItem ? 'Cập nhật' : 'Thêm nội dung'}</Button>
                     </div>
                 </div>
             )}

@@ -106,6 +106,7 @@ const CourseCard: React.FC<CourseCardProps> = ({
               src={safeImageUrl}
               alt={title}
               fill
+              sizes="(max-width: 768px) 100vw, 352px"
               loading="lazy"
               style={{ objectFit: "cover" }}
             />

@@ -32,6 +32,7 @@ export interface CourseManagementState {
   fetchCourses: (query?: GetCoursesQuery) => Promise<boolean>;
   fetchCoursesByLecturer: (query?: Partial<GetCoursesByLecturerQuery>) => Promise<boolean>;
   fetchCourseById: (courseId: string) => Promise<boolean>;
+  deleteCourse: (courseId: string) => Promise<boolean>;
   getCurrentLecturerId: () => Promise<string>;
   setFilters: (filters: Partial<CourseManagementState['filters']>) => void;
   setPagination: (page: number, pageSize?: number) => void;
@@ -140,6 +141,40 @@ export const useCourseManagementStore = create<CourseManagementState>()(
             isLoading: false,
             error,
           });
+          return false;
+        }
+      },
+
+      deleteCourse: async (courseId: string) => {
+        set({ isLoading: true, error: null });
+
+        try {
+          const response = await courseServiceAPI.deleteCourse(courseId);
+          const isSuccess = typeof response === 'object' && response !== null
+            ? response.success !== false
+            : true;
+
+          if (!isSuccess) {
+            const message = typeof response === 'object' && response !== null
+              ? response.message || 'Failed to delete course'
+              : 'Failed to delete course';
+            set({ isLoading: false, error: message });
+            return false;
+          }
+
+          set({ selectedCourse: null });
+
+          const refreshed = await get().fetchCoursesByLecturer();
+          if (!refreshed) {
+            set({ isLoading: false });
+            return true;
+          }
+
+          set({ isLoading: false });
+          return true;
+        } catch (e) {
+          const error = e instanceof Error ? e.message : 'Network error occurred while deleting course';
+          set({ isLoading: false, error });
           return false;
         }
       },

@@ -34,7 +34,7 @@ export default function HeroSection() {
               src={girlImage}
               alt="Student"
               fill
-              sizes="100%"
+              sizes="(max-width: 768px) 288px, (max-width: 1024px) 384px, (max-width: 1536px) 480px, 800px"
               className="object-contain"
             />
 

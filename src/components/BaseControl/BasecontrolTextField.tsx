@@ -1,5 +1,5 @@
 // BaseControlTextField.tsx
-import React, { useMemo } from "react";
+import React, { useId, useMemo } from "react";
 import { Form, Input } from "antd";
 import type { Rule } from "antd/lib/form";
 import { buildRules } from "EduSmart/utils/antValidation";
@@ -22,8 +22,16 @@ const BaseControlTextField: React.FC<BaseControlTextFieldProps> = ({
   type = "text",
   maxlength,
 }) => {
+  const reactId = useId();
+  const sanitizedReactId = useMemo(
+    () => reactId.replace(/[^a-zA-Z0-9_-]/g, ""),
+    [reactId]
+  );
   // id dùng để map label/htmlFor
-  const fieldId = useMemo(() => xmlColumn.id, [xmlColumn.id]);
+  const fieldId = useMemo(
+    () => `${xmlColumn.id}-${sanitizedReactId}`,
+    [xmlColumn.id, sanitizedReactId]
+  );
   // build rule từ xmlColumn.rules
   const rulesList = useMemo<Rule[]>(() => buildRules(xmlColumn), [xmlColumn]);
 

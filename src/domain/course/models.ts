@@ -92,6 +92,9 @@ export interface Discussion {
   description?: string;
   discussionQuestion?: string;
   isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface Material {
@@ -100,6 +103,9 @@ export interface Material {
   description?: string;
   fileUrl?: string;
   isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  metadata?: Record<string, unknown>;
 }
 
 // ============================================
@@ -131,12 +137,16 @@ export interface QuestionOption {
 
 export interface ModuleQuiz {
   id?: string;
+  quizId?: string;
+  moduleQuizId?: string;
   quizSettings?: QuizSettings;
   questions?: Question[];
 }
 
 export interface LessonQuiz {
   id?: string;
+  quizId?: string;
+  lessonQuizId?: string;
   quizSettings?: QuizSettings;
   questions?: Question[];
 }
@@ -192,6 +202,7 @@ export interface OperationResult<T = void> {
   error?: string;
   message?: string;
 }
+
 
 
 

@@ -48,7 +48,8 @@ const LivePreview: FC = () => {
           <Image
             src={courseInformation.courseImageUrl}
             alt={courseInformation.title || 'Course Cover'}
-            layout="fill"
+            fill
+            sizes="(max-width: 768px) 100vw, 384px"
             className="object-cover"
           />
         ) : (

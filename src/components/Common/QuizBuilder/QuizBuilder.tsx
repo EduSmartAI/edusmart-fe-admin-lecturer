@@ -3,11 +3,18 @@ import { FC, useState, useCallback, useEffect } from 'react';
 import { Input, Button, Select, Radio, Space, Card, InputNumber, Switch } from 'antd';
 import { FaPlus, FaTrash, FaClock, FaCheck, FaQuestion } from 'react-icons/fa';
 
+interface OptionMetadata {
+  id: string;
+  text: string;
+  isCorrect: boolean;
+}
+
 interface QuizQuestion {
   id: string;
   question: string;
   type: 'multiple-choice' | 'true-false' | 'short-answer';
   options?: string[];
+  optionsMetadata?: OptionMetadata[]; // Preserve backend IDs
   correctAnswer: string | number;
   explanation?: string;
   points?: number;
@@ -94,7 +101,15 @@ const QuizBuilder: FC<QuizBuilderProps> = ({
   const addOption = useCallback((questionIndex: number) => {
     setQuestions(prev => prev.map((q, i) => {
       if (i === questionIndex && q.options) {
-        return { ...q, options: [...q.options, ''] };
+        const newOptions = [...q.options, ''];
+        
+        // Also add to optionsMetadata if it exists
+        const newMetadata = q.optionsMetadata ? [
+          ...q.optionsMetadata,
+          { id: `option-${q.id}-${q.options.length}`, text: '', isCorrect: false }
+        ] : undefined;
+        
+        return { ...q, options: newOptions, optionsMetadata: newMetadata };
       }
       return q;
     }));
@@ -105,9 +120,16 @@ const QuizBuilder: FC<QuizBuilderProps> = ({
     setQuestions(prev => prev.map((q, i) => {
       if (i === questionIndex && q.options && q.options.length > 2) {
         const newOptions = q.options.filter((_, oi) => oi !== optionIndex);
+        
+        // Also remove from optionsMetadata if it exists
+        const newMetadata = q.optionsMetadata ? 
+          q.optionsMetadata.filter((_, oi) => oi !== optionIndex) : 
+          undefined;
+        
         return { 
           ...q, 
           options: newOptions,
+          optionsMetadata: newMetadata,
           correctAnswer: q.correctAnswer as number > optionIndex 
             ? (q.correctAnswer as number) - 1 
             : q.correctAnswer
@@ -123,7 +145,17 @@ const QuizBuilder: FC<QuizBuilderProps> = ({
       if (i === questionIndex && q.options) {
         const newOptions = [...q.options];
         newOptions[optionIndex] = text;
-        return { ...q, options: newOptions };
+        
+        // Also update optionsMetadata if it exists to keep it in sync
+        const newMetadata = q.optionsMetadata ? [...q.optionsMetadata] : undefined;
+        if (newMetadata && newMetadata[optionIndex]) {
+          newMetadata[optionIndex] = {
+            ...newMetadata[optionIndex],
+            text: text
+          };
+        }
+        
+        return { ...q, options: newOptions, optionsMetadata: newMetadata };
       }
       return q;
     }));
@@ -148,6 +180,7 @@ const QuizBuilder: FC<QuizBuilderProps> = ({
               onChange={(value) => updateQuestion(index, { 
                 type: value,
                 options: value === 'multiple-choice' ? ['', ''] : undefined,
+                optionsMetadata: undefined, // Clear metadata when changing type
                 correctAnswer: value === 'true-false' ? 'true' : (value === 'multiple-choice' ? 0 : '')
               })}
               size="small"

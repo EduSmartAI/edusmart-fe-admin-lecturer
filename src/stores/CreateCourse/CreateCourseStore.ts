@@ -2,10 +2,11 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { 
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
-  courseServiceAPI, 
-  CreateCourseDto, 
-  UpdateCourseDto,
+    courseServiceAPI, 
+    CreateCourseDto, 
+    UpdateCourseDto,
 } from 'EduSmart/api/api-course-service';
+import { updateCourseQuizzes } from 'EduSmart/services/course/courseService';
 
 // Course basic information aligned with API schema
 export interface CourseInformation {
@@ -79,6 +80,7 @@ export interface LessonQuiz {
     id?: string;
     quizSettings?: QuizSettings;
     questions?: Question[];
+    lastModified?: number; // Timestamp to track when quiz was last edited
 }
 
 export interface QuizSettings {
@@ -108,6 +110,7 @@ export interface ModuleQuiz {
     id?: string;
     quizSettings?: QuizSettings;
     questions?: Question[];
+    lastModified?: number; // Timestamp to track when quiz was last edited
 }
 
 export interface Discussion {
@@ -116,6 +119,9 @@ export interface Discussion {
     description?: string;
     discussionQuestion?: string;
     isActive: boolean;
+    createdAt?: string;
+    updatedAt?: string;
+    metadata?: Record<string, unknown>;
 }
 
 export interface Material {
@@ -124,6 +130,9 @@ export interface Material {
     description?: string;
     fileUrl?: string;
     isActive: boolean;
+    createdAt?: string;
+    updatedAt?: string;
+    metadata?: Record<string, unknown>;
 }
 
 // Module structure aligned with API
@@ -157,6 +166,7 @@ export interface CreateCourseState {
     error: string | null;
     courseId?: string; // Set when editing existing course
     isCreateMode: boolean; // Flag to indicate if we're in create mode
+    editedQuizIds: Set<string>; // Track which quizzes were edited in current session
     
     // Step management
     setCurrentStep: (step: number) => void;
@@ -216,6 +226,10 @@ export interface CreateCourseState {
     setCourseId: (id: string) => void;
     forceResetForCreateMode: () => void;
     setCreateMode: (isCreateMode: boolean) => void;
+    
+    // Quiz editing tracking
+    markQuizAsEdited: (quizId: string) => void;
+    clearEditedQuizIds: () => void;
 }
 
 // Legacy interface for backward compatibility
@@ -261,6 +275,7 @@ const initialState = {
     error: null,
     courseId: undefined,
     isCreateMode: true, // Default to create mode
+    editedQuizIds: new Set<string>(), // Empty set initially
 };
 
 // Helper functions
@@ -292,19 +307,21 @@ const convertToCreateCourseDto = async (state: CreateCourseState): Promise<Creat
     });
     
     // Get lecturer ID from JWT token (don't hardcode teacher_id) 
-    let teacherId = '';
-    
-    try {
-        const { getUserIdFromTokenAction } = await import('EduSmart/app/(auth)/action');
-        const userInfo = await getUserIdFromTokenAction();
-        
-        if (userInfo.ok && userInfo.userId) {
-            teacherId = userInfo.userId;
-        } else {
-            throw new Error('Unable to get lecturer ID from logged-in account');
+    let teacherId = state.courseInformation.teacherId?.trim() || '';
+
+    if (!teacherId) {
+        try {
+            const { getUserIdFromTokenAction } = await import('EduSmart/app/(auth)/action');
+            const userInfo = await getUserIdFromTokenAction();
+            
+            if (userInfo.ok && userInfo.userId) {
+                teacherId = userInfo.userId;
+            } else {
+                throw new Error('Unable to get lecturer ID from logged-in account');
+            }
+        } catch (error) {
+            throw new Error('Failed to get lecturer ID: ' + (error instanceof Error ? error.message : 'Unknown error'));
         }
-    } catch (error) {
-        throw new Error('Failed to get lecturer ID: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
     
     // Derive total course duration from modules/lessons if not explicitly set
@@ -514,19 +531,25 @@ const convertToCreateCourseDto = async (state: CreateCourseState): Promise<Creat
 
 const convertToUpdateCourseDto = async (state: CreateCourseState): Promise<UpdateCourseDto> => {
     // Get lecturer ID from JWT token (same logic as create)
-    let teacherId = '';
-    
-    try {
-        const { getUserIdFromTokenAction } = await import('EduSmart/app/(auth)/action');
-        const userInfo = await getUserIdFromTokenAction();
-        
-        if (userInfo.ok && userInfo.userId) {
-            teacherId = userInfo.userId;
-        } else {
-            throw new Error('Unable to get lecturer ID from logged-in account');
+    let teacherId = state.courseInformation.teacherId?.trim() || '';
+
+    if (!teacherId) {
+        try {
+            const { getUserIdFromTokenAction } = await import('EduSmart/app/(auth)/action');
+            const userInfo = await getUserIdFromTokenAction();
+            
+            if (userInfo.ok && userInfo.userId) {
+                teacherId = userInfo.userId;
+            } else {
+                throw new Error('Unable to get lecturer ID from logged-in account');
+            }
+        } catch (error) {
+            throw new Error('Failed to get lecturer ID: ' + (error instanceof Error ? error.message : 'Unknown error'));
         }
-    } catch (error) {
-        throw new Error('Failed to get lecturer ID: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    }
+
+    if (!teacherId) {
+        throw new Error('Failed to determine lecturer ID for course update');
     }
     
     return {
@@ -1016,6 +1039,14 @@ export const useCreateCourseStore = create<CreateCourseState>()(
             // Error management
             clearError: () => set({ error: null }),
             
+            // Quiz editing tracking
+            markQuizAsEdited: (quizId) => 
+                set((state) => ({
+                    editedQuizIds: new Set(state.editedQuizIds).add(quizId)
+                })),
+            
+            clearEditedQuizIds: () => set({ editedQuizIds: new Set<string>() }),
+            
             // API actions
             createCourse: async () => {
                 const state = get();
@@ -1105,21 +1136,55 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                 set({ isSaving: true, error: null });
                 
                 try {
+                    // Step 1: Update basic course information
                     const courseData = await convertToUpdateCourseDto(state);
-                    
                     const response = await courseServiceAPI.updateCourse(state.courseId, courseData);
                     
-                    if (response.success) {
-                        set({ isSaving: false });
-                        return true;
-                    } else {
+                    if (!response.success) {
                         set({ 
-                            error: response.message || 'Failed to update course',
+                            error: response.message || 'Failed to update course information',
                             isSaving: false 
                         });
                         return false;
                     }
+                    
+                    // Step 2: Update modules (if there are any modules)
+                    if (state.modules && state.modules.length > 0) {
+                        const { transformModulesForUpdate } = await import('EduSmart/services/course/courseTransformers');
+                        const modulesDto = transformModulesForUpdate(state.modules);
+                        
+                        // Call updateModules API with the correct format
+                        // The API expects: { courseId, updateCourseModules: { modules: [...] } }
+                        const modulesResponse = await courseServiceAPI.updateCourseModules(
+                            state.courseId, 
+                            modulesDto,
+                            state.courseId // courseIdForPayload - using same courseId
+                        );
+                        
+                        if (!modulesResponse.success) {
+                            set({ 
+                                error: modulesResponse.message || 'Course info updated but failed to update modules',
+                                isSaving: false 
+                            });
+                            return false;
+                        }
+
+                        const quizResult = await updateCourseQuizzes(state.courseId, state.modules, state.editedQuizIds);
+
+                        if (!quizResult.success) {
+                            set({
+                                error: quizResult.error || quizResult.message || 'Course updated but failed to update quizzes',
+                                isSaving: false,
+                            });
+                            return false;
+                        }
+                    }
+                    
+                    set({ isSaving: false });
+                    return true;
+                    
                 } catch (error) {
+                    console.error('❌ Update course error:', error);
                     set({ 
                         error: 'Network error occurred while updating course',
                         isSaving: false 
@@ -1221,7 +1286,9 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                                         isActive: lesson.isActive,
                                         // Load lesson quiz from API response if it exists
                                         lessonQuiz: lesson.lessonQuiz ? {
-                                            id: lesson.lessonQuiz.id || `lesson-quiz-${lesson.lessonId}`,
+                                            id: lesson.lessonQuiz.quizId || lesson.lessonQuiz.id || `lesson-quiz-${lesson.lessonId}`,
+                                            quizId: lesson.lessonQuiz.quizId || lesson.lessonQuiz.id,
+                                            lessonQuizId: lesson.lessonQuiz.lessonQuizId || lesson.lessonQuiz.id,
                                             quizSettings: lesson.lessonQuiz.quizSettings ? {
                                                 durationMinutes: lesson.lessonQuiz.quizSettings.durationMinutes,
                                                 passingScorePercentage: lesson.lessonQuiz.quizSettings.passingScorePercentage,
@@ -1248,7 +1315,9 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                                         title: discussion.title || '',
                                         description: discussion.description || '',
                                         discussionQuestion: discussion.discussionQuestion || '',
-                                        isActive: true,
+                                        isActive: discussion.isActive ?? true,
+                                        createdAt: discussion.createdAt,
+                                        updatedAt: discussion.updatedAt,
                                     })) || [],
                                     // Load materials from moduleMaterialDetails
                                     materials: moduleData.moduleMaterialDetails?.map((material: any) => ({
@@ -1256,11 +1325,15 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                                         title: material.title || '',
                                         description: material.description || '',
                                         fileUrl: material.fileUrl || '',
-                                        isActive: true,
+                                        isActive: material.isActive ?? true,
+                                        createdAt: material.createdAt,
+                                        updatedAt: material.updatedAt,
                                     })) || [],
                                     // Load module quiz from moduleQuiz
                                     moduleQuiz: moduleData.moduleQuiz ? {
-                                        id: moduleData.moduleQuiz.id || `module-quiz-${moduleData.moduleId}`,
+                                        id: moduleData.moduleQuiz.quizId || moduleData.moduleQuiz.id || `module-quiz-${moduleData.moduleId}`,
+                                        quizId: moduleData.moduleQuiz.quizId || moduleData.moduleQuiz.id,
+                                        moduleQuizId: moduleData.moduleQuiz.moduleQuizId || moduleData.moduleQuiz.id,
                                         quizSettings: moduleData.moduleQuiz.quizSettings ? {
                                             durationMinutes: moduleData.moduleQuiz.quizSettings.durationMinutes,
                                             passingScorePercentage: moduleData.moduleQuiz.quizSettings.passingScorePercentage,

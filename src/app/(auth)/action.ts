@@ -93,7 +93,20 @@ export async function getUserIdFromTokenAction() {
       const tokenParts = idToken.split('.');
       
       if (tokenParts.length === 3) {
-        const payload = JSON.parse(atob(tokenParts[1]));
+        const decodeJwtSegment = (segment: string) => {
+          const normalized = segment.replace(/-/g, '+').replace(/_/g, '/');
+          const padded = normalized.padEnd(normalized.length + (4 - (normalized.length % 4)) % 4, '=');
+
+          const globalAtob = typeof globalThis.atob === 'function' ? globalThis.atob : undefined;
+
+          if (globalAtob) {
+            return globalAtob(padded);
+          }
+
+          return Buffer.from(padded, 'base64').toString('utf-8');
+        };
+
+        const payload = JSON.parse(decodeJwtSegment(tokenParts[1]));
         
         // Try to find the lecturer/account ID from available fields
         const lecturerAccountId = payload.oi_au_id || payload.accountId || payload.account_id;

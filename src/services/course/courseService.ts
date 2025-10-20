@@ -5,9 +5,10 @@
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { courseServiceAPI } from 'EduSmart/api/api-course-service';
-import type { Course, OperationResult, CoursePagination, CourseFilters } from 'EduSmart/domain/course/models';
+import { quizServiceAPI } from 'EduSmart/api/api-quiz-service';
+import type { Course, CourseModule, OperationResult, CoursePagination, CourseFilters } from 'EduSmart/domain/course/models';
 import type { CourseDto, CourseDetailDto } from 'EduSmart/api/api-course-service';
-import { transformToCreateDto, transformToUpdateDto, transformToUpdateWithModulesDto } from './courseTransformers';
+import { transformToCreateDto, transformToUpdateDto, transformToUpdateWithModulesDto, transformModulesForUpdate, buildCourseQuizUpdatePayload } from './courseTransformers';
 import { validateCourse, validateNoDuplicateIds } from 'EduSmart/domain/course/validators';
 
 // ============================================
@@ -304,6 +305,138 @@ export const updateCourseComplete = async (
   }
 };
 
+export const updateCourseModules = async (
+  courseId: string,
+  course: Course
+): Promise<OperationResult<any>> => {
+  console.group('🟠 updateCourseModules Service');
+  console.log('📌 Course ID:', courseId);
+  console.log('📦 Course object:', course);
+  console.log('📊 Modules count:', course.modules?.length || 0);
+  
+  try {
+    // Validate course data
+    const validation = validateCourse(course);
+    if (!validation.isValid) {
+      console.error('❌ Validation failed:', validation.errors);
+      console.groupEnd();
+      return {
+        success: false,
+        error: `Validation failed: ${validation.errors.join(', ')}`
+      };
+    }
+    console.log('✅ Validation passed');
+
+    // Check for duplicate IDs in modules
+    const duplicateErrors = validateNoDuplicateIds(course);
+    if (duplicateErrors.length > 0) {
+      console.error('❌ Duplicate IDs found:', duplicateErrors);
+      console.groupEnd();
+      return {
+        success: false,
+        error: `Duplicate IDs found: ${duplicateErrors.join(', ')}`
+      };
+    }
+    console.log('✅ No duplicate IDs');
+
+    // Transform modules to update DTO
+    console.log('🔄 Transforming modules...');
+    const modulesDto = transformModulesForUpdate(course.modules);
+    console.log('📤 Transformed modules:', modulesDto);
+    console.log('📊 Transformed modules count:', modulesDto.length);
+
+    // Call the new updateModules API endpoint
+    console.log('📡 Calling API...');
+    const response = await courseServiceAPI.updateCourseModules(courseId, modulesDto);
+    
+    console.log('📥 API Response:', response);
+    console.groupEnd();
+
+    if (response.success) {
+      return {
+        success: true,
+        data: response.response,
+        message: 'Course modules updated successfully'
+      };
+    }
+
+    return {
+      success: false,
+      error: response.message || 'Failed to update course modules'
+    };
+  } catch (error) {
+    console.error('❌ Exception caught:', error);
+    console.groupEnd();
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
+    };
+  }
+};
+
+export const updateCourseQuizzes = async (
+  courseId: string,
+  modules: CourseModule[],
+  editedQuizIds?: Set<string>
+): Promise<OperationResult<any>> => {
+  try {
+    const payload = buildCourseQuizUpdatePayload(modules, editedQuizIds);
+
+    if (payload.quizzes.length === 0) {
+      return {
+        success: true,
+        data: null,
+        message: 'No quiz changes detected',
+      };
+    }
+
+    if (typeof window !== 'undefined') {
+      const res = await fetch('/api/course-quizzes/update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ courseId, quizzes: payload.quizzes }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        return {
+          success: false,
+          error: data.message || 'Failed to update course quizzes',
+        };
+      }
+
+      return {
+        success: true,
+        data: data.data ?? data.response ?? null,
+        message: data.message || 'Course quizzes updated successfully',
+      };
+    }
+
+    const response = await quizServiceAPI.updateCourseQuiz(courseId, payload);
+
+    if (response.success) {
+      return {
+        success: true,
+        data: response.response,
+        message: response.message || 'Course quizzes updated successfully',
+      };
+    }
+
+    return {
+      success: false,
+      error: response.message || 'Failed to update course quizzes',
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    };
+  }
+};
+
 // ============================================
 // Media Upload Operations
 // ============================================
@@ -358,6 +491,7 @@ export const uploadCourseDocument = async (file: File): Promise<OperationResult<
     };
   }
 };
+
 
 
 

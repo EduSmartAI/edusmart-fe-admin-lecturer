@@ -14,13 +14,12 @@ import {
   Row, 
   Col, 
   Tabs, 
-  message, 
   Rate, 
   Breadcrumb,
   Typography,
   Dropdown,
   Empty,
-  Collapse
+  Modal
 } from 'antd';
 import {
   EditOutlined,
@@ -38,11 +37,14 @@ import {
   FileTextOutlined,
   QuestionCircleOutlined,
   MessageOutlined,
-  CheckCircleOutlined
+  CheckCircleOutlined,
+  DeleteOutlined,
+  ExclamationCircleFilled
 } from '@ant-design/icons';
 import { FadeInUp } from 'EduSmart/components/Animation/FadeInUp';
 import { useCourseManagementStore } from 'EduSmart/stores/CourseManagement/CourseManagementStore';
-import { CourseDto, CourseDetailDto, ModuleDetailDto } from 'EduSmart/api/api-course-service';
+import { useNotification } from 'EduSmart/Provider/NotificationProvider';
+import { CourseDto, ModuleDetailDto } from 'EduSmart/api/api-course-service';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -70,7 +72,8 @@ const CourseDetailPage: React.FC = () => {
   const params = useParams();
   const router = useRouter();
   const courseId = params.courseId as string;
-  const { courses, selectedCourse, fetchCourseById, error, clearError } = useCourseManagementStore();
+  const { courses, selectedCourse, fetchCourseById, deleteCourse, error, clearError } = useCourseManagementStore();
+  const messageApi = useNotification();
   
   const [course, setCourse] = useState<ReturnType<typeof mapCourseForUI> | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
@@ -118,10 +121,34 @@ const CourseDetailPage: React.FC = () => {
   // Handle error display
   useEffect(() => {
     if (error) {
-      message.error(error);
+      messageApi.error(error);
       clearError();
     }
-  }, [error, clearError]);
+  }, [error, clearError, messageApi]);
+
+  const showDeleteConfirm = useCallback(() => {
+    if (!course) return;
+    const { courseId: targetCourseId, title } = course;
+
+    Modal.confirm({
+      title: 'Xóa khóa học',
+      icon: <ExclamationCircleFilled className="text-red-500" />,
+      content: `Bạn có chắc chắn muốn xóa khóa học "${title || 'Untitled Course'}"? Hành động này không thể hoàn tác.`,
+      okText: 'Xóa',
+      cancelText: 'Hủy',
+      okButtonProps: { danger: true },
+      centered: true,
+      async onOk() {
+        const success = await deleteCourse(targetCourseId);
+        if (success) {
+          messageApi.success('Đã xóa khóa học thành công');
+          router.push('/Lecturer/courses');
+        } else {
+          messageApi.error('Xóa khóa học thất bại. Vui lòng thử lại.');
+        }
+      },
+    });
+  }, [course, deleteCourse, messageApi, router]);
 
   if (!course) {
     if (loading) {
@@ -161,8 +188,6 @@ const CourseDetailPage: React.FC = () => {
 
   // At this point, course is guaranteed to be non-null
 
-  // Note: Delete functionality not available in current API version
-
   const statusColors: Record<string, string> = {
     published: '#52c41a',
     draft: '#faad14',
@@ -181,7 +206,13 @@ const CourseDetailPage: React.FC = () => {
     3: 'Nâng cao'
   };
 
-  const actionItems = [
+  const actionItems: Array<{
+    key: string;
+    label: string;
+    icon: React.ReactNode;
+    onClick: () => void;
+    danger?: boolean;
+  }> = [
     {
       key: 'edit',
       label: 'Chỉnh sửa khóa học',
@@ -203,6 +234,13 @@ const CourseDetailPage: React.FC = () => {
           navigator.clipboard.writeText(`${window.location.origin}/course/${course.courseId}`);
         }
       }
+    },
+    {
+      key: 'delete',
+      label: 'Xóa khóa học',
+      icon: <DeleteOutlined />,
+      danger: true,
+      onClick: showDeleteConfirm,
     }
   ];
 
@@ -236,7 +274,18 @@ const CourseDetailPage: React.FC = () => {
             </div>
             <div className="flex items-center gap-3">
               <Dropdown
-                menu={{ items: actionItems }}
+                menu={{
+                  items: actionItems.map((item) => ({
+                    key: item.key,
+                    label: item.label,
+                    icon: item.icon,
+                    danger: item.danger,
+                  })),
+                  onClick: ({ key }) => {
+                    const target = actionItems.find((item) => item.key === key);
+                    target?.onClick();
+                  },
+                }}
                 placement="bottomRight"
                 trigger={['click']}
               >
@@ -259,6 +308,7 @@ const CourseDetailPage: React.FC = () => {
                     src={course.coverImage || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=400'}
                     alt={course.title || 'Course image'}
                     fill
+                    sizes="(max-width: 768px) 100vw, 384px"
                     className="object-cover"
                   />
                   <div className="absolute top-3 left-3">
@@ -398,6 +448,13 @@ const CourseDetailPage: React.FC = () => {
                             >
                               Chia sẻ
                             </Button>
+                            <Button
+                              danger
+                              icon={<DeleteOutlined />}
+                              onClick={showDeleteConfirm}
+                            >
+                              Xóa khóa học
+                            </Button>
                           </Space>
                         </div>
                       </div>
@@ -462,7 +519,7 @@ const CourseDetailPage: React.FC = () => {
                           </Card>
 
                           {/* Modules List */}
-                          {selectedCourse.modules.map((module: ModuleDetailDto, moduleIndex: number) => (
+                          {selectedCourse.modules.map((module: ModuleDetailDto) => (
                             <Card 
                               key={module.moduleId}
                               className="border-l-4 border-l-emerald-500"
@@ -511,7 +568,7 @@ const CourseDetailPage: React.FC = () => {
                                 {/* Lessons */}
                                 {module.lessons && module.lessons.length > 0 && (
                                   <div className="ml-6 space-y-2">
-                                    {module.lessons.map((lesson, lessonIndex) => (
+                                    {module.lessons.map((lesson) => (
                                       <Card 
                                         key={lesson.lessonId}
                                         size="small"
@@ -787,6 +844,7 @@ const CourseDetailPage: React.FC = () => {
                     src={course.coverImage || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=400'}
                     alt={course.title || 'Course image'}
                     fill
+                    sizes="(max-width: 768px) 100vw, 384px"
                     className="object-cover"
                   />
                   <div className="absolute top-3 left-3">

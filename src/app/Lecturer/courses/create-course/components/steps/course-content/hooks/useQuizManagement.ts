@@ -14,11 +14,18 @@ import { App } from 'antd';
 import { useCreateCourseStore } from 'EduSmart/stores/CreateCourse/CreateCourseStore';
 /* eslint-disable @typescript-eslint/no-explicit-any, @next/next/no-assign-module-variable */
 
+export interface OptionMetadata {
+  id: string;
+  text: string;
+  isCorrect: boolean;
+}
+
 export interface QuizQuestion {
   id: string;
   question: string;
   type: 'multiple-choice' | 'true-false' | 'short-answer';
   options?: string[];
+  optionsMetadata?: OptionMetadata[]; // Preserve backend IDs
   correctAnswer: string | number | (string | number)[];
   explanation?: string;
 }
@@ -79,6 +86,11 @@ export const useQuizManagement = () => {
         question: q.questionText || '',
         type,
         options: q.options ? q.options.map((opt: any) => opt.text || '') : [],
+        optionsMetadata: q.options ? q.options.map((opt: any) => ({
+          id: opt.id,
+          text: opt.text,
+          isCorrect: opt.isCorrect
+        })) : [],
         correctAnswer,
         explanation: q.explanation || ''
       };
@@ -250,15 +262,20 @@ export const useQuizManagement = () => {
         questionType: convertQuestionType(q.type),
         questionText: q.question,
         explanation: q.explanation || '',
-        options: q.options ? q.options.map((text, index) => ({
-          id: `option-${q.id}-${index}`,
-          text: text,
-          isCorrect: q.type === 'multiple-choice'
-            ? (Array.isArray(q.correctAnswer) ? q.correctAnswer.includes(index) : q.correctAnswer === index)
-            : q.type === 'true-false'
-            ? (index === 0 ? q.correctAnswer === 'true' : q.correctAnswer === 'false')
-            : q.correctAnswer === text
-        })) : []
+        options: q.options ? q.options.map((text, index) => {
+          // Preserve backend IDs from optionsMetadata if available
+          const metadataOptions = q.optionsMetadata || [];
+          const originalOption = metadataOptions[index];
+          return {
+            id: originalOption?.id || `option-${q.id}-${index}`,
+            text: text,
+            isCorrect: q.type === 'multiple-choice'
+              ? (Array.isArray(q.correctAnswer) ? q.correctAnswer.includes(index) : q.correctAnswer === index)
+              : q.type === 'true-false'
+              ? (index === 0 ? q.correctAnswer === 'true' : q.correctAnswer === 'false')
+              : q.correctAnswer === text
+          };
+        }) : []
       }));
 
       const convertedSettings = {
@@ -271,10 +288,17 @@ export const useQuizManagement = () => {
       };
 
       const existingLesson = modules[moduleIndex].lessons[lessonIndex];
+      // If lesson already has a quiz (shouldn't happen with this function), preserve its ID
+      const existingQuiz = existingLesson.lessonQuiz as any;
+      const existingQuizId = existingQuiz?.id || existingQuiz?.quizId || existingQuiz?.lessonQuizId;
+      const quizId = existingQuizId || `lesson-quiz-${Date.now()}`;
+      
       const updatedLesson = {
         ...existingLesson,
         lessonQuiz: {
-          id: `lesson-quiz-${Date.now()}`,
+          id: quizId,  // ✅ Preserve existing quiz ID if exists
+          quizId: quizId,
+          lessonQuizId: quizId,
           quizSettings: convertedSettings,
           questions: convertedQuestions
         }
@@ -316,15 +340,20 @@ export const useQuizManagement = () => {
         questionType: convertQuestionType(q.type),
         questionText: q.question,
         explanation: q.explanation || '',
-        options: q.options ? q.options.map((text, index) => ({
-          id: `option-${q.id}-${index}`,
-          text: text,
-          isCorrect: q.type === 'multiple-choice'
-            ? (Array.isArray(q.correctAnswer) ? q.correctAnswer.includes(index) : q.correctAnswer === index)
-            : q.type === 'true-false'
-            ? (index === 0 ? q.correctAnswer === 'true' : q.correctAnswer === 'false')
-            : q.correctAnswer === text
-        })) : []
+        options: q.options ? q.options.map((text, index) => {
+          // Preserve backend IDs from optionsMetadata if available
+          const metadataOptions = q.optionsMetadata || [];
+          const originalOption = metadataOptions[index];
+          return {
+            id: originalOption?.id || `option-${q.id}-${index}`,
+            text: text,
+            isCorrect: q.type === 'multiple-choice'
+              ? (Array.isArray(q.correctAnswer) ? q.correctAnswer.includes(index) : q.correctAnswer === index)
+              : q.type === 'true-false'
+              ? (index === 0 ? q.correctAnswer === 'true' : q.correctAnswer === 'false')
+              : q.correctAnswer === text
+          };
+        }) : []
       }));
 
       const convertedSettings = {
@@ -336,6 +365,10 @@ export const useQuizManagement = () => {
         allowRetake: settings.allowRetake || true
       };
 
+      // Preserve existing quiz ID if it exists
+      const existingQuiz = modules[moduleIndex].lessons[lessonIndex].lessonQuiz as any;
+      const quizId = existingQuiz?.id || existingQuiz?.quizId || existingQuiz?.lessonQuizId || `lesson-quiz-${Date.now()}`;
+      
       const newQuizLesson = {
         id: lessonId,
         title: modules[moduleIndex].lessons[lessonIndex].title,
@@ -344,7 +377,9 @@ export const useQuizManagement = () => {
         positionIndex: modules[moduleIndex].lessons[lessonIndex].positionIndex,
         isActive: true,
         lessonQuiz: {
-          id: `lesson-quiz-${Date.now()}`,
+          id: quizId,  // ✅ Preserve existing quiz ID
+          quizId: quizId,  // Also set quizId for backend
+          lessonQuizId: quizId,  // Also set lessonQuizId for consistency
           quizSettings: convertedSettings,
           questions: convertedQuestions
         }

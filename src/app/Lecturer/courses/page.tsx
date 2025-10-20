@@ -15,6 +15,7 @@ import {
   Radio,
   Statistic,
   Empty,
+  Modal,
   message
 } from 'antd';
 import { 
@@ -25,12 +26,14 @@ import {
   UnorderedListOutlined,
   EyeOutlined,
   MoreOutlined,
+  DeleteOutlined,
   UserOutlined,
   BookOutlined,
   DollarOutlined,
   ClockCircleOutlined,
   StarOutlined,
-  BarChartOutlined
+  BarChartOutlined,
+  ExclamationCircleFilled
 } from '@ant-design/icons';
 import type { TableColumnsType } from 'antd';
 import { useCourseManagementStore } from 'EduSmart/stores/CourseManagement/CourseManagementStore';
@@ -50,6 +53,7 @@ const CourseManagementPage: React.FC = () => {
     isLoading,
     error,
     fetchCoursesByLecturer,
+    deleteCourse,
     clearError,
   } = useCourseManagementStore();
 
@@ -87,6 +91,24 @@ const CourseManagementPage: React.FC = () => {
     setTimeout(() => {
       router.push('/Lecturer/courses/create-course');
     }, 100);
+  };
+
+  const showDeleteConfirm = (course: Course) => {
+    Modal.confirm({
+      title: 'Xóa khóa học',
+      icon: <ExclamationCircleFilled className="text-red-500" />,
+      content: `Bạn có chắc chắn muốn xóa khóa học "${course.title}"? Hành động này không thể hoàn tác.`,
+      okText: 'Xóa',
+      cancelText: 'Hủy',
+      okButtonProps: { danger: true },
+      centered: true,
+      async onOk() {
+        const success = await deleteCourse(course.id);
+        if (success) {
+          message.success('Đã xóa khóa học thành công');
+        }
+      },
+    });
   };
 
 
@@ -154,7 +176,13 @@ const CourseManagementPage: React.FC = () => {
       advanced: 'Nâng cao'
     };
 
-    const actions = [
+    const actions: Array<{
+      key: string;
+      label: string;
+      icon: React.ReactNode;
+      onClick: () => void;
+      danger?: boolean;
+    }> = [
       {
         key: 'view',
         label: 'Xem chi tiết',
@@ -166,6 +194,13 @@ const CourseManagementPage: React.FC = () => {
         label: 'Chỉnh sửa',
         icon: <EditOutlined />,
         onClick: () => router.push(`/Lecturer/courses/edit/${course.id}`)
+      },
+      {
+        key: 'delete',
+        label: 'Xóa khóa học',
+        icon: <DeleteOutlined />,
+        danger: true,
+        onClick: () => showDeleteConfirm(course)
       },
     ];
 
@@ -184,6 +219,7 @@ const CourseManagementPage: React.FC = () => {
               }
               alt={course.title}
               fill
+              sizes="(max-width: 768px) 100vw, 400px"
               className="object-cover"
               onError={(e) => {
                 const target = e.target as HTMLImageElement;
@@ -202,6 +238,7 @@ const CourseManagementPage: React.FC = () => {
                     key: action.key,
                     label: action.label,
                     icon: action.icon,
+                    danger: action.danger,
                     onClick: () => {
                       action.onClick();
                     }
@@ -316,6 +353,24 @@ const CourseManagementPage: React.FC = () => {
       dataIndex: 'studentCount',
       key: 'studentCount',
       align: 'center',
+    },
+    {
+      title: 'Thao tác',
+      key: 'actions',
+      align: 'right',
+      render: (_, record) => (
+        <Space size="middle">
+          <Button type="link" icon={<EyeOutlined />} onClick={() => router.push(`/Lecturer/courses/${record.id}`)}>
+            Xem
+          </Button>
+          <Button type="link" icon={<EditOutlined />} onClick={() => router.push(`/Lecturer/courses/edit/${record.id}`)}>
+            Sửa
+          </Button>
+          <Button type="link" danger icon={<DeleteOutlined />} onClick={() => showDeleteConfirm(record)}>
+            Xóa
+          </Button>
+        </Space>
+      ),
     },
   ];
 

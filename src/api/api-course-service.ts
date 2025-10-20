@@ -210,7 +210,9 @@ export const axiosFetch = async (
   });
 
   axiosInstance.interceptors.response.use(
-    (response) => response,
+    (response) => {
+      return response;
+    },
     async (error: any) => {
       const status = error.response?.status;
       const originalRequest = error.config;
@@ -667,10 +669,35 @@ export interface UpdateModuleDto {
   isActive: boolean;
   isCore: boolean;
   durationMinutes?: number;
+  durationHours?: number;
   level?: number;
   objectives?: UpdateModuleObjectiveDto[];
   lessons?: UpdateLessonDto[];
-  moduleQuiz?: UpdateModuleQuizDto;
+  moduleDiscussionDetails?: UpdateModuleDiscussionDto[];
+  moduleMaterialDetails?: UpdateModuleMaterialDto[];
+  discussions?: UpdateModuleDiscussionDto[];
+  materials?: UpdateModuleMaterialDto[];
+  moduleQuiz?: UpdateModuleQuizDto | null;
+}
+
+export interface UpdateModuleDiscussionDto {
+  discussionId?: string;
+  title?: string;
+  description?: string;
+  discussionQuestion?: string;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface UpdateModuleMaterialDto {
+  materialId?: string;
+  title?: string;
+  description?: string;
+  fileUrl?: string;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface UpdateModuleObjectiveDto {
@@ -693,7 +720,7 @@ export interface UpdateLessonDto {
   videoDurationSec?: number;
   positionIndex: number;
   isActive: boolean;
-  lessonQuiz?: UpdateLessonQuizDto;
+  lessonQuiz?: UpdateLessonQuizDto | null;
 }
 
 export interface UpdateLessonQuizDto {
@@ -715,14 +742,14 @@ export interface UpdateQuestionDto {
   questionId?: string;
   questionType: QuestionType;
   questionText?: string;
-  options?: UpdateQuestionOptionDto[];
   explanation?: string;
+  answers?: UpdateAnswerDto[];
 }
 
-export interface UpdateQuestionOptionDto {
-  optionId?: string;
-  text?: string;
-  isCorrect: boolean;
+export interface UpdateAnswerDto {
+  answerId?: string;
+  answerText?: string;
+  isCorrect?: boolean;
 }
 
 // Response wrappers
@@ -760,6 +787,7 @@ export interface GetCourseByIdResponse extends ApiResponse<CourseDetailDto> {
 export type CreateCourseResponse = ApiResponse<string>;
 
 export type UpdateCourseResponse = ApiResponse<CourseDetailDto>;
+export type DeleteCourseResponse = ApiResponse<string | boolean>;
 
 // Query parameters
 export interface GetCoursesQuery {
@@ -880,6 +908,107 @@ export class ApiCourseModule extends HttpClient {
         payload: courseData
       };
       return this.request<UpdateCourseResponse>(`/api/v1/Courses/${id}`, "PUT", wrappedPayload, params);
+    },
+
+    /**
+     * @description Xóa khóa học
+     * @request DELETE:/api/v1/Courses/{id}
+     */
+    delete: (id: string, params?: RequestParams) => {
+      const headers = {
+        accept: 'text/plain',
+        ...(params?.headers ?? {}),
+      };
+      return this.request<DeleteCourseResponse>(
+        `/api/v1/Courses/${id}`,
+        "DELETE",
+        undefined,
+        { ...params, headers }
+      );
+    },
+
+    /**
+     * @description Cập nhật modules của khóa học
+     * @request PUT:/api/v1/Courses/{id}/modules
+     * 
+     * IMPORTANT: The courseId in the payload should match the course that owns these modules,
+     * which may be different from the {id} in the URL path in some cases.
+     * The URL {id} specifies which course's modules endpoint to use.
+     */
+    updateModules: (id: string, modules: UpdateModuleDto[], courseIdForPayload?: string, params?: RequestParams) => {
+      const normalizedModules: UpdateModuleDto[] = modules.map((module) => {
+        const workingModule: any = { ...module };
+
+        const normalizeDiscussions = (source: any[] | undefined) => {
+          if (!Array.isArray(source)) return undefined;
+          return source.map((discussion: any) => {
+            const normalized = {
+              discussionId: discussion.discussionId ?? discussion.id,
+              title: discussion.title,
+              description: discussion.description,
+              discussionQuestion: discussion.discussionQuestion,
+              isActive: discussion.isActive,
+              createdAt: discussion.createdAt,
+              updatedAt: discussion.updatedAt
+            };
+            return normalized;
+          });
+        };
+
+        const normalizeMaterials = (source: any[] | undefined) => {
+          if (!Array.isArray(source)) return undefined;
+          return source.map((material: any) => {
+            const normalized = {
+              materialId: material.materialId ?? material.id,
+              title: material.title,
+              description: material.description,
+              fileUrl: material.fileUrl,
+              isActive: material.isActive,
+              createdAt: material.createdAt,
+              updatedAt: material.updatedAt
+            };
+            return normalized;
+          });
+        };
+
+        const discussions = normalizeDiscussions(workingModule.discussions) 
+          ?? normalizeDiscussions(workingModule.moduleDiscussionDetails);
+        const materials = normalizeMaterials(workingModule.materials) 
+          ?? normalizeMaterials(workingModule.moduleMaterialDetails);
+
+        if (discussions) {
+          workingModule.discussions = discussions;
+        } else {
+          delete workingModule.discussions;
+        }
+
+        if (materials) {
+          workingModule.materials = materials;
+        } else {
+          delete workingModule.materials;
+        }
+
+        delete workingModule.moduleDiscussionDetails;
+        delete workingModule.moduleMaterialDetails;
+
+        if (
+          typeof workingModule.durationMinutes === 'number' &&
+          workingModule.durationMinutes > 0 &&
+          (workingModule.durationHours === undefined || workingModule.durationHours === null)
+        ) {
+          workingModule.durationHours = workingModule.durationMinutes / 60;
+        }
+
+        return workingModule as UpdateModuleDto;
+      });
+
+      const payload = {
+        courseId: courseIdForPayload || id,
+        updateCourseModules: {
+          modules: normalizedModules
+        }
+      };
+      return this.request<ApiResponse<any>>(`/api/v1/Courses/${id}/modules`, "PUT", payload, params);
     },
   };
 
@@ -1063,6 +1192,8 @@ export const courseServiceAPI = {
   getCourseById: courseService.courses.getById,
   createCourse: courseService.courses.create,
   updateCourse: courseService.courses.update,
+  deleteCourse: courseService.courses.delete,
+  updateCourseModules: courseService.courses.updateModules,
   uploadImage: courseService.media.uploadImage,
   uploadVideo: courseService.media.uploadVideo,
   uploadVideosUtility: courseService.media.uploadVideosUtility,

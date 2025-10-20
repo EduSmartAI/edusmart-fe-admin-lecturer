@@ -1,6 +1,6 @@
 'use client';
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-require-imports, @typescript-eslint/no-unused-vars */
-import { FC, useCallback, useState, useRef, useEffect } from 'react';
+import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Form } from 'antd';
 import type { Rule } from 'antd/es/form';
 import dynamic from 'next/dynamic';
@@ -74,237 +74,161 @@ const RichTextEditor: FC<RichTextEditorProps> = ({
     return tempDiv.textContent?.length || 0;
   };
 
-  // CKEditor configuration
-  const editorConfig: unknown = {
-    toolbar: {
-      items: [
-        'heading',
-        '|',
-        'bold',
-        'italic',
-        'underline',
-        'strikethrough',
-        '|',
-        'fontSize',
-        'fontFamily',
-        'fontColor',
-        'fontBackgroundColor',
-        '|',
-        'alignment',
-        '|',
-        'bulletedList',
-        'numberedList',
-        '|',
-        'indent',
-        'outdent',
-        '|',
-        'link',
-        'blockQuote',
-        'insertTable',
-        '|',
-        'undo',
-        'redo'
-      ]
-    },
-    fontSize: {
-      options: [
-        9,
-        11,
-        13,
-        'default',
-        17,
-        19,
-        21,
-        24,
-        28,
-        32,
-        36
-      ]
-    },
-    fontFamily: {
-      options: [
-        'default',
-        'Arial, sans-serif',
-        'Times New Roman, serif',
-        'Courier New, monospace',
-        'Georgia, serif',
-        'Helvetica, sans-serif',
-        'Verdana, sans-serif',
-        'Trebuchet MS, sans-serif',
-        'Impact, sans-serif',
-        'Comic Sans MS, cursive',
-        'Tahoma, sans-serif',
-        'Palatino Linotype, serif',
-        'Garamond, serif',
-        'Book Antiqua, serif',
-        'Arial Black, sans-serif'
-      ]
-    },
-    fontColor: {
-      colors: [
-        {
-          color: 'hsl(0, 0%, 0%)',
-          label: 'Black'
-        },
-        {
-          color: 'hsl(0, 0%, 30%)',
-          label: 'Dim grey'
-        },
-        {
-          color: 'hsl(0, 0%, 60%)',
-          label: 'Grey'
-        },
-        {
-          color: 'hsl(0, 0%, 90%)',
-          label: 'Light grey'
-        },
-        {
-          color: 'hsl(0, 0%, 100%)',
-          label: 'White',
-          hasBorder: true
-        },
-        // Colors
-        {
-          color: 'hsl(0, 75%, 60%)',
-          label: 'Red'
-        },
-        {
-          color: 'hsl(30, 75%, 60%)',
-          label: 'Orange'
-        },
-        {
-          color: 'hsl(60, 75%, 60%)',
-          label: 'Yellow'
-        },
-        {
-          color: 'hsl(90, 75%, 60%)',
-          label: 'Light green'
-        },
-        {
-          color: 'hsl(120, 75%, 60%)',
-          label: 'Green'
-        },
-        {
-          color: 'hsl(150, 75%, 60%)',
-          label: 'Aquamarine'
-        },
-        {
-          color: 'hsl(180, 75%, 60%)',
-          label: 'Turquoise'
-        },
-        {
-          color: 'hsl(210, 75%, 60%)',
-          label: 'Light blue'
-        },
-        {
-          color: 'hsl(240, 75%, 60%)',
-          label: 'Blue'
-        },
-        {
-          color: 'hsl(270, 75%, 60%)',
-          label: 'Purple'
-        }
-      ]
-    },
-    fontBackgroundColor: {
-      colors: [
-        {
-          color: 'hsl(0, 0%, 100%)',
-          label: 'White',
-          hasBorder: true
-        },
-        {
-          color: 'hsl(0, 0%, 90%)',
-          label: 'Light grey'
-        },
-        {
-          color: 'hsl(0, 0%, 60%)',
-          label: 'Grey'
-        },
-        {
-          color: 'hsl(0, 0%, 30%)',
-          label: 'Dim grey'
-        },
-        {
-          color: 'hsl(0, 0%, 0%)',
-          label: 'Black'
-        },
-        // Colors
-        {
-          color: 'hsl(0, 75%, 60%)',
-          label: 'Red'
-        },
-        {
-          color: 'hsl(30, 75%, 60%)',
-          label: 'Orange'
-        },
-        {
-          color: 'hsl(60, 75%, 60%)',
-          label: 'Yellow'
-        },
-        {
-          color: 'hsl(90, 75%, 60%)',
-          label: 'Light green'
-        },
-        {
-          color: 'hsl(120, 75%, 60%)',
-          label: 'Green'
-        },
-        {
-          color: 'hsl(150, 75%, 60%)',
-          label: 'Aquamarine'
-        },
-        {
-          color: 'hsl(180, 75%, 60%)',
-          label: 'Turquoise'
-        },
-        {
-          color: 'hsl(210, 75%, 60%)',
-          label: 'Light blue'
-        },
-        {
-          color: 'hsl(240, 75%, 60%)',
-          label: 'Blue'
-        },
-        {
-          color: 'hsl(270, 75%, 60%)',
-          label: 'Purple'
-        }
-      ]
-    },
-    heading: {
-      options: [
-        { model: 'paragraph', title: 'Paragraph', class: 'ck-heading_paragraph' },
-        { model: 'heading1' as const, view: 'h1', title: 'Heading 1', class: 'ck-heading_heading1' },
-        { model: 'heading2' as const, view: 'h2', title: 'Heading 2', class: 'ck-heading_heading2' },
-        { model: 'heading3' as const, view: 'h3', title: 'Heading 3', class: 'ck-heading_heading3' }
-      ]
-    },
-    link: {
-      decorators: {
-        addTargetToExternalLinks: true,
-        defaultProtocol: 'https://',
-        toggleDownloadable: {
-          mode: 'manual',
-          label: 'Downloadable',
-          attributes: {
-            download: 'file'
-          }
+  const desiredToolbarItems = useMemo(
+    () => [
+      'heading',
+      '|',
+      'bold',
+      'italic',
+      'underline',
+      'strikethrough',
+      '|',
+      'fontSize',
+      'fontFamily',
+      'fontColor',
+      'fontBackgroundColor',
+      '|',
+      'alignment',
+      '|',
+      'bulletedList',
+      'numberedList',
+      'blockQuote',
+      'insertTable',
+      '|',
+      'link',
+      'undo',
+      'redo'
+    ],
+    []
+  );
+
+  const supportedToolbarItems = useMemo(() => {
+    const editor: any = ClassicEditor;
+    const defaultItems: string[] | undefined = editor?.defaultConfig?.toolbar?.items;
+    if (Array.isArray(defaultItems) && defaultItems.length > 0) {
+      const allowed = new Set(defaultItems);
+      return desiredToolbarItems.filter((item) => item === '|' || allowed.has(item));
+    }
+    return desiredToolbarItems;
+  }, [desiredToolbarItems]);
+
+  const toolbarItems = useMemo(() => {
+    const cleaned: string[] = [];
+    supportedToolbarItems.forEach((item) => {
+      if (item === '|') {
+        if (cleaned.length === 0 || cleaned[cleaned.length - 1] === '|') {
+          return;
         }
       }
-    },
-    table: {
-      contentToolbar: [
-        'tableColumn',
-        'tableRow',
-        'mergeTableCells',
-        'tableCellProperties',
-        'tableProperties'
-      ]
-    },
+      cleaned.push(item);
+    });
+    if (cleaned[cleaned.length - 1] === '|') {
+      cleaned.pop();
+    }
+    if (cleaned.length === 0) {
+      const editor: any = ClassicEditor;
+      const defaultItems: string[] | undefined = editor?.defaultConfig?.toolbar?.items;
+      return defaultItems ?? [];
+    }
+    return cleaned;
+  }, [supportedToolbarItems]);
+
+  const supportsFontSize = useMemo(() => toolbarItems.includes('fontSize'), [toolbarItems]);
+  const supportsFontFamily = useMemo(() => toolbarItems.includes('fontFamily'), [toolbarItems]);
+  const supportsFontColor = useMemo(() => toolbarItems.includes('fontColor'), [toolbarItems]);
+  const supportsFontBackgroundColor = useMemo(
+    () => toolbarItems.includes('fontBackgroundColor'),
+    [toolbarItems]
+  );
+
+  const editorConfig = useMemo(() => {
+    const config: Record<string, unknown> = {
+      toolbar: { items: toolbarItems },
+      placeholder,
+      language: 'vi'
+    };
+
+    if (supportsFontSize) {
+      config.fontSize = {
+        options: [9, 11, 13, 'default', 17, 19, 21, 24, 28, 32, 36]
+      };
+    }
+
+    if (supportsFontFamily) {
+      config.fontFamily = {
+        options: [
+          'default',
+          'Arial, sans-serif',
+          'Times New Roman, serif',
+          'Courier New, monospace',
+          'Georgia, serif',
+          'Helvetica, sans-serif',
+          'Verdana, sans-serif',
+          'Trebuchet MS, sans-serif',
+          'Impact, sans-serif',
+          'Comic Sans MS, cursive',
+          'Tahoma, sans-serif',
+          'Palatino Linotype, serif',
+          'Garamond, serif',
+          'Book Antiqua, serif',
+          'Arial Black, sans-serif'
+        ]
+      };
+    }
+
+    if (supportsFontColor) {
+      config.fontColor = {
+        colors: [
+          { color: 'hsl(0, 0%, 0%)', label: 'Black' },
+          { color: 'hsl(0, 0%, 30%)', label: 'Dim grey' },
+          { color: 'hsl(0, 0%, 60%)', label: 'Grey' },
+          { color: 'hsl(0, 0%, 90%)', label: 'Light grey' },
+          { color: 'hsl(0, 0%, 100%)', label: 'White', hasBorder: true },
+          { color: 'hsl(0, 75%, 60%)', label: 'Red' },
+          { color: 'hsl(30, 75%, 60%)', label: 'Orange' },
+          { color: 'hsl(60, 75%, 60%)', label: 'Yellow' },
+          { color: 'hsl(90, 75%, 60%)', label: 'Light green' },
+          { color: 'hsl(120, 75%, 60%)', label: 'Green' },
+          { color: 'hsl(150, 75%, 60%)', label: 'Aquamarine' },
+          { color: 'hsl(180, 75%, 60%)', label: 'Turquoise' },
+          { color: 'hsl(210, 75%, 60%)', label: 'Light blue' },
+          { color: 'hsl(240, 75%, 60%)', label: 'Blue' },
+          { color: 'hsl(270, 75%, 60%)', label: 'Purple' }
+        ]
+      };
+    }
+
+    if (supportsFontBackgroundColor) {
+      config.fontBackgroundColor = {
+        colors: [
+          { color: 'hsl(0, 0%, 100%)', label: 'White', hasBorder: true },
+          { color: 'hsl(0, 0%, 90%)', label: 'Light grey' },
+          { color: 'hsl(0, 0%, 60%)', label: 'Grey' },
+          { color: 'hsl(0, 0%, 30%)', label: 'Dim grey' },
+          { color: 'hsl(0, 0%, 0%)', label: 'Black' },
+          { color: 'hsl(0, 75%, 60%)', label: 'Red' },
+          { color: 'hsl(30, 75%, 60%)', label: 'Orange' },
+          { color: 'hsl(60, 75%, 60%)', label: 'Yellow' },
+          { color: 'hsl(90, 75%, 60%)', label: 'Light green' },
+          { color: 'hsl(120, 75%, 60%)', label: 'Green' },
+          { color: 'hsl(150, 75%, 60%)', label: 'Aquamarine' },
+          { color: 'hsl(180, 75%, 60%)', label: 'Turquoise' },
+          { color: 'hsl(210, 75%, 60%)', label: 'Light blue' },
+          { color: 'hsl(240, 75%, 60%)', label: 'Blue' },
+          { color: 'hsl(270, 75%, 60%)', label: 'Purple' }
+        ]
+      };
+    }
+
+    return config;
+  }, [
+    toolbarItems,
     placeholder,
-    language: 'vi'
-  };
+    supportsFontSize,
+    supportsFontFamily,
+    supportsFontColor,
+    supportsFontBackgroundColor
+  ]);
 
     // Handle editor data change
   const handleEditorChange = useCallback((event: unknown, editor: any) => {

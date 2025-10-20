@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 import { FC, useCallback, useState } from 'react';
 import { CKEditor } from '@ckeditor/ckeditor5-react';
@@ -39,9 +38,9 @@ const RichTextEditor: FC<RichTextEditorProps> = ({
 
   const validation = getValidation(name);
 
-   
-  const handleContentChange = (_event: unknown, editor: any) => {
-    const data = editor.getData();
+  const handleContentChange = (_event: unknown, editor: unknown) => {
+    const currentEditor = editor as { getData: () => string };
+    const data = currentEditor.getData();
     setEditorData(data);
     if (onChange) {
       onChange(data);
