@@ -74,7 +74,7 @@ const QuizBuilder: FC<QuizBuilderProps> = ({
       id: Date.now().toString(),
       question: '',
       type: 'multiple-choice',
-      options: ['', ''],
+      options: ['', '', '', ''],
       correctAnswer: 0,
       points: 1
     };

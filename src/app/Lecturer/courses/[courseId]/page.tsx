@@ -19,7 +19,7 @@ import {
   Typography,
   Dropdown,
   Empty,
-  Modal
+  App
 } from 'antd';
 import {
   EditOutlined,
@@ -74,6 +74,7 @@ const CourseDetailPage: React.FC = () => {
   const courseId = params.courseId as string;
   const { courses, selectedCourse, fetchCourseById, deleteCourse, error, clearError } = useCourseManagementStore();
   const messageApi = useNotification();
+  const { modal } = App.useApp(); // ← Use App.useApp() for modal
   
   const [course, setCourse] = useState<ReturnType<typeof mapCourseForUI> | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
@@ -130,7 +131,7 @@ const CourseDetailPage: React.FC = () => {
     if (!course) return;
     const { courseId: targetCourseId, title } = course;
 
-    Modal.confirm({
+    modal.confirm({
       title: 'Xóa khóa học',
       icon: <ExclamationCircleFilled className="text-red-500" />,
       content: `Bạn có chắc chắn muốn xóa khóa học "${title || 'Untitled Course'}"? Hành động này không thể hoàn tác.`,
@@ -138,6 +139,8 @@ const CourseDetailPage: React.FC = () => {
       cancelText: 'Hủy',
       okButtonProps: { danger: true },
       centered: true,
+      zIndex: 9999,
+      maskClosable: true,
       async onOk() {
         const success = await deleteCourse(targetCourseId);
         if (success) {
@@ -148,7 +151,7 @@ const CourseDetailPage: React.FC = () => {
         }
       },
     });
-  }, [course, deleteCourse, messageApi, router]);
+  }, [course, deleteCourse, messageApi, router, modal]);
 
   if (!course) {
     if (loading) {
@@ -206,44 +209,6 @@ const CourseDetailPage: React.FC = () => {
     3: 'Nâng cao'
   };
 
-  const actionItems: Array<{
-    key: string;
-    label: string;
-    icon: React.ReactNode;
-    onClick: () => void;
-    danger?: boolean;
-  }> = [
-    {
-      key: 'edit',
-      label: 'Chỉnh sửa khóa học',
-      icon: <EditOutlined />,
-      onClick: () => router.push(`/Lecturer/courses/edit/${course.courseId}`)
-    },
-    {
-      key: 'preview',
-      label: 'Xem trước',
-      icon: <EyeOutlined />,
-      onClick: () => router.push(`/course/${course.courseId}`)
-    },
-    {
-      key: 'share',
-      label: 'Chia sẻ',
-      icon: <ShareAltOutlined />,
-      onClick: () => {
-        if (typeof window !== 'undefined' && navigator.clipboard) {
-          navigator.clipboard.writeText(`${window.location.origin}/course/${course.courseId}`);
-        }
-      }
-    },
-    {
-      key: 'delete',
-      label: 'Xóa khóa học',
-      icon: <DeleteOutlined />,
-      danger: true,
-      onClick: showDeleteConfirm,
-    }
-  ];
-
   // Future use: Content and progress columns for analytics
   // const contentColumns = [...];
   // const progressColumns = [...];
@@ -275,15 +240,41 @@ const CourseDetailPage: React.FC = () => {
             <div className="flex items-center gap-3">
               <Dropdown
                 menu={{
-                  items: actionItems.map((item) => ({
-                    key: item.key,
-                    label: item.label,
-                    icon: item.icon,
-                    danger: item.danger,
-                  })),
+                  items: [
+                    {
+                      key: 'edit',
+                      label: 'Chỉnh sửa khóa học',
+                      icon: <EditOutlined />,
+                    },
+                    {
+                      key: 'preview',
+                      label: 'Xem trước',
+                      icon: <EyeOutlined />,
+                    },
+                    {
+                      key: 'share',
+                      label: 'Chia sẻ',
+                      icon: <ShareAltOutlined />,
+                    },
+                    {
+                      key: 'delete',
+                      label: 'Xóa khóa học',
+                      icon: <DeleteOutlined />,
+                      danger: true,
+                    },
+                  ],
                   onClick: ({ key }) => {
-                    const target = actionItems.find((item) => item.key === key);
-                    target?.onClick();
+                    if (key === 'edit') {
+                      router.push(`/Lecturer/courses/edit/${course.courseId}`);
+                    } else if (key === 'preview') {
+                      router.push(`/course/${course.courseId}`);
+                    } else if (key === 'share') {
+                      if (typeof window !== 'undefined' && navigator.clipboard) {
+                        navigator.clipboard.writeText(`${window.location.origin}/course/${course.courseId}`);
+                      }
+                    } else if (key === 'delete') {
+                      showDeleteConfirm();
+                    }
                   },
                 }}
                 placement="bottomRight"

@@ -913,8 +913,18 @@ const CourseContent: FC = () => {
     const targetModule = modules[moduleIndex];
     let deleted = false;
 
+    // Try to find and delete module quiz
+    if (targetModule.moduleQuiz && (targetModule.moduleQuiz.id === itemId || `module-quiz-${targetModule.id}` === itemId)) {
+      const updatedModule = {
+        ...targetModule,
+        moduleQuiz: undefined
+      };
+      updateModule(moduleIndex, updatedModule);
+      deleted = true;
+    }
+
     // Try to find and delete from lessons
-    if (targetModule.lessons) {
+    if (!deleted && targetModule.lessons) {
       const lessonIndex = targetModule.lessons.findIndex((l, index) => {
         const currentLessonId = l.id || `lesson-${index}`;
         return currentLessonId === itemId;
