@@ -1,4 +1,5 @@
 import { create } from "zustand";
+/* eslint-disable */
 import { useLoadingStore } from "../Loading/LoadingStore";
 import { Province, Ward } from "EduSmart/api/api-province";
 import { apiThirdClient } from "EduSmart/hooks/apiThirdClient";
@@ -26,8 +27,7 @@ export const useAddressThirdClientStore = create<AddressThirdClientState>(
       try {
         const list = await apiThirdClient.provinces.getAll();
         set({ provinces: list });
-      } catch (error) {
-        console.error("fetchProvinces error:", error);
+      } catch {
       } finally {
         setLoading(false);
       }
@@ -38,8 +38,7 @@ export const useAddressThirdClientStore = create<AddressThirdClientState>(
       try {
         const list = await apiThirdClient.wards.getAll(province_code);
         set({ wards: list });
-      } catch (error) {
-        console.error("fetchWards error:", error);
+      } catch {
       } finally {
         setLoading(false);
       }
@@ -49,12 +48,8 @@ export const useAddressThirdClientStore = create<AddressThirdClientState>(
         .validateFields()
         .then((values) => {
           set({ province: values.province, ward: values.ward });
-          console.log("🏷️ Store updated from form:", values);
-          console.log("province", form.getFieldsValue().province);
         })
-        .catch((err) => {
-          console.warn("Validation failed:", err);
-        });
+        .catch((err) => {        });
     },
   }),
 );

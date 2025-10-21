@@ -38,6 +38,15 @@ const CourseCard: React.FC<CourseCardProps> = ({
     if (routerPush) router.push(routerPush);
   };
 
+  // Safety check to prevent Next.js image errors with example.com URLs
+  const safeImageUrl = typeof imageUrl === 'string' && imageUrl.includes('example.com') 
+    ? '/placeholder-course-image.jpg' 
+    : imageUrl;
+  
+  const safeInstructorAvatar = typeof instructorAvatar === 'string' && instructorAvatar.includes('example.com') 
+    ? '/placeholder-avatar.jpg' 
+    : instructorAvatar;
+
   // Nội dung popover
   const popContent = isShowProgress ? (
     <div style={{ width: 280 }}>
@@ -94,9 +103,10 @@ const CourseCard: React.FC<CourseCardProps> = ({
           {/* Image */}
           <div style={{ position: "relative", width: "100%", height: 180 }}>
             <Image
-              src={imageUrl}
+              src={safeImageUrl}
               alt={title}
               fill
+              sizes="(max-width: 768px) 100vw, 352px"
               loading="lazy"
               style={{ objectFit: "cover" }}
             />
@@ -117,9 +127,9 @@ const CourseCard: React.FC<CourseCardProps> = ({
               {isShowProgress ? (
                 <>
                   <div className="flex items-center space-x-2 mb-4">
-                    {instructorAvatar && (
+                    {safeInstructorAvatar && (
                       <Image
-                        src={instructorAvatar}
+                        src={safeInstructorAvatar}
                         alt={instructor}
                         width={32}
                         height={32}

@@ -151,7 +151,7 @@ export class HttpClient<SecurityDataType = unknown> {
     this.securityData = data;
   };
 
-  protected encodeQueryParam(key: string, value: any) {
+  protected encodeQueryParam(key: string, value: unknown) {
     const encodedKey = encodeURIComponent(key);
     return `${encodedKey}=${encodeURIComponent(typeof value === "number" ? value : `${value}`)}`;
   }
@@ -162,7 +162,7 @@ export class HttpClient<SecurityDataType = unknown> {
 
   protected addArrayQueryParam(query: QueryParamsType, key: string) {
     const value = query[key];
-    return value.map((v: any) => this.encodeQueryParam(key, v)).join("&");
+    return value.map((v: unknown) => this.encodeQueryParam(key, v)).join("&");
   }
 
   protected toQueryString(rawQuery?: QueryParamsType): string {
@@ -184,20 +184,20 @@ export class HttpClient<SecurityDataType = unknown> {
     return queryString ? `?${queryString}` : "";
   }
 
-  private contentFormatters: Record<ContentType, (input: any) => any> = {
-    [ContentType.Json]: (input: any) =>
+  private contentFormatters: Record<ContentType, (input: unknown) => any> = {
+    [ContentType.Json]: (input: unknown) =>
       input !== null && (typeof input === "object" || typeof input === "string")
         ? JSON.stringify(input)
         : input,
-    [ContentType.JsonApi]: (input: any) =>
+    [ContentType.JsonApi]: (input: unknown) =>
       input !== null && (typeof input === "object" || typeof input === "string")
         ? JSON.stringify(input)
         : input,
-    [ContentType.Text]: (input: any) =>
+    [ContentType.Text]: (input: unknown) =>
       input !== null && typeof input !== "string"
         ? JSON.stringify(input)
         : input,
-    [ContentType.FormData]: (input: any) => {
+    [ContentType.FormData]: (input: unknown) => {
       if (input instanceof FormData) {
         return input;
       }
@@ -215,7 +215,7 @@ export class HttpClient<SecurityDataType = unknown> {
         return formData;
       }, new FormData());
     },
-    [ContentType.UrlEncoded]: (input: any) => this.toQueryString(input),
+    [ContentType.UrlEncoded]: (input: unknown) => this.toQueryString(input),
   };
 
   protected mergeRequestParams(

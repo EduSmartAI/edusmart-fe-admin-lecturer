@@ -216,7 +216,7 @@ export default function YouTubeStylePlayer({
     } catch {}
 
     // debug nhanh (có thể bỏ):
-    // console.log([...tt].map(t => ({label: t.label, lang: t.language, mode: t.mode, cues: t.cues?.length ?? 0})));
+        
   };
 
   const onTrackError = () => {

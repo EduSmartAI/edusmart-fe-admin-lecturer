@@ -1,3 +1,6 @@
+// Early warning suppression - must be first import
+import "EduSmart/utils/earlyWarningSuppression";
+
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -8,8 +11,8 @@ import { AntdRegistry } from "@ant-design/nextjs-registry";
 import { ChartThemeProvider } from "EduSmart/Provider/ChartThemeProvider";
 import { NotificationProvider } from "EduSmart/Provider/NotificationProvider";
 import "@ant-design/v5-patch-for-react-19";
-// import Head from "next/head";
 import GoogleProvider from "EduSmart/Provider/GoogleProvider";
+import GlobalWarningSuppression from "EduSmart/components/GlobalWarningSuppression";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -95,18 +98,21 @@ export default function RootLayout({
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        suppressHydrationWarning={true}
       >
-        <AntdRegistry>
-          <ThemeProvider>
-            <AntdThemeProvider>
-              <ChartThemeProvider>
-                <NotificationProvider>
-                  <GoogleProvider>{children}</GoogleProvider>
-                </NotificationProvider>
-              </ChartThemeProvider>
-            </AntdThemeProvider>
-          </ThemeProvider>
-        </AntdRegistry>
+        <GlobalWarningSuppression>
+          <AntdRegistry>
+            <ThemeProvider>
+              <AntdThemeProvider>
+                <ChartThemeProvider>
+                  <NotificationProvider>
+                    <GoogleProvider>{children}</GoogleProvider>
+                  </NotificationProvider>
+                </ChartThemeProvider>
+              </AntdThemeProvider>
+            </ThemeProvider>
+          </AntdRegistry>
+        </GlobalWarningSuppression>
       </body>
     </html>
   );

@@ -13,7 +13,6 @@ export const useSidebarStore = create<SidebarState>()(
     (set) => ({
       collapsed: false,
       setCollapsed: (v) => {
-        console.log("setCollapsed:", v);
         set({ collapsed: v });
       },
       toggle: () => set((s) => ({ collapsed: !s.collapsed })),
@@ -21,8 +20,7 @@ export const useSidebarStore = create<SidebarState>()(
     {
       name: "sidebar-storage",
       storage: createJSONStorage(() => localStorage),
-      onRehydrateStorage: () => (state) => {
-        console.log("Rehydrated:", state);
+      onRehydrateStorage: () => () => {
       },
     },
   ),

@@ -1,7 +1,7 @@
 // src/AntdThemeProvider.tsx
 "use client";
 import React, { useMemo } from "react";
-import { ConfigProvider, theme as antdTheme } from "antd";
+import { ConfigProvider, theme as antdTheme, App } from "antd";
 import { useTheme } from "EduSmart/Provider/ThemeProvider";
 
 export function AntdThemeProvider({ children }: { children: React.ReactNode }) {
@@ -24,5 +24,9 @@ export function AntdThemeProvider({ children }: { children: React.ReactNode }) {
     [isDarkMode],
   );
 
-  return <ConfigProvider theme={theme}>{children}</ConfigProvider>;
+  return (
+    <ConfigProvider theme={theme}>
+      <App>{children}</App>
+    </ConfigProvider>
+  );
 }

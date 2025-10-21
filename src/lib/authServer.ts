@@ -67,7 +67,6 @@ async function setIdTokenCookie(idt: string) {
 }
 
 export async function exchangePassword(email: string, password: string) {
-  console.log("[exchangePassword] start");
   const body = new URLSearchParams({
     grant_type: "password",
     username: email,
@@ -84,18 +83,12 @@ export async function exchangePassword(email: string, password: string) {
       body: body.toString(),
       cache: "no-store",
     });
-    // console.log("response Login", resp)
   } catch (err) {
     console.error("[exchangePassword] fetch error:", err);
     throw new Error("Không gọi được /auth/connect/token");
   }
 
-  // Log ở server terminal / function logs
-  console.log("[exchangePassword] status:", resp.status);
-
-  // Nếu cần xem body để debug:
-  const raw = await resp.clone().text(); // cẩn thận dữ liệu nhạy cảm!
-  console.log("[exchangePassword] raw body (trim):", raw.slice(0, 1000));
+  const raw = await resp.clone().text();
 
   const data = safeJson(raw); // tránh .json() throw
   if (!resp.ok)
@@ -110,8 +103,6 @@ export async function exchangePassword(email: string, password: string) {
 
   await setSidCookie(sid); // nhớ await
   if (id_token) await setIdTokenCookie(id_token);
-  const jar = await cookies();
-  console.log("refresh", jar.get("__Host-sid"));
   return { sid };
 }
 
@@ -125,7 +116,6 @@ function safeJson(t: string) {
 
 export async function refreshTokens(sid: string) {
   const bundle = await loadTokens(sid);
-  console.log("load sid", sid, "bundle:", bundle);
   if (!bundle) throw new Error("Session not found");
 
   const body = new URLSearchParams({
@@ -145,7 +135,6 @@ export async function refreshTokens(sid: string) {
   if (!resp.ok) throw new Error(data?.error || "Refresh failed");
 
   const { access, refresh, expSec } = pickTokens(data);
-  console.log("refresh-token", refresh)
   if (!access || !refresh) throw new Error("Refresh response invalid");
 
   await updateTokens(sid, {
@@ -219,6 +208,12 @@ export async function getAuthHeaderFromCookie() {
 export async function getSidFromCookie(): Promise<string | null> {
   const jar = await cookies();
   return jar.get(SID_NAME)?.value ?? null;
+}
+
+export async function getIdTokenFromCookie(): Promise<string | null> {
+  const jar = await cookies();
+  const idTokenCookie = jar.get("__Host-idt");
+  return idTokenCookie?.value ?? null;
 }
 
 /** Trả về true nếu refresh-token tồn tại trong session store */

@@ -34,7 +34,6 @@ export default function FilterContent({ groups }: { groups: FilterGroup[] }) {
     const qs = next.toString();
     const href = qs ? `${pathname}?${qs}` : pathname;
 
-    console.log("[FilterChanged]", { param, values, type, href });
     router.replace(href, { scroll: false });
   };
 
