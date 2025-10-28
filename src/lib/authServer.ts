@@ -89,12 +89,14 @@ export async function exchangePassword(email: string, password: string) {
   }
 
   const raw = await resp.clone().text();
+  console.log('[exchangePassword] Raw response:', raw);
 
   const data = safeJson(raw); // tránh .json() throw
   if (!resp.ok)
     throw new Error(data?.error || `Đăng nhập thất bại (HTTP ${resp.status})`);
 
   const { access, refresh, expSec, id_token } = pickTokens(data);
+  console.log('[exchangePassword] Parsed tokens - access:', !!access, 'refresh:', !!refresh);
   if (!access || !refresh) throw new Error("Thiếu token từ backend");
 
   const sid = randomUUID();
@@ -103,7 +105,7 @@ export async function exchangePassword(email: string, password: string) {
 
   await setSidCookie(sid); // nhớ await
   if (id_token) await setIdTokenCookie(id_token);
-  return { sid };
+  return { sid, access };
 }
 
 function safeJson(t: string) {

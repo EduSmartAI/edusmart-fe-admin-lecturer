@@ -720,10 +720,12 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                     // PRESERVE EXISTING IDs to prevent creating duplicates
                     let mappedObjectives = state.objectives;
                     if (Array.isArray(data.learningObjectives)) {
-                        const filteredObjectives = data.learningObjectives
-                            .filter((s: unknown) => typeof s === 'string' && s.trim().length > 0);
+                        // Don't filter out empty strings to allow users to add items and fill them later
+                        const objectives = data.learningObjectives
+                            .filter((s: unknown) => typeof s === 'string' || s === undefined || s === null)
+                            .map((s: unknown) => typeof s === 'string' ? s : '');
                         
-                        mappedObjectives = filteredObjectives.map((content: string, index: number) => {
+                        mappedObjectives = objectives.map((content: string, index: number) => {
                             // Preserve existing ID by index position (not by content match to handle duplicate content)
                             const existingObjective = state.objectives[index];
                             return {
@@ -739,10 +741,12 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                     // PRESERVE EXISTING IDs to prevent creating duplicates  
                     let mappedRequirements = state.requirements;
                     if (Array.isArray(data.requirements)) {
-                        const filteredRequirements = data.requirements
-                            .filter((s: unknown) => typeof s === 'string' && s.trim().length > 0);
+                        // Don't filter out empty strings to allow users to add items and fill them later
+                        const requirements = data.requirements
+                            .filter((s: unknown) => typeof s === 'string' || s === undefined || s === null)
+                            .map((s: unknown) => typeof s === 'string' ? s : '');
                             
-                        mappedRequirements = filteredRequirements.map((content: string, index: number) => {
+                        mappedRequirements = requirements.map((content: string, index: number) => {
                             // Preserve existing ID by index position (not by content match to handle duplicate content)
                             const existingRequirement = state.requirements[index];
                             return {
@@ -758,10 +762,12 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                     // PRESERVE EXISTING IDs to prevent creating duplicates
                     let mappedTargetAudience = state.targetAudience;
                     if (Array.isArray(data.targetAudience)) {
-                        const filteredTargetAudience = data.targetAudience
-                            .filter((s: unknown) => typeof s === 'string' && s.trim().length > 0);
+                        // Don't filter out empty strings to allow users to add items and fill them later
+                        const targetAudience = data.targetAudience
+                            .filter((s: unknown) => typeof s === 'string' || s === undefined || s === null)
+                            .map((s: unknown) => typeof s === 'string' ? s : '');
                             
-                        mappedTargetAudience = filteredTargetAudience.map((content: string, index: number) => {
+                        mappedTargetAudience = targetAudience.map((content: string, index: number) => {
                             // Preserve existing ID by index position (not by content match to handle duplicate content)
                             const existingTargetAudience = state.targetAudience[index];
                             return {

@@ -69,13 +69,18 @@ const CourseInformation: FC = () => {
     const isInitialLoadRef = useRef(true);
     const listOperationRef = useRef(false); // Track if list operations are happening
     const isProgrammaticSetRef = useRef(false); // Guard to ignore programmatic form sets
+    const isUpdatingStoreRef = useRef(false); // Track if we're updating the store to prevent sync
     
     // Add effect to handle returning to this step OR edit mode initial load
     useEffect(() => {
-        // Refresh form data from store in these cases:
-        // 1. Returning to step 0 in create mode
-        // 2. Any time in edit mode (when currentStep === 0)
-        if (currentStep === 0 && (!isInitialLoadRef.current || !isCreateMode)) {
+        // Skip if list operations are in progress
+        if (listOperationRef.current || isUpdatingStoreRef.current) {
+            return;
+        }
+        
+        // ONLY sync in CREATE MODE when returning to step 0
+        // In EDIT MODE, the parent page handles all form syncing
+        if (isCreateMode && currentStep === 0 && !isInitialLoadRef.current) {
             // Build a lightweight snapshot from current hook values
             const storeState = {
                 courseInformation,
@@ -120,17 +125,31 @@ const CourseInformation: FC = () => {
     }, [currentStep, form, isCreateMode, courseInformation, objectives, requirements, targetAudience, courseTags]);
 
     // Additional effect to sync form when store data changes (for both create and edit mode)
+    // This effect is DISABLED to prevent UI jerking when store updates
+    // The form is the source of truth for list fields, and store updates should not override user input
     useEffect(() => {
-        if (currentStep === 0 && !isProgrammaticSetRef.current && !listOperationRef.current) {
+        // SKIP in edit mode - parent page handles form sync
+        if (!isCreateMode) {
+            return;
+        }
+        
+        // Skip sync if we're actively updating the store or doing list operations
+        if (isUpdatingStoreRef.current || listOperationRef.current) {
+            return;
+        }
+        
+        // Only sync non-list fields from store to prevent UI jerking (CREATE MODE ONLY)
+        if (currentStep === 0 && !isProgrammaticSetRef.current) {
             // Preserve current form values that might have been just updated by user interaction
             const currentPromo = form.getFieldValue('promoVideo');
             const currentCoverImage = form.getFieldValue('courseImageUrl');
             
-            // Also preserve current list values to avoid overwriting during user input
+            // Get current list values - DO NOT override these from store
             const currentLearningObjectives = form.getFieldValue('learningObjectives');
             const currentRequirements = form.getFieldValue('requirements');
             const currentTargetAudience = form.getFieldValue('targetAudience');
             
+            // Only update non-list fields to prevent jerking
             const formData = {
                 title: courseInformation.title,
                 subtitle: courseInformation.shortDescription,
@@ -143,23 +162,17 @@ const CourseInformation: FC = () => {
                        courseInformation.level === 2 ? 'Intermediate' : 
                        courseInformation.level === 3 ? 'Advanced' : 'Beginner',
                 promoVideo: currentPromo || courseInformation.courseIntroVideoUrl,
-                // Only sync from store if current form values are empty or undefined
-                learningObjectives: currentLearningObjectives && currentLearningObjectives.length > 0 
-                    ? currentLearningObjectives 
-                    : objectives.map(obj => obj.content),
-                requirements: currentRequirements && currentRequirements.length > 0 
-                    ? currentRequirements 
-                    : requirements.map(req => req.content),
-                targetAudience: currentTargetAudience && currentTargetAudience.length > 0 
-                    ? currentTargetAudience 
-                    : targetAudience.map(aud => aud.content),
+                // ALWAYS preserve current form values for list fields to prevent UI jerking
+                learningObjectives: currentLearningObjectives,
+                requirements: currentRequirements,
+                targetAudience: currentTargetAudience,
                 courseTags: courseTags,
             };
             
             // Set form values without triggering the programmatic flag to avoid loops
             form.setFieldsValue(formData);
         }
-    }, [courseInformation, objectives, requirements, targetAudience, courseTags, currentStep, form]);
+    }, [courseInformation, courseTags, currentStep, form, isCreateMode]); // Removed objectives, requirements, targetAudience from deps
 
     // Effect to handle immediate field updates (for file uploads and dropdowns)
     useEffect(() => {
@@ -397,7 +410,7 @@ const CourseInformation: FC = () => {
             
             // Use a longer delay to allow Form.List operations to complete properly
             // Check if list operations are happening and adjust delay accordingly
-            const delay = listOperationRef.current ? 2500 : 1000;
+            const delay = listOperationRef.current ? 3000 : 1000; // Increased from 2500 to 3000ms for list operations
             
             updateTimeoutRef.current = setTimeout(() => {
                 try {
@@ -425,12 +438,20 @@ const CourseInformation: FC = () => {
                     );
                     
                     if (hasChanges) {
+                        // Set flag to prevent sync effect from running during store update
+                        isUpdatingStoreRef.current = true;
+                        
                         // Normalize form values → store shape to prevent UI clearing
                         const normalized = {
                             ...(allValues as any),
                             courseIntroVideoUrl: (allValues as any)?.promoVideo ?? (allValues as any)?.courseIntroVideoUrl,
                         };
                         updateCourseInformation(normalized as any);
+                        
+                        // Reset flag after a short delay to allow store update to complete
+                        setTimeout(() => {
+                            isUpdatingStoreRef.current = false;
+                        }, 100);
                     }
                     
                     listOperationRef.current = false; // Reset after successful update

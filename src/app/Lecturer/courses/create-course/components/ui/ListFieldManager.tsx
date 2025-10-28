@@ -120,7 +120,7 @@ const ListFieldManager: FC<ListFieldManagerProps> = ({
                     { 
                       required: true, 
                       message: 'Vui lòng nhập nội dung!',
-                      validateTrigger: ['onBlur', 'onSubmit'] // Only validate on blur or submit, not during typing
+                      validateTrigger: ['onSubmit'] // Only validate on submit, not during typing or blur
                     },
                     { 
                       max: 200, 

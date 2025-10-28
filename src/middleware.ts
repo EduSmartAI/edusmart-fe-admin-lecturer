@@ -11,7 +11,8 @@ const PUBLIC_PATHS = [
 ];
 
 const PROTECTED_PREFIXES = [
-  "/User",
+  "/Lecturer",
+  "/Admin",
 ];
 
 /** Kiểm tra xem pathname có nằm trong PUBLIC_PATHS không */
@@ -68,15 +69,28 @@ export async function middleware(req: NextRequest) {
   const claims = idt ? decodeJwtPayload(idt) : null;
   console.log('Token claims:', claims);
 
+  // Nếu truy cập root "/" mà chưa có token hoặc không có role → redirect về /Login
+  if (pathname === "/" && (!sid || !idt || !claims?.role)) {
+    const url = req.nextUrl.clone();
+    url.pathname = "/Login";
+    return NextResponse.redirect(url);
+  }
 
-  // Nếu đã login rồi mà truy cập /login → redirect về /Admin
-  if (isPublicPath(pathname)) {
-    if (sid && (pathname.toLowerCase() === "/login" || pathname === "/")) {
-      const url = req.nextUrl.clone();
+  // Nếu đã login với role hợp lệ mà truy cập /login hoặc / → redirect về home based on role
+  if (sid && idt && claims?.role && (pathname.toLowerCase() === "/login" || pathname === "/")) {
+    const url = req.nextUrl.clone();
+    const role = claims.role;
+    
+    if (role === 'Lecturer') {
       url.pathname = "/Lecturer";
-      return NextResponse.redirect(url);
+    } else if (role === 'Admin') {
+      url.pathname = "/Admin";
+    } else {
+      // Only Admin and Lecturer allowed - invalid role, redirect to login
+      url.pathname = "/Login";
     }
-    return NextResponse.next();
+    
+    return NextResponse.redirect(url);
   }
 
   // 1) Bots/crawlers → cho qua to read metadata for link previews
@@ -89,17 +103,38 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // 3) Nếu không phải protected → cho qua
-  if (!isProtectedPath(pathname)) {
-    return NextResponse.next();
-  }
-
-  // 4) Protected path mà chưa login → redirect về /login
-  if (!sid) {
+  // 3) Protected path mà chưa login → redirect về /Login
+  if (isProtectedPath(pathname) && !sid) {
     const url = req.nextUrl.clone();
-    url.pathname = "/404"; // hoặc "/login" tùy UX của bạn
+    url.pathname = "/Login";
     url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
+  }
+
+  // 4) Check role-based access for protected paths - Only Admin and Lecturer allowed
+  if (isProtectedPath(pathname) && sid && claims) {
+    const role = claims.role;
+    
+    // Only allow Lecturer and Admin roles
+    if (role !== "Lecturer" && role !== "Admin") {
+      const url = req.nextUrl.clone();
+      url.pathname = "/Login";
+      return NextResponse.redirect(url);
+    }
+    
+    // Lecturer can access Lecturer pages, Admin can access both
+    if (pathname.startsWith("/Lecturer") && role !== "Lecturer" && role !== "Admin") {
+      const url = req.nextUrl.clone();
+      url.pathname = "/404";
+      return NextResponse.redirect(url);
+    }
+    
+    // Only Admin can access Admin pages
+    if (pathname.startsWith("/Admin") && role !== "Admin") {
+      const url = req.nextUrl.clone();
+      url.pathname = "/404";
+      return NextResponse.redirect(url);
+    }
   }
 
   // 5) Đã login, path được phép → cho qua

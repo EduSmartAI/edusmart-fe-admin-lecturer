@@ -109,7 +109,34 @@ export default function LoginPage() {
       const isOK = await login(values.email, values.password);
       if (isOK) {
         messageApi.success("Đăng nhập thành công!");
-        router.push("/Lecturer");
+        
+        // Get user role from token to redirect appropriately
+        try {
+          const { getUserIdFromTokenAction } = await import('EduSmart/app/(auth)/action');
+          const userInfo = await getUserIdFromTokenAction();
+          
+          if (userInfo.ok && userInfo.userRole) {
+            const role = userInfo.userRole.toLowerCase();
+            
+            // Redirect based on role
+            if (role.includes('admin')) {
+              router.push("/Admin");
+            } else if (role.includes('lecturer') || role.includes('teacher')) {
+              router.push("/Lecturer");
+            } else {
+              // Default to Lecturer for unknown roles
+              router.push("/Lecturer");
+            }
+          } else {
+            // If we can't get role, default to Lecturer
+            router.push("/Lecturer");
+          }
+        } catch (error) {
+          console.error('Error getting user role:', error);
+          // Fallback to Lecturer on error
+          router.push("/Lecturer");
+        }
+        
         useLoadingStore.getState().hideLoading();
         return;
       }

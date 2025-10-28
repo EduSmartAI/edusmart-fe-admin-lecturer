@@ -1,9 +1,10 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { Tooltip, Avatar, theme } from "antd";
 import { useRouter } from "next/navigation";
 import { useTheme } from "EduSmart/Provider/ThemeProvider";
+import { useUserProfileStore } from "EduSmart/stores/User/UserProfileStore";
 
 type UserTitleProps = {
   collapsed: boolean;
@@ -21,12 +22,24 @@ const initialsFrom = (name: string) =>
 export const UserTitle: React.FC<UserTitleProps> = ({ collapsed }) => {
   const router = useRouter();
   const { isDarkMode } = useTheme();
+  const { profile, loadProfile } = useUserProfileStore();
   const {
     token: { colorBorderSecondary },
   } = theme.useToken();
 
-  const displayName = "Maria Kelly";
-  const email = "MariaKlly@email.com";
+  // Load user profile on mount
+  useEffect(() => {
+    console.log('UserTitle: Current profile:', profile);
+    if (!profile) {
+      console.log('UserTitle: Loading profile...');
+      loadProfile();
+    }
+  }, [profile, loadProfile]);
+
+  console.log('UserTitle render:', { profile, name: profile?.name, email: profile?.email });
+
+  const displayName = profile?.name || "User";
+  const email = profile?.email || "user@example.com";
   const avatarUrl = null;
 
   return (
