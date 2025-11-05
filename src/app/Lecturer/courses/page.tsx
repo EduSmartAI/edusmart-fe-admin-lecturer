@@ -15,8 +15,7 @@ import {
   Radio,
   Statistic,
   Empty,
-  Modal,
-  message
+  App
 } from 'antd';
 import { 
   EditOutlined, 
@@ -38,6 +37,7 @@ import {
 import type { TableColumnsType } from 'antd';
 import { useCourseManagementStore } from 'EduSmart/stores/CourseManagement/CourseManagementStore';
 import { useCreateCourseStore } from 'EduSmart/stores/CreateCourse/CreateCourseStore';
+import { useUserProfileStore } from 'EduSmart/stores/User/UserProfileStore';
 import BaseControlTable from 'EduSmart/components/Table/BaseControlTable';
 import { Course, CourseDto } from 'EduSmart/types/course';
 import { FadeInUp } from 'EduSmart/components/Animation/FadeInUp';
@@ -48,6 +48,7 @@ type CourseWithKey = Course & { key: React.Key };
 
 const CourseManagementPage: React.FC = () => {
   const router = useRouter();
+  const { message, modal } = App.useApp();
   const {
     courses,
     isLoading,
@@ -58,6 +59,7 @@ const CourseManagementPage: React.FC = () => {
   } = useCourseManagementStore();
 
   const { /* resetForm, */ forceResetForCreateMode, setCreateMode } = useCreateCourseStore();
+  const { profile, loadProfile } = useUserProfileStore();
 
   // State for view and filters
   const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
@@ -66,6 +68,12 @@ const CourseManagementPage: React.FC = () => {
   const [selectedLevel, setSelectedLevel] = useState<string>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   
+  // Load user profile on mount
+  useEffect(() => {
+    if (!profile) {
+      loadProfile();
+    }
+  }, [profile, loadProfile]);
 
   useEffect(() => {
     fetchCoursesByLecturer();
@@ -94,7 +102,7 @@ const CourseManagementPage: React.FC = () => {
   };
 
   const showDeleteConfirm = (course: Course) => {
-    Modal.confirm({
+    modal.confirm({
       title: 'Xóa khóa học',
       icon: <ExclamationCircleFilled className="text-red-500" />,
       content: `Bạn có chắc chắn muốn xóa khóa học "${course.title}"? Hành động này không thể hoàn tác.`,
@@ -128,7 +136,7 @@ const CourseManagementPage: React.FC = () => {
     createdAt: new Date(course.createdAt),
     updatedAt: new Date(course.updatedAt),
     lecturerId: course.teacherId,
-    lecturerName: 'Instructor',
+    lecturerName: profile?.name || 'Giảng viên',
     duration: course.durationHours,
     rating: 0,
     reviewCount: 0,

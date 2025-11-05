@@ -22,6 +22,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from 'EduSmart/stores/Auth/AuthStore';
 import { useNotification } from 'EduSmart/Provider/NotificationProvider';
 import { useLoadingStore } from 'EduSmart/stores/Loading/LoadingStore';
+import { useUserProfileStore } from 'EduSmart/stores/User/UserProfileStore';
 
 const { Sider } = Layout;
 type MenuItem = Required<MenuProps>["items"][number];
@@ -131,6 +132,7 @@ export const LecturerSidebar: React.FC<LecturerSidebarProps> = ({
   const messageApi = useNotification();
   const pathname = usePathname();
   const router = useRouter();
+  const { profile } = useUserProfileStore();
   const selectedKeys = defaultSelectedKeys ?? getSelectedKeys(pathname);
   const defaultOpenKeys = useMemo(() => {
     const cur = selectedKeys[0];
@@ -237,8 +239,8 @@ export const LecturerSidebar: React.FC<LecturerSidebarProps> = ({
             <div className="flex items-center mb-4">
                 <Avatar src="https://i.pravatar.cc/150?u=a042581f4e29026024d" />
                 <div className="ml-3">
-                    <p className="font-semibold text-sm">Maria Kelly</p>
-                    <p className="text-xs text-gray-500">mariakelly@email.com</p>
+                    <p className="font-semibold text-sm">{profile?.name}</p>
+                    <p className="text-xs text-gray-500">{profile?.email}</p>
                 </div>
             </div>
         )}

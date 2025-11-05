@@ -15,6 +15,7 @@ const { Text } = Typography;
 interface StreamingVideoUploaderProps {
   value?: string;
   onChange?: (value: string | null) => void;
+  onVideoDurationExtracted?: (durationInSeconds: number) => void;
   maxSizeMB?: number;
   disabled?: boolean;
   placeholder?: string;
@@ -23,7 +24,8 @@ interface StreamingVideoUploaderProps {
 
 const StreamingVideoUploader: React.FC<StreamingVideoUploaderProps> = ({
   value, 
-  onChange, 
+  onChange,
+  onVideoDurationExtracted,
   placeholder = "Chọn hoặc kéo thả video vào đây", 
   maxSizeMB = 100,
   disabled = false,
@@ -50,6 +52,27 @@ const StreamingVideoUploader: React.FC<StreamingVideoUploaderProps> = ({
     };
   };
 
+  // Extract video duration from file using HTML5 Video API
+  const getVideoDuration = (file: File): Promise<number> => {
+    return new Promise((resolve, reject) => {
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      
+      video.onloadedmetadata = () => {
+        window.URL.revokeObjectURL(video.src);
+        const durationInSeconds = Math.round(video.duration);
+        resolve(durationInSeconds);
+      };
+      
+      video.onerror = () => {
+        window.URL.revokeObjectURL(video.src);
+        reject(new Error('Không thể đọc metadata của video'));
+      };
+      
+      video.src = URL.createObjectURL(file);
+    });
+  };
+
   const handleUpload = async (file: File) => {
     if (disabled) return false;
 
@@ -73,6 +96,16 @@ const StreamingVideoUploader: React.FC<StreamingVideoUploaderProps> = ({
         placement: 'topRight'
       });
       return false;
+    }
+
+    // Extract video duration before upload
+    try {
+      const durationInSeconds = await getVideoDuration(file);
+      // Call callback with duration in seconds
+      onVideoDurationExtracted?.(durationInSeconds);
+    } catch (error) {
+      console.warn('Could not extract video duration:', error);
+      // Continue with upload even if duration extraction fails
     }
 
     setIsUploading(true);

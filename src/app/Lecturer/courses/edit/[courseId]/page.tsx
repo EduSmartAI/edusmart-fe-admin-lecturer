@@ -36,6 +36,7 @@ const EditCoursePageContent: FC = () => {
   
   const { 
     currentStep, 
+    setCurrentStep,
     loadCourseData, 
     courseInformation, 
     updateCourse, 
@@ -55,6 +56,26 @@ const EditCoursePageContent: FC = () => {
   const [loading, setLoading] = useState(true);
   const [hasDataLoaded, setHasDataLoaded] = useState(false);
   const prevStepRef = useRef(currentStep);
+  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSyncedDataRef = useRef<string>('');
+  const initialStepRef = useRef<number | null>(null);
+  const stepHasBeenSetRef = useRef(false); // Track if step has been set from URL
+
+  // Check for step query parameter on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && initialStepRef.current === null) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const stepParam = urlParams.get('step');
+      
+      if (stepParam) {
+        const stepNumber = parseInt(stepParam, 10);
+        if (!isNaN(stepNumber) && stepNumber >= 0 && stepNumber <= 4) {
+          initialStepRef.current = stepNumber;
+          console.log('URL step parameter detected:', stepNumber);
+        }
+      }
+    }
+  }, []);
 
   // Auto-scroll when step changes
   useEffect(() => {
@@ -67,17 +88,39 @@ const EditCoursePageContent: FC = () => {
 
   // Load course data for editing
   useEffect(() => {
+    // Only run once - use ref to prevent re-runs
+    if (stepHasBeenSetRef.current) {
+      console.log('Already loaded, skipping...');
+      return;
+    }
+    
+    let isMounted = true;
+    
     const loadData = async () => {
+      console.log('Loading course data...');
       // Set edit mode first
       setCreateMode(false);
       
       const loaded = await loadCourseData(courseId);
+      
+      if (!isMounted) return;
+      
       if (loaded) {
         message.success('Đã tải dữ liệu khóa học để chỉnh sửa');
         
+        // Use a single timeout to set both hasDataLoaded and step
         setTimeout(() => {
+          if (!isMounted) return;
+          
           setHasDataLoaded(true);
-        }, 100);
+          
+          // Set the step from URL parameter right after data is loaded
+          if (initialStepRef.current !== null && !stepHasBeenSetRef.current) {
+            setCurrentStep(initialStepRef.current);
+            stepHasBeenSetRef.current = true; // Mark as set to prevent this effect from running again
+            initialStepRef.current = null; // Reset to prevent re-setting
+          }
+        }, 200);
       } else {
         message.error('Không thể tải dữ liệu khóa học');
         router.push('/Lecturer/courses');
@@ -85,14 +128,27 @@ const EditCoursePageContent: FC = () => {
       setLoading(false);
     };
 
-    if (courseId) {
-      loadData();
-    }
-  }, [courseId, loadCourseData, router, setCreateMode]);
+    loadData();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [courseId, loadCourseData, router, setCreateMode, setCurrentStep, message]);
 
-  // Sync form values when course data is loaded - Enhanced for edit mode
+  // CONSOLIDATED: Single effect to sync form values - prevents redundant updates and lag
   useEffect(() => {
-    if (!loading && hasDataLoaded && courseInformation.title && !isCreateMode) {
+    // Only sync in edit mode when data is loaded
+    if (loading || isCreateMode || !hasDataLoaded || !courseInformation.title) {
+      return;
+    }
+
+    // Clear any pending sync
+    if (syncTimeoutRef.current) {
+      clearTimeout(syncTimeoutRef.current);
+    }
+
+    // Debounce form sync to prevent rapid updates
+    syncTimeoutRef.current = setTimeout(() => {
       const levelValue = courseInformation.level === 1 ? 'Beginner' : 
                         courseInformation.level === 2 ? 'Intermediate' : 
                         courseInformation.level === 3 ? 'Advanced' : 'Beginner';
@@ -113,70 +169,32 @@ const EditCoursePageContent: FC = () => {
         courseTags: courseTags
       };
 
-      // Use setTimeout to ensure form is ready
-      setTimeout(() => {
+      // Only update if data has actually changed
+      const dataHash = JSON.stringify(formValues);
+      if (dataHash !== lastSyncedDataRef.current) {
         form.setFieldsValue(formValues);
-      }, 100);
-    }
-  }, [loading, hasDataLoaded, courseInformation, objectives, requirements, targetAudience, courseTags, form, isCreateMode]);
+        lastSyncedDataRef.current = dataHash;
+      }
+    }, 50); // Small debounce delay
 
-  // Force sync form when step changes in edit mode
-  useEffect(() => {
-    if (!loading && !isCreateMode && courseInformation.title) {
-      const levelValue = courseInformation.level === 1 ? 'Beginner' : 
-                        courseInformation.level === 2 ? 'Intermediate' : 
-                        courseInformation.level === 3 ? 'Advanced' : 'Beginner';
-      
-      const formValues = {
-        title: courseInformation.title || '',
-        subtitle: courseInformation.shortDescription || '',
-        subjectId: courseInformation.subjectId || '',
-        description: courseInformation.description || '',
-        courseImageUrl: courseInformation.courseImageUrl || '',
-        price: courseInformation.price || 0,
-        dealPrice: courseInformation.dealPrice,
-        level: levelValue,
-        promoVideo: courseInformation.courseIntroVideoUrl || '',
-        learningObjectives: objectives.map(obj => obj.content),
-        requirements: requirements.map(req => req.content),
-        targetAudience: targetAudience.map(aud => aud.content),
-        courseTags: courseTags
-      };
-      
-      // Short delay to ensure step component is mounted
-      setTimeout(() => {
-        form.setFieldsValue(formValues);
-      }, 50);
-    }
-  }, [currentStep, loading, isCreateMode, courseInformation, objectives, requirements, targetAudience, courseTags, form]);
-
-  // Additional effect to force sync when any store data changes in edit mode
-  useEffect(() => {
-    if (!loading && !isCreateMode && courseInformation.title) {
-      const levelValue = courseInformation.level === 1 ? 'Beginner' : 
-                        courseInformation.level === 2 ? 'Intermediate' : 
-                        courseInformation.level === 3 ? 'Advanced' : 'Beginner';
-      
-      const formValues = {
-        title: courseInformation.title || '',
-        subtitle: courseInformation.shortDescription || '',
-        subjectId: courseInformation.subjectId || '',
-        description: courseInformation.description || '',
-        courseImageUrl: courseInformation.courseImageUrl || '',
-        price: courseInformation.price || 0,
-        dealPrice: courseInformation.dealPrice,
-        level: levelValue,
-        promoVideo: courseInformation.courseIntroVideoUrl || '',
-        learningObjectives: objectives.map(obj => obj.content),
-        requirements: requirements.map(req => req.content),
-        targetAudience: targetAudience.map(aud => aud.content),
-        courseTags: courseTags
-      };
-      
-      // Use immediate update
-      form.setFieldsValue(formValues);
-    }
-  }, [courseInformation.courseIntroVideoUrl, targetAudience, courseTags, courseInformation.level, objectives, requirements, loading, isCreateMode, courseInformation.title, form]);
+    // Cleanup
+    return () => {
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+      }
+    };
+  }, [
+    loading, 
+    hasDataLoaded, 
+    isCreateMode, 
+    courseInformation, 
+    objectives, 
+    requirements, 
+    targetAudience, 
+    courseTags, 
+    form,
+    currentStep // Include currentStep to sync when switching steps
+  ]);
 
   // Handle errors from both stores
   useEffect(() => {
