@@ -39,3 +39,17 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+.github/prompts/openspec-apply.prompt.md
+.github/prompts/openspec-archive.prompt.md
+.github/prompts/openspec-proposal.prompt.md
+openspec/AGENTS.md
+openspec/changes/add-admin-content-management/design.md
+openspec/changes/add-admin-content-management/PHASE1_SETUP.md
+openspec/changes/add-admin-content-management/proposal.md
+openspec/changes/add-admin-content-management/README.md
+openspec/changes/add-admin-content-management/SUMMARY.md
+openspec/changes/add-admin-content-management/tasks.md
+openspec/changes/add-admin-content-management/specs/learning-goals/spec.md
+openspec/changes/add-admin-content-management/specs/questions/spec.md
+openspec/changes/add-admin-content-management/specs/surveys/spec.md
+openspec/changes/add-admin-content-management/specs/technologies/spec.md

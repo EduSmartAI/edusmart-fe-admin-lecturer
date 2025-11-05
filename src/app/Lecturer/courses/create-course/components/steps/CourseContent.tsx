@@ -1349,34 +1349,40 @@ const CourseContent: FC = () => {
             />
           </Form.Item>
 
-        <Form.Item
-          name="description"
-          label={<span className="text-sm font-medium text-gray-700 dark:text-gray-300">Mô tả</span>}
-        >
-          <Input.TextArea 
-            placeholder="Mô tả chi tiết về nội dung này..."
-            rows={3}
-            showCount
-            maxLength={500}
-          />
-        </Form.Item>
-
         {/* Type-specific fields */}
         {selectedType === ContentType.VIDEO && (
           <>
-            <Form.Item
-              name="duration"
-              label={<span className="text-sm font-medium text-gray-700 dark:text-gray-300">Thời lượng (phút) <span className="text-red-500">*</span></span>}
-              rules={[{ required: true, message: 'Vui lòng nhập thời lượng!' }]}
-            >
-              <InputNumber 
-                placeholder="30"
-                min={1}
-                max={480}
-                style={{ width: '100%' }}
-                size="large"
-              />
+            {/* Hidden field to store auto-calculated duration in minutes */}
+            <Form.Item name="duration" hidden>
+              <InputNumber />
             </Form.Item>
+
+            {/* Hidden field to store duration in seconds for display */}
+            <Form.Item name="videoDurationSec" hidden>
+              <InputNumber />
+            </Form.Item>
+
+            {/* Show video duration after upload */}
+            {form.getFieldValue('videoDurationSec') && (
+              <div className="mb-4 p-4 bg-emerald-50 dark:bg-emerald-900/20 border-2 border-emerald-300 dark:border-emerald-700 rounded-lg shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="text-2xl">🎬</div>
+                    <div>
+                      <div className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
+                        Thời lượng video:
+                      </div>
+                      <div className="text-lg font-bold text-emerald-900 dark:text-emerald-100">
+                        {Math.floor(form.getFieldValue('videoDurationSec') / 60)} phút {form.getFieldValue('videoDurationSec') % 60} giây
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                    Tự động tính
+                  </div>
+                </div>
+              </div>
+            )}
             
             <Form.Item
               name="url"
@@ -1389,6 +1395,17 @@ const CourseContent: FC = () => {
                 placeholder="Chọn hoặc kéo thả video bài học vào đây"
                 maxSizeMB={512}
                 compact={true}
+                onVideoDurationExtracted={(durationInSeconds) => {
+                  // Store both seconds (for display) and minutes (for course duration calculation)
+                  const durationInMinutes = Math.round(durationInSeconds / 60);
+                  // Use setTimeout to avoid circular reference warning by deferring the update
+                  setTimeout(() => {
+                    form.setFieldsValue({ 
+                      duration: durationInMinutes,
+                      videoDurationSec: durationInSeconds
+                    });
+                  }, 0);
+                }}
               />
             </Form.Item>
           </>

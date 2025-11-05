@@ -15,8 +15,7 @@ import {
   Radio,
   Statistic,
   Empty,
-  Modal,
-  message
+  App
 } from 'antd';
 import { 
   EditOutlined, 
@@ -49,6 +48,7 @@ type CourseWithKey = Course & { key: React.Key };
 
 const CourseManagementPage: React.FC = () => {
   const router = useRouter();
+  const { message, modal } = App.useApp();
   const {
     courses,
     isLoading,
@@ -102,7 +102,7 @@ const CourseManagementPage: React.FC = () => {
   };
 
   const showDeleteConfirm = (course: Course) => {
-    Modal.confirm({
+    modal.confirm({
       title: 'Xóa khóa học',
       icon: <ExclamationCircleFilled className="text-red-500" />,
       content: `Bạn có chắc chắn muốn xóa khóa học "${course.title}"? Hành động này không thể hoàn tác.`,

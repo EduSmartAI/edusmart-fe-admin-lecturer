@@ -48,8 +48,7 @@ import {
   TwitterOutlined,
   LinkedinOutlined,
   MailOutlined,
-  WhatsAppOutlined,
-  QrcodeOutlined
+  WhatsAppOutlined
 } from '@ant-design/icons';
 import { FadeInUp } from 'EduSmart/components/Animation/FadeInUp';
 import { useCourseManagementStore } from 'EduSmart/stores/CourseManagement/CourseManagementStore';
@@ -174,6 +173,78 @@ const CourseDetailPage: React.FC = () => {
       },
     });
   }, [course, deleteCourse, messageApi, router, modal]);
+
+  // Share handler functions
+  const getCourseUrl = useCallback(() => {
+    if (!course) return '';
+    return `${window.location.origin}/course/${course.courseId}`;
+  }, [course]);
+
+  const getShareText = useCallback(() => {
+    if (!course) return '';
+    return `Khám phá khóa học "${course.title || 'Untitled Course'}" trên EduSmart!`;
+  }, [course]);
+
+  const handleShareToFacebook = useCallback(() => {
+    const url = getCourseUrl();
+    const shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
+    window.open(shareUrl, '_blank', 'width=600,height=400');
+  }, [getCourseUrl]);
+
+  const handleShareToMessenger = useCallback(() => {
+    const url = getCourseUrl();
+    const shareUrl = `fb-messenger://share/?link=${encodeURIComponent(url)}`;
+    window.open(shareUrl, '_blank');
+  }, [getCourseUrl]);
+
+  const handleShareToZalo = useCallback(() => {
+    const url = getCourseUrl();
+    const shareUrl = `https://zalo.me/share?url=${encodeURIComponent(url)}`;
+    window.open(shareUrl, '_blank', 'width=600,height=400');
+  }, [getCourseUrl]);
+
+  const handleShareToWhatsApp = useCallback(() => {
+    const url = getCourseUrl();
+    const text = getShareText();
+    const shareUrl = `https://wa.me/?text=${encodeURIComponent(text + ' ' + url)}`;
+    window.open(shareUrl, '_blank');
+  }, [getCourseUrl, getShareText]);
+
+  const handleShareToTwitter = useCallback(() => {
+    const url = getCourseUrl();
+    const text = getShareText();
+    const shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
+    window.open(shareUrl, '_blank', 'width=600,height=400');
+  }, [getCourseUrl, getShareText]);
+
+  const handleShareToLinkedIn = useCallback(() => {
+    const url = getCourseUrl();
+    const shareUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`;
+    window.open(shareUrl, '_blank', 'width=600,height=400');
+  }, [getCourseUrl]);
+
+  const handleShareToEmail = useCallback(() => {
+    const url = getCourseUrl();
+    const text = getShareText();
+    const subject = encodeURIComponent(`Chia sẻ khóa học: ${course?.title || 'Untitled Course'}`);
+    const body = encodeURIComponent(`${text}\n\n${url}`);
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  }, [getCourseUrl, getShareText, course]);
+
+  const handleCopyLink = useCallback(() => {
+    const url = getCourseUrl();
+    if (typeof window !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(url)
+        .then(() => {
+          messageApi.success('Đã sao chép liên kết vào clipboard!');
+        })
+        .catch(() => {
+          messageApi.error('Không thể sao chép liên kết');
+        });
+    } else {
+      messageApi.error('Trình duyệt không hỗ trợ sao chép tự động');
+    }
+  }, [getCourseUrl, messageApi]);
 
   if (!course) {
     if (loading) {
