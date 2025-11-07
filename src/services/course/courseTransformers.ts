@@ -281,7 +281,7 @@ export const transformModulesForUpdate = (modules: CourseModule[]): UpdateModule
       objectives: module.objectives.map((obj, objIdx) => ({
         objectiveId: obj.id,
         content: obj.content,
-        positionIndex: objIdx,
+        positionIndex: objIdx + 1, // API uses 1-based index
         isActive: obj.isActive,
       })),
       lessons: module.lessons.map((lesson, idx) => transformLessonForUpdate(lesson, idx)),
@@ -289,15 +289,17 @@ export const transformModulesForUpdate = (modules: CourseModule[]): UpdateModule
       discussions,
       moduleMaterialDetails: materials,
       materials,
-      ...(module.moduleQuiz
-        ? {
-            moduleQuiz: {
-              moduleQuizId: module.moduleQuiz.id,
-              quizSettings: transformQuizSettings(module.moduleQuiz.quizSettings),
-              questions: transformQuestions(module.moduleQuiz.questions) ?? [],
-            },
-          }
-        : {}),
+      // ❌ DON'T include moduleQuiz here - it's handled separately by updateCourseQuizzes()
+      // This prevents conflicts and "Lỗi hệ thống" errors from the backend
+      // ...(module.moduleQuiz
+      //   ? {
+      //       moduleQuiz: {
+      //         moduleQuizId: module.moduleQuiz.id,
+      //         quizSettings: transformQuizSettings(module.moduleQuiz.quizSettings),
+      //         questions: transformQuestions(module.moduleQuiz.questions) ?? [],
+      //       },
+      //     }
+      //   : {}),
     };
   });
 };
@@ -309,15 +311,17 @@ const transformLessonForUpdate = (lesson: Lesson, index: number) => ({
   videoDurationSec: lesson.videoDurationSec,
   positionIndex: index + 1, // API uses 1-based index
   isActive: lesson.isActive,
-  ...(lesson.lessonQuiz
-    ? {
-        lessonQuiz: {
-          lessonQuizId: lesson.lessonQuiz.id,
-          quizSettings: transformQuizSettings(lesson.lessonQuiz.quizSettings),
-          questions: transformQuestions(lesson.lessonQuiz.questions) ?? [],
-        },
-      }
-    : {}),
+  // ❌ DON'T include lessonQuiz here - it's handled separately by updateCourseQuizzes()
+  // This prevents conflicts and "Lỗi hệ thống" errors from the backend
+  // ...(lesson.lessonQuiz
+  //   ? {
+  //       lessonQuiz: {
+  //         lessonQuizId: lesson.lessonQuiz.id,
+  //         quizSettings: transformQuizSettings(lesson.lessonQuiz.quizSettings),
+  //         questions: transformQuestions(lesson.lessonQuiz.questions) ?? [],
+  //       },
+  //     }
+  //   : {}),
 });
 
 const mapAnswersForQuiz = (options?: Array<{ id?: string; text?: string; isCorrect?: boolean }>): QuizAnswerPayload[] => {
@@ -362,8 +366,10 @@ const isRealQuizId = (id?: string): boolean => {
   return uuidRegex.test(id);
 };
 
-const mapQuizForPayload = (quiz?: ModuleQuiz | Lesson['lessonQuiz']): QuizPayload | null => {
-  if (!quiz) return null;
+const mapQuizForPayload = (quiz: ModuleQuiz | Lesson['lessonQuiz'] | undefined | null): QuizPayload | null => {
+  if (!quiz) {
+    return null;
+  }
 
   const extendedQuiz = quiz as (ModuleQuiz & {
     quizId?: string;
@@ -383,6 +389,7 @@ const mapQuizForPayload = (quiz?: ModuleQuiz | Lesson['lessonQuiz']): QuizPayloa
   }
 
   const settings = quiz.quizSettings ?? {};
+  const questions = mapQuestionsForQuiz(quiz.questions);
 
   return {
     quizId: candidateQuizId,
@@ -391,7 +398,7 @@ const mapQuizForPayload = (quiz?: ModuleQuiz | Lesson['lessonQuiz']): QuizPayloa
     shuffleQuestions: settings.shuffleQuestions,
     showResultsImmediately: settings.showResultsImmediately,
     allowRetake: settings.allowRetake,
-    questions: mapQuestionsForQuiz(quiz.questions),
+    questions,
   } satisfies QuizPayload;
 };
 
@@ -401,7 +408,7 @@ export const buildCourseQuizUpdatePayload = (
 ): UpdateCourseQuizPayload => {
   const quizzes: QuizPayload[] = [];
 
-  modules.forEach((module) => {
+  modules.forEach((module, moduleIndex) => {
     const moduleQuiz = module.moduleQuiz as (ModuleQuiz & { lastModified?: number; quizId?: string }) | undefined;
     
     // Only include module quiz if it was EXPLICITLY edited in this session
@@ -413,9 +420,7 @@ export const buildCourseQuizUpdatePayload = (
         if (mapped) {
           quizzes.push(mapped);
         }
-      } else if (editedQuizIds) {
-        // Quiz not in edited set, skip it
-      } else {
+      } else if (!editedQuizIds) {
         // Fallback: if no editedQuizIds provided, use old time-based logic
         const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
         if (!moduleQuiz.lastModified || moduleQuiz.lastModified >= fiveMinutesAgo) {
@@ -439,9 +444,7 @@ export const buildCourseQuizUpdatePayload = (
           if (mapped) {
             quizzes.push(mapped);
           }
-        } else if (editedQuizIds) {
-          // Quiz not in edited set, skip it
-        } else {
+        } else if (!editedQuizIds) {
           // Fallback: if no editedQuizIds provided, use old time-based logic
           const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
           if (!lessonQuiz.lastModified || lessonQuiz.lastModified >= fiveMinutesAgo) {

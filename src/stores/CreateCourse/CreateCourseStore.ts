@@ -1146,9 +1146,10 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                     const courseData = await convertToUpdateCourseDto(state);
                     const response = await courseServiceAPI.updateCourse(state.courseId, courseData);
                     
-                    if (!response.success) {
+                    if (!response || response.success !== true) {
+                        const errorMsg = response?.message || 'Failed to update course information';
                         set({ 
-                            error: response.message || 'Failed to update course information',
+                            error: errorMsg,
                             isSaving: false 
                         });
                         return false;
@@ -1159,40 +1160,47 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                         const { transformModulesForUpdate } = await import('EduSmart/services/course/courseTransformers');
                         const modulesDto = transformModulesForUpdate(state.modules);
                         
-                        // Call updateModules API with the correct format
-                        // The API expects: { courseId, updateCourseModules: { modules: [...] } }
                         const modulesResponse = await courseServiceAPI.updateCourseModules(
                             state.courseId, 
                             modulesDto,
-                            state.courseId // courseIdForPayload - using same courseId
+                            state.courseId
                         );
                         
-                        if (!modulesResponse.success) {
+                        if (!modulesResponse || modulesResponse.success !== true) {
+                            const errorMsg = modulesResponse?.message || 'Failed to update modules';
                             set({ 
-                                error: modulesResponse.message || 'Course info updated but failed to update modules',
+                                error: errorMsg,
                                 isSaving: false 
-                            });
-                            return false;
-                        }
-
-                        const quizResult = await updateCourseQuizzes(state.courseId, state.modules, state.editedQuizIds);
-
-                        if (!quizResult.success) {
-                            set({
-                                error: quizResult.error || quizResult.message || 'Course updated but failed to update quizzes',
-                                isSaving: false,
                             });
                             return false;
                         }
                     }
                     
-                    set({ isSaving: false });
+                    // Step 3: Update quizzes (if there are any edited quizzes)
+                    if (state.editedQuizIds && state.editedQuizIds.size > 0) {
+                        const quizResult = await updateCourseQuizzes(state.courseId, state.modules, state.editedQuizIds);
+                        
+                        if (!quizResult.success) {
+                            set({
+                                error: quizResult.error || quizResult.message || 'Failed to update quizzes',
+                                isSaving: false,
+                            });
+                            return false;
+                        }
+                        
+                        // Clear the edited quiz IDs to mark them as synced
+                        set({ editedQuizIds: new Set<string>() });
+                    }
+                    
+                    // All updates successful
+                    set({ isSaving: false, error: null });
                     return true;
                     
                 } catch (error) {
-                    console.error('❌ Update course error:', error);
+                    console.error('Update course error:', error);
+                    const errorMsg = error instanceof Error ? error.message : 'Network error occurred while updating course';
                     set({ 
-                        error: 'Network error occurred while updating course',
+                        error: errorMsg,
                         isSaving: false 
                     });
                     return false;

@@ -68,18 +68,22 @@ const ConfirmUpdate: FC = () => {
     try {
       const updateResult = await updateCourse();
       
-      if (updateResult) {
-        message.success('Cập nhật khóa học thành công!');
+      if (updateResult === true) {
+        message.success('Cập nhật thông tin khóa học thành công!');
         
         // Navigate back to course detail page after successful update
         setTimeout(() => {
           router.push(`/Lecturer/courses/${courseId}`);
-        }, 1500);
+        }, 2000);
       } else {
-        message.error('Có lỗi xảy ra khi cập nhật khóa học. Vui lòng thử lại.');
+        // Get error message from store if available
+        const storeError = useCreateCourseStore.getState().error;
+        const errorMsg = storeError || 'Có lỗi xảy ra khi cập nhật khóa học. Vui lòng thử lại.';
+        message.error(errorMsg);
       }
-    } catch {
-      message.error('Có lỗi xảy ra khi cập nhật khóa học. Vui lòng thử lại.');
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Có lỗi xảy ra khi cập nhật khóa học. Vui lòng thử lại.';
+      message.error(errorMsg);
     } finally {
       setIsLoading(false);
       setShowConfirmModal(false);

@@ -203,9 +203,6 @@ export const axiosFetch = async (
     
     cfg.headers = h;
     
-    // Log final request details
-
-    
     return cfg;
   });
 
@@ -935,40 +932,35 @@ export class ApiCourseModule extends HttpClient {
      * which may be different from the {id} in the URL path in some cases.
      * The URL {id} specifies which course's modules endpoint to use.
      */
-    updateModules: (id: string, modules: UpdateModuleDto[], courseIdForPayload?: string, params?: RequestParams) => {
-      const normalizedModules: UpdateModuleDto[] = modules.map((module) => {
+    updateModules: async (id: string, modules: UpdateModuleDto[], courseIdForPayload?: string, params?: RequestParams) => {
+      // Update each module individually using the single module endpoint
+      const results = [];
+      
+      for (const module of modules) {
         const workingModule: any = { ...module };
 
         const normalizeDiscussions = (source: any[] | undefined) => {
           if (!Array.isArray(source)) return undefined;
-          return source.map((discussion: any) => {
-            const normalized = {
-              discussionId: discussion.discussionId ?? discussion.id,
-              title: discussion.title,
-              description: discussion.description,
-              discussionQuestion: discussion.discussionQuestion,
-              isActive: discussion.isActive,
-              createdAt: discussion.createdAt,
-              updatedAt: discussion.updatedAt
-            };
-            return normalized;
-          });
+          return source.map((discussion: any) => ({
+            discussionId: discussion.discussionId ?? discussion.id,
+            title: discussion.title,
+            description: discussion.description,
+            discussionQuestion: discussion.discussionQuestion,
+            isActive: discussion.isActive
+            // Exclude createdAt and updatedAt - backend doesn't expect them
+          }));
         };
 
         const normalizeMaterials = (source: any[] | undefined) => {
           if (!Array.isArray(source)) return undefined;
-          return source.map((material: any) => {
-            const normalized = {
-              materialId: material.materialId ?? material.id,
-              title: material.title,
-              description: material.description,
-              fileUrl: material.fileUrl,
-              isActive: material.isActive,
-              createdAt: material.createdAt,
-              updatedAt: material.updatedAt
-            };
-            return normalized;
-          });
+          return source.map((material: any) => ({
+            materialId: material.materialId ?? material.id,
+            title: material.title,
+            description: material.description,
+            fileUrl: material.fileUrl,
+            isActive: material.isActive
+            // Exclude createdAt and updatedAt - backend doesn't expect them
+          }));
         };
 
         const discussions = normalizeDiscussions(workingModule.discussions) 
@@ -976,6 +968,7 @@ export class ApiCourseModule extends HttpClient {
         const materials = normalizeMaterials(workingModule.materials) 
           ?? normalizeMaterials(workingModule.moduleMaterialDetails);
 
+        // Set normalized arrays
         if (discussions) {
           workingModule.discussions = discussions;
         } else {
@@ -988,9 +981,16 @@ export class ApiCourseModule extends HttpClient {
           delete workingModule.materials;
         }
 
+        // Remove the long-form fields
         delete workingModule.moduleDiscussionDetails;
         delete workingModule.moduleMaterialDetails;
 
+        // Ensure durationMinutes is set (required by backend)
+        if (!workingModule.durationMinutes && workingModule.durationHours) {
+          workingModule.durationMinutes = Math.round(workingModule.durationHours * 60);
+        }
+
+        // Calculate durationHours if needed
         if (
           typeof workingModule.durationMinutes === 'number' &&
           workingModule.durationMinutes > 0 &&
@@ -999,16 +999,38 @@ export class ApiCourseModule extends HttpClient {
           workingModule.durationHours = workingModule.durationMinutes / 60;
         }
 
-        return workingModule as UpdateModuleDto;
-      });
+        // Remove fields that shouldn't be sent
+        delete workingModule.createdAt;
+        delete workingModule.updatedAt;
 
-      const payload = {
-        courseId: courseIdForPayload || id,
-        updateCourseModules: {
-          modules: normalizedModules
+        // Prepare payload matching the curl structure
+        const payload = {
+          moduleId: workingModule.moduleId,
+          updateModuleDto: workingModule
+        };
+
+        // Call single module update endpoint
+        const response = await this.request<ApiResponse<any>>(
+          `/api/Modules/${workingModule.moduleId}`,
+          "PUT",
+          payload,
+          params
+        );
+
+        results.push(response);
+
+        // If any update fails, return the failure immediately
+        if (!response || response.success !== true) {
+          return response;
         }
-      };
-      return this.request<ApiResponse<any>>(`/api/v1/Courses/${id}/modules`, "PUT", payload, params);
+      }
+
+      // Return success if all modules updated successfully
+      return {
+        success: true,
+        message: 'All modules updated successfully',
+        response: results
+      } as ApiResponse<any>;
     },
   };
 

@@ -273,25 +273,44 @@ const CourseContent: FC = () => {
       }
     };
 
-    const questions = lessonQuiz.questions.map((q: any, index: number) => ({
-      id: q.id || `question-${index}`,
-      question: q.questionText || '',
-      type: convertQuestionTypeToString(q.questionType),
-      options: q.options ? q.options.map((opt: any) => opt.text) : [],
-      optionsMetadata: q.options ? q.options.map((opt: any) => ({
-        id: opt.id,
-        text: opt.text,
-        isCorrect: opt.isCorrect,
-      })) : [],
-      correctAnswer: q.options ? 
-        (q.questionType === 1 ? // Multiple choice
-          q.options.findIndex((opt: any) => opt.isCorrect) :
-          q.questionType === 2 ? // True/False  
-          (q.options[0]?.isCorrect ? 'true' : 'false') :
-          q.options.find((opt: any) => opt.isCorrect)?.text || '') : '',
-      explanation: q.explanation || '',
-      points: 1
-    }));
+    const questions = lessonQuiz.questions.map((q: any, index: number) => {
+      console.log(`🔍 [convertStoreQuizToBuilderFormat] Question ${index}:`, {
+        id: q.id,
+        questionText: q.questionText,
+        options: q.options
+      });
+      
+      return {
+        id: q.id || `question-${index}`,
+        question: q.questionText || '',
+        type: convertQuestionTypeToString(q.questionType),
+        options: q.options ? q.options.map((opt: any) => opt.text) : [],
+        optionsMetadata: q.options ? q.options.map((opt: any, optIdx: number) => {
+          console.log(`  📝 [Option ${optIdx}]:`, { id: opt.id, text: opt.text, isCorrect: opt.isCorrect });
+          return {
+            id: opt.id,
+            text: opt.text,
+            isCorrect: opt.isCorrect,
+          };
+        }) : [],
+        correctAnswer: q.options ? 
+          (q.questionType === 1 ? // Multiple choice - can have MULTIPLE correct answers
+            (() => {
+              // Find all correct option indices
+              const correctIndices = q.options
+                .map((opt: any, idx: number) => opt.isCorrect ? idx : -1)
+                .filter((idx: number) => idx !== -1);
+              console.log(`  ✅ [Correct indices]:`, correctIndices);
+              // Return array if multiple, single index if one, or first correct if any
+              return correctIndices.length > 1 ? correctIndices : (correctIndices[0] ?? 0);
+            })() :
+            q.questionType === 2 ? // True/False  
+            (q.options[0]?.isCorrect ? 'true' : 'false') :
+            q.options.find((opt: any) => opt.isCorrect)?.text || '') : '',
+        explanation: q.explanation || '',
+        points: 1
+      };
+    });
 
     const settings = {
       timeLimit: lessonQuiz.quizSettings?.durationMinutes || 30,
@@ -732,25 +751,43 @@ const CourseContent: FC = () => {
               allowRetake: settings.allowRetake || true
             },
             lastModified: Date.now(), // Mark as modified NOW
-            questions: questions.map(q => ({
-              id: q.id,
-              questionType: convertQuestionType(q.type),
-              questionText: q.question,
-              explanation: q.explanation || '',
-              options: q.options ? q.options.map((text, index) => {
-                const metadataOptions = Array.isArray((q as any).optionsMetadata) ? (q as any).optionsMetadata : [];
-                const originalOption = metadataOptions[index];
-                return {
-                  id: originalOption?.id || `option-${q.id}-${index}`,
-                  text: text,
-                  isCorrect: q.type === 'multiple-choice' ? 
-                    (Array.isArray(q.correctAnswer) ? q.correctAnswer.includes(index) : q.correctAnswer === index) :
-                    q.type === 'true-false' ?
-                    (index === 0 ? q.correctAnswer === 'true' : q.correctAnswer === 'false') :
-                    q.correctAnswer === text
-                };
-              }) : []
-            }))
+            questions: questions.map(q => {
+              console.log(`💾 [handleQuizSave] Saving question:`, {
+                id: q.id,
+                question: q.question,
+                type: q.type,
+                options: q.options,
+                optionsMetadata: (q as any).optionsMetadata,
+                correctAnswer: q.correctAnswer
+              });
+              
+              return {
+                id: q.id,
+                questionType: convertQuestionType(q.type),
+                questionText: q.question,
+                explanation: q.explanation || '',
+                options: q.options ? q.options.map((text, index) => {
+                  const metadataOptions = Array.isArray((q as any).optionsMetadata) ? (q as any).optionsMetadata : [];
+                  const originalOption = metadataOptions[index];
+                  
+                  const optionData = {
+                    id: originalOption?.id || `option-${q.id}-${index}`,
+                    text: text,
+                    isCorrect: q.type === 'multiple-choice' ? 
+                      (Array.isArray(q.correctAnswer) ? q.correctAnswer.includes(index) : q.correctAnswer === index) :
+                      q.type === 'true-false' ?
+                      (index === 0 ? q.correctAnswer === 'true' : q.correctAnswer === 'false') :
+                      q.correctAnswer === text
+                  };
+                  
+                  console.log(`  💾 [Option ${index}]:`, optionData, 
+                    `| metadata: ${originalOption ? 'exists' : 'MISSING'}`,
+                    `| text match: ${text === originalOption?.text}`);
+                  
+                  return optionData;
+                }) : []
+              };
+            })
           };
 
           const updatedModule = {
@@ -1009,8 +1046,15 @@ const CourseContent: FC = () => {
               // Store original option data in metadata so we can preserve IDs
               optionsMetadata: q.options ? q.options.map((opt: any) => ({ id: opt.id, text: opt.text, isCorrect: opt.isCorrect })) : [],
               correctAnswer: q.options ? 
-                (q.questionType === 1 ? // Multiple choice
-                  q.options.findIndex((opt: any) => opt.isCorrect) :
+                (q.questionType === 1 ? // Multiple choice - can have MULTIPLE correct answers
+                  (() => {
+                    // Find all correct option indices
+                    const correctIndices = q.options
+                      .map((opt: any, idx: number) => opt.isCorrect ? idx : -1)
+                      .filter((idx: number) => idx !== -1);
+                    // Return array if multiple, single index if one, or first correct if any
+                    return correctIndices.length > 1 ? correctIndices : (correctIndices[0] ?? 0);
+                  })() :
                   q.questionType === 2 ? // True/False  
                   (q.options[0]?.isCorrect ? 'true' : 'false') :
                   q.options.find((opt: any) => opt.isCorrect)?.text || '') : '',
@@ -1348,6 +1392,22 @@ const CourseContent: FC = () => {
               size="large"
             />
           </Form.Item>
+
+          {/* Description field - Only for Discussion and Material */}
+          {(selectedType === ContentType.QUESTION || selectedType === ContentType.FILE) && (
+            <Form.Item
+              name="description"
+              label={<span className="text-sm font-medium text-gray-700 dark:text-gray-300">Mô tả <span className="text-red-500">*</span></span>}
+              rules={[{ required: true, message: 'Vui lòng nhập mô tả!' }]}
+            >
+              <Input.TextArea 
+                placeholder={selectedType === ContentType.QUESTION ? "Nhập mô tả cho thảo luận..." : "Nhập mô tả cho tài liệu..."}
+                rows={3}
+                showCount
+                maxLength={500}
+              />
+            </Form.Item>
+          )}
 
         {/* Type-specific fields */}
         {selectedType === ContentType.VIDEO && (
