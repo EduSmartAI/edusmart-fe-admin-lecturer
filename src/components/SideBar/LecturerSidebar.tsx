@@ -213,7 +213,7 @@ export const LecturerSidebar: React.FC<LecturerSidebarProps> = ({
           <div
             className={`${knewave.className} text-[#4a2580] text-3xl font-light tracking-widest ml-9`}
           >
-            EmoEase
+            Edusmart
           </div>
         )}
       </div>
