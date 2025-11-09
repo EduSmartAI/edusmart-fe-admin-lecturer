@@ -43,11 +43,31 @@ export interface Survey {
   publishedDate?: string;
 }
 
+export interface SurveyAnswerRule {
+  numericMin: number;
+  numericMax: number;
+  unit: number;
+  mappedField: string;
+  formula: string;
+}
+
+export interface SurveyAnswerPayload {
+  answerText: string;
+  isCorrect: boolean;
+  answerRules?: SurveyAnswerRule[];
+}
+
+export interface SurveyQuestionPayload {
+  questionText: string;
+  questionType: number; // 1 = Multiple Choice, 2 = Text, 3 = Numeric, 4 = Rating
+  answers: SurveyAnswerPayload[];
+}
+
 export interface SurveyCreatePayload {
-  code: string;
   title: string;
-  description?: string;
-  questions?: SurveyQuestion[];
+  description: string;
+  surveyCode: string;
+  questions: SurveyQuestionPayload[];
 }
 
 export interface SurveyUpdatePayload {
@@ -215,31 +235,33 @@ export const useSurveyStore = create<SurveyState>((set, get) => ({
   createSurvey: async (payload: SurveyCreatePayload) => {
     set({ isLoading: true, error: null });
     try {
-      // API: POST /quiz/api/v1/Survey/InsertSurvey
+      // API: POST /quiz/api/v1/Admin/InsertSurvey
+      // Match exact curl structure
       const response = await axios.post(
-        `${API_BASE_URL}/quiz/api/v1/Survey/InsertSurvey`,
+        `${API_BASE_URL}/quiz/api/v1/Admin/InsertSurvey`,
         {
-          code: payload.code,
-          surveyName: payload.title,
+          title: payload.title,
           description: payload.description,
-          questions: payload.questions || [],
+          surveyCode: payload.surveyCode,
+          questions: payload.questions,
         },
         { headers: getHeaders() }
       );
 
       const newSurvey: Survey = {
-        id: response.data?.id || response.data?.surveyId || Date.now().toString(),
-        code: response.data?.code || payload.code,
-        title: response.data?.title || response.data?.surveyName || payload.title,
-        description: response.data?.description || payload.description,
+        id: response.data?.response?.id || response.data?.id || Date.now().toString(),
+        code: response.data?.response?.surveyCode || payload.surveyCode,
+        title: response.data?.response?.title || payload.title,
+        description: response.data?.response?.description || payload.description,
         status: "DRAFT",
-        questions: payload.questions || [],
-        createdDate: response.data?.createdDate,
+        questions: payload.questions as unknown as SurveyQuestion[],
+        createdDate: response.data?.response?.createdDate || new Date().toISOString(),
       };
 
       const currentSurveys = get().surveys;
       set({
         surveys: [newSurvey, ...currentSurveys],
+        total: get().total + 1,
         isLoading: false,
       });
       return newSurvey;

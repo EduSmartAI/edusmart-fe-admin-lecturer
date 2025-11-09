@@ -47,6 +47,20 @@ const LecturerDashboard: React.FC = () => {
     fetchCoursesByLecturer();
   }, [fetchCoursesByLecturer]);
 
+  // Log course data when courses change (separate effect to avoid infinite loop)
+  useEffect(() => {
+    if (courses.length > 0) {
+      console.log('🎓 Courses loaded:', courses.length, 'courses');
+      console.log('📸 First course data:', {
+        title: courses[0]?.title,
+        courseId: courses[0]?.courseId,
+        courseImageUrl: courses[0]?.courseImageUrl,
+        learnerCount: courses[0]?.learnerCount,
+        isActive: courses[0]?.isActive
+      });
+    }
+  }, [courses]);
+
   useEffect(() => {
     if (courses.length > 0) {
       const totalStudents = courses.reduce((sum, course) => sum + (course.learnerCount || 0), 0);

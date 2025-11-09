@@ -212,11 +212,6 @@ export const LessonForm: FC<LessonFormProps> = ({
 
     const typeConfig = contentTypes.find(t => t.type === selectedType);
     
-    console.log('🔍 [LessonForm] selectedType:', selectedType);
-    console.log('🔍 [LessonForm] ContentType.FILE:', ContentType.FILE);
-    console.log('🔍 [LessonForm] ContentType.QUESTION:', ContentType.QUESTION);
-    console.log('🔍 [LessonForm] Should show description?', selectedType === ContentType.FILE || selectedType === ContentType.QUESTION);
-    
     return (
       <Form form={form} layout="vertical">
         <div className="space-y-6">
@@ -245,35 +240,48 @@ export const LessonForm: FC<LessonFormProps> = ({
             />
           </Form.Item>
 
-          {/* Description field - only for FILE (materials) and QUESTION (discussions) */}
-          {(selectedType === ContentType.FILE || selectedType === ContentType.QUESTION) && (
-            <Form.Item
-              name="description"
-              label={<span className="text-sm font-medium text-gray-700 dark:text-gray-300">Mô tả</span>}
-            >
-              <Input.TextArea 
-                placeholder="Mô tả chi tiết về nội dung này..."
-                rows={3}
-                showCount
-                maxLength={500}
-              />
-            </Form.Item>
-          )}
+          <Form.Item
+            name="description"
+            label={<span className="text-sm font-medium text-gray-700 dark:text-gray-300">Mô tả</span>}
+          >
+            <Input.TextArea 
+              placeholder="Mô tả chi tiết về nội dung này..."
+              rows={3}
+              showCount
+              maxLength={500}
+            />
+          </Form.Item>
 
           {/* Type-specific fields */}
           {selectedType === ContentType.VIDEO && (
-            <Form.Item
-              name="url"
-              label={<span className="text-sm font-medium text-gray-700 dark:text-gray-300">Upload Video Bài Học</span>}
-              valuePropName="value"
-              getValueFromEvent={(value) => value}
-            >
-              <StreamingVideoUploader
-                placeholder="Chọn hoặc kéo thả video bài học vào đây"
-                maxSizeMB={512}
-                compact={true}
-              />
-            </Form.Item>
+            <>
+              <Form.Item
+                name="duration"
+                label={<span className="text-sm font-medium text-gray-700 dark:text-gray-300">Thời lượng (phút) <span className="text-red-500">*</span></span>}
+                rules={[{ required: true, message: 'Vui lòng nhập thời lượng!' }]}
+              >
+                <InputNumber 
+                  placeholder="30"
+                  min={1}
+                  max={480}
+                  style={{ width: '100%' }}
+                  size="large"
+                />
+              </Form.Item>
+              
+              <Form.Item
+                name="url"
+                label={<span className="text-sm font-medium text-gray-700 dark:text-gray-300">Upload Video Bài Học</span>}
+                valuePropName="value"
+                getValueFromEvent={(value) => value}
+              >
+                <StreamingVideoUploader
+                  placeholder="Chọn hoặc kéo thả video bài học vào đây"
+                  maxSizeMB={512}
+                  compact={true}
+                />
+              </Form.Item>
+            </>
           )}
 
           {selectedType === ContentType.FILE && (

@@ -258,7 +258,6 @@ export const updateCourseComplete = async (
   course: Course
 ): Promise<OperationResult<CourseDetailDto>> => {
   try {
-
     // Validate course data
     const validation = validateCourse(course);
     if (!validation.isValid) {
@@ -310,30 +309,48 @@ export const updateCourseModules = async (
   courseId: string,
   course: Course
 ): Promise<OperationResult<any>> => {
+  console.group('🟠 updateCourseModules Service');
+  console.log('📌 Course ID:', courseId);
+  console.log('📦 Course object:', course);
+  console.log('📊 Modules count:', course.modules?.length || 0);
+  
   try {
     // Validate course data
     const validation = validateCourse(course);
     if (!validation.isValid) {
+      console.error('❌ Validation failed:', validation.errors);
+      console.groupEnd();
       return {
         success: false,
         error: `Validation failed: ${validation.errors.join(', ')}`
       };
     }
+    console.log('✅ Validation passed');
 
     // Check for duplicate IDs in modules
     const duplicateErrors = validateNoDuplicateIds(course);
     if (duplicateErrors.length > 0) {
+      console.error('❌ Duplicate IDs found:', duplicateErrors);
+      console.groupEnd();
       return {
         success: false,
         error: `Duplicate IDs found: ${duplicateErrors.join(', ')}`
       };
     }
+    console.log('✅ No duplicate IDs');
 
     // Transform modules to update DTO
+    console.log('🔄 Transforming modules...');
     const modulesDto = transformModulesForUpdate(course.modules);
+    console.log('📤 Transformed modules:', modulesDto);
+    console.log('📊 Transformed modules count:', modulesDto.length);
 
     // Call the new updateModules API endpoint
+    console.log('📡 Calling API...');
     const response = await courseServiceAPI.updateCourseModules(courseId, modulesDto);
+    
+    console.log('📥 API Response:', response);
+    console.groupEnd();
 
     if (response.success) {
       return {
@@ -348,6 +365,8 @@ export const updateCourseModules = async (
       error: response.message || 'Failed to update course modules'
     };
   } catch (error) {
+    console.error('❌ Exception caught:', error);
+    console.groupEnd();
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred'
@@ -472,7 +491,6 @@ export const uploadCourseDocument = async (file: File): Promise<OperationResult<
     };
   }
 };
-
 
 
 

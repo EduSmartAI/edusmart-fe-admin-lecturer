@@ -1146,10 +1146,9 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                     const courseData = await convertToUpdateCourseDto(state);
                     const response = await courseServiceAPI.updateCourse(state.courseId, courseData);
                     
-                    if (!response || response.success !== true) {
-                        const errorMsg = response?.message || 'Failed to update course information';
+                    if (!response.success) {
                         set({ 
-                            error: errorMsg,
+                            error: response.message || 'Failed to update course information',
                             isSaving: false 
                         });
                         return false;
@@ -1160,47 +1159,40 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                         const { transformModulesForUpdate } = await import('EduSmart/services/course/courseTransformers');
                         const modulesDto = transformModulesForUpdate(state.modules);
                         
+                        // Call updateModules API with the correct format
+                        // The API expects: { courseId, updateCourseModules: { modules: [...] } }
                         const modulesResponse = await courseServiceAPI.updateCourseModules(
                             state.courseId, 
                             modulesDto,
-                            state.courseId
+                            state.courseId // courseIdForPayload - using same courseId
                         );
                         
-                        if (!modulesResponse || modulesResponse.success !== true) {
-                            const errorMsg = modulesResponse?.message || 'Failed to update modules';
+                        if (!modulesResponse.success) {
                             set({ 
-                                error: errorMsg,
+                                error: modulesResponse.message || 'Course info updated but failed to update modules',
                                 isSaving: false 
                             });
                             return false;
                         }
-                    }
-                    
-                    // Step 3: Update quizzes (if there are any edited quizzes)
-                    if (state.editedQuizIds && state.editedQuizIds.size > 0) {
+
                         const quizResult = await updateCourseQuizzes(state.courseId, state.modules, state.editedQuizIds);
-                        
+
                         if (!quizResult.success) {
                             set({
-                                error: quizResult.error || quizResult.message || 'Failed to update quizzes',
+                                error: quizResult.error || quizResult.message || 'Course updated but failed to update quizzes',
                                 isSaving: false,
                             });
                             return false;
                         }
-                        
-                        // Clear the edited quiz IDs to mark them as synced
-                        set({ editedQuizIds: new Set<string>() });
                     }
                     
-                    // All updates successful
-                    set({ isSaving: false, error: null });
+                    set({ isSaving: false });
                     return true;
                     
                 } catch (error) {
-                    console.error('Update course error:', error);
-                    const errorMsg = error instanceof Error ? error.message : 'Network error occurred while updating course';
+                    console.error('❌ Update course error:', error);
                     set({ 
-                        error: errorMsg,
+                        error: 'Network error occurred while updating course',
                         isSaving: false 
                     });
                     return false;

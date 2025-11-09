@@ -436,20 +436,7 @@ const QuizBuilder: FC<QuizBuilderProps> = ({
             </Button>
           </Card>
         ) : (
-          <>
-            {questions.map((question, index) => renderQuestionEditor(question, index))}
-            {/* Add question button below the questions list */}
-            <Button
-              type="dashed"
-              icon={<FaPlus />}
-              onClick={addQuestion}
-              block
-              size="large"
-              className="mt-4"
-            >
-              Thêm câu hỏi
-            </Button>
-          </>
+          questions.map((question, index) => renderQuestionEditor(question, index))
         )}
       </div>
 
