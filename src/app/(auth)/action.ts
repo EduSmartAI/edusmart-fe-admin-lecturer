@@ -2,8 +2,10 @@
 "use server";
 
 import { DetailError, StudentInsertCommand, StudentInsertResponse } from "EduSmart/api/api-auth-service";
-import { destroySession, exchangePassword, getAccessTokenFromCookie, getSidFromCookie, hasRefreshToken, refreshTokens, revokeRefreshLocal } from "EduSmart/lib/authServer";
+import { destroySession, exchangePassword, getAccessTokenFromCookie, getSidFromCookie, hasRefreshToken, refreshTokens, refreshTokensByUrl, revokeRefreshLocal } from "EduSmart/lib/authServer";
 const BACKEND = process.env.NEXT_PUBLIC_API_URL;
+
+
 export async function loginAction({
   email,
   password,
@@ -242,4 +244,29 @@ export async function getAuthen(): Promise<boolean> {
 
 export async function logout() {
   return await revokeRefreshLocal();
+}
+
+
+export async function refreshTokensByUrlAction(refreshToken: string) {
+  try {
+    
+    await refreshTokensByUrl(refreshToken);
+
+    const accessToken = await getAccessTokenFromCookie();
+    if (!accessToken) {
+      return { ok: false, error: "No access token found after refresh" };
+    }
+
+    return { ok: true, accessToken };
+  } catch (e: unknown) {
+    const errorMessage =
+      typeof e === "object" && e !== null && "message" in e
+        ? (e as { message?: string }).message
+        : undefined;
+
+    return {
+      ok: false,
+      error: errorMessage ?? "Refresh by URL failed",
+    };
+  }
 }

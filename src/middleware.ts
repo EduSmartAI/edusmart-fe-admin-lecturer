@@ -10,10 +10,7 @@ const PUBLIC_PATHS = [
   "/api/public", // ví dụ
 ];
 
-const PROTECTED_PREFIXES = [
-  "/Lecturer",
-  "/Admin",
-];
+const PROTECTED_PREFIXES = ["/Lecturer", "/Admin"];
 
 /** Kiểm tra xem pathname có nằm trong PUBLIC_PATHS không */
 function isPublicPath(pathname: string): boolean {
@@ -38,10 +35,7 @@ function getSidFromReq(req: NextRequest): string | null {
 }
 
 function getIdTokenFromReq(req: NextRequest): string | null {
-  return (
-    req.cookies.get("__Host-idt")?.value ??
-    null
-  );
+  return req.cookies.get("__Host-idt")?.value ?? null;
 }
 
 function decodeJwtPayload(jwt: string) {
@@ -67,7 +61,7 @@ export async function middleware(req: NextRequest) {
   const sid = getSidFromReq(req);
   const idt = getIdTokenFromReq(req);
   const claims = idt ? decodeJwtPayload(idt) : null;
-  console.log('Token claims:', claims);
+  console.log("Token claims:", claims);
 
   // Nếu truy cập root "/" mà chưa có token hoặc không có role → redirect về /Login
   if (pathname === "/" && (!sid || !idt || !claims?.role)) {
@@ -77,19 +71,23 @@ export async function middleware(req: NextRequest) {
   }
 
   // Nếu đã login với role hợp lệ mà truy cập /login hoặc / → redirect về home based on role
-  if (sid && idt && claims?.role && (pathname.toLowerCase() === "/login" || pathname === "/")) {
+  if (
+    sid &&
+    idt &&
+    claims?.role &&
+    (pathname.toLowerCase() === "/login" || pathname === "/")
+  ) {
     const url = req.nextUrl.clone();
     const role = claims.role;
-    
-    if (role === 'Lecturer') {
+
+    if (role === "Lecturer") {
       url.pathname = "/Lecturer";
-    } else if (role === 'Admin') {
+    } else if (role === "Admin") {
       url.pathname = "/Admin";
     } else {
-      // Only Admin and Lecturer allowed - invalid role, redirect to login
-      url.pathname = "/Login";
+      return NextResponse.next();
     }
-    
+
     return NextResponse.redirect(url);
   }
 
@@ -114,21 +112,25 @@ export async function middleware(req: NextRequest) {
   // 4) Check role-based access for protected paths - Only Admin and Lecturer allowed
   if (isProtectedPath(pathname) && sid && claims) {
     const role = claims.role;
-    
+
     // Only allow Lecturer and Admin roles
     if (role !== "Lecturer" && role !== "Admin") {
       const url = req.nextUrl.clone();
       url.pathname = "/Login";
       return NextResponse.redirect(url);
     }
-    
+
     // Lecturer can access Lecturer pages, Admin can access both
-    if (pathname.startsWith("/Lecturer") && role !== "Lecturer" && role !== "Admin") {
+    if (
+      pathname.startsWith("/Lecturer") &&
+      role !== "Lecturer" &&
+      role !== "Admin"
+    ) {
       const url = req.nextUrl.clone();
       url.pathname = "/404";
       return NextResponse.redirect(url);
     }
-    
+
     // Only Admin can access Admin pages
     if (pathname.startsWith("/Admin") && role !== "Admin") {
       const url = req.nextUrl.clone();
