@@ -8,6 +8,14 @@ import {
   DesktopOutlined,
   LogoutOutlined,
   SolutionOutlined,
+  FileTextOutlined,
+  ExperimentOutlined,
+  BulbOutlined,
+  FormOutlined,
+  UserOutlined,
+  CheckSquareOutlined,
+  BarChartOutlined,
+  CodeOutlined,
 } from "@ant-design/icons";
 import type { MenuProps } from "antd";
 import { Menu, Layout, theme } from "antd";
@@ -64,11 +72,67 @@ const navItems: NavMenuItem[] = [
     "/Admin/profiles",
   ),
   getItem(
-    "Subscriptions",
+    "Đăng ký",
     "subscriptions",
     <SolutionOutlined />,
     undefined,
     "/Admin/subscriptions",
+  ),
+  getItem(
+    "Quản lý Nội dung",
+    "content-management",
+    <FileTextOutlined />,
+    [
+      getItem(
+        "Bài Kiểm Tra Đầu Vào",
+        "initial-tests",
+        <CheckSquareOutlined />,
+        undefined,
+        "/Admin/content-management/initial-tests",
+      ),
+      getItem(
+        "Bài Thực Hành",
+        "practice-tests",
+        <ExperimentOutlined />,
+        undefined,
+        "/Admin/content-management/practice-tests",
+      ),
+      getItem(
+        "Mục Tiêu Học Tập",
+        "learning-goals",
+        <BulbOutlined />,
+        undefined,
+        "/Admin/content-management/learning-goals",
+      ),
+      getItem(
+        "Khảo Sát",
+        "surveys",
+        <FormOutlined />,
+        undefined,
+        "/Admin/content-management/surveys",
+      ),
+      getItem(
+        "Khảo Sát Sinh Viên",
+        "student-surveys",
+        <BarChartOutlined />,
+        undefined,
+        "/Admin/content-management/student-surveys",
+      ),
+      getItem(
+        "Bài Test Sinh Viên",
+        "student-tests",
+        <UserOutlined />,
+        undefined,
+        "/Admin/content-management/student-tests",
+      ),
+      getItem(
+        "Công Nghệ",
+        "technologies",
+        <CodeOutlined />,
+        undefined,
+        "/Admin/content-management/technologies",
+      ),
+    ],
   ),
   getItem("Đăng xuất", "logout", <LogoutOutlined />),
   getItem("", "", <ThemeSwitch />),
@@ -103,6 +167,14 @@ function getSelectedKeys(pathname: string): string[] {
   return matchKey ? [matchKey] : [];
 }
 
+function getOpenKeys(pathname: string): string[] {
+  // Auto-open Content Management submenu if viewing any of its pages
+  if (pathname.startsWith('/Admin/content-management')) {
+    return ['content-management'];
+  }
+  return [];
+}
+
 const toAntdItems = (items: NavMenuItem[]): MenuItem[] =>
   items.map((it) => ({
     key: it.key,
@@ -126,6 +198,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   defaultSelectedKeys,
 }) => {
   const [mounted, setMounted] = useState(false);
+  const [openKeys, setOpenKeys] = useState<string[]>([]);
   const { isDarkMode } = useTheme();
   const {
     token: { colorPrimary, colorBorderSecondary },
@@ -136,6 +209,15 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   const { logout } = useAuthStore();
 
   useEffect(() => setMounted(true), []);
+  
+  // Set initial open keys based on current path
+  useEffect(() => {
+    if (mounted) {
+      const initialOpenKeys = getOpenKeys(pathname);
+      setOpenKeys(initialOpenKeys);
+    }
+  }, [pathname, mounted]);
+  
   if (!mounted) return <div style={{ width: collapsed ? 80 : 240 }} />;
 
   const siderStyle: CSSVarProperties = {
@@ -168,7 +250,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   return (
     <Sider
       style={siderStyle}
-      className="!flex !flex-col !h-screen"
+      className="!flex !flex-col !h-screen !sticky !top-0 !left-0"
       breakpoint="md"
       collapsedWidth={80}
       collapsible
@@ -177,7 +259,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       width={240}
       trigger={null}
     >
-      <div className="flex h-full min-h-0 flex-col">
+      <div className="flex h-full min-h-0 flex-col overflow-hidden">
         {/* Logo */}
         <div
           style={{
@@ -187,6 +269,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
             alignItems: "center",
             justifyContent: collapsed ? "center" : "flex-start",
             overflow: "hidden",
+            flexShrink: 0,
           }}
         >
           {collapsed ? (
@@ -208,22 +291,27 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
           )}
         </div>
 
-        {/* Menu */}
-        <Menu
-          theme={isDarkMode ? "dark" : "light"}
-          mode="inline"
-          items={antItems}
-          selectedKeys={selectedKeys}
-          onClick={handleMenuClick}
-          style={{
-            border: "none",
-            background: "transparent",
-            marginTop: 16,
-            flex: 1,
-          }}
-        />
+        {/* Menu - scrollable */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden">
+          <Menu
+            theme={isDarkMode ? "dark" : "light"}
+            mode="inline"
+            items={antItems}
+            selectedKeys={selectedKeys}
+            openKeys={openKeys}
+            onOpenChange={setOpenKeys}
+            onClick={handleMenuClick}
+            style={{
+              border: "none",
+              background: "transparent",
+              marginTop: 16,
+            }}
+          />
+        </div>
+        
+        {/* User Title - fixed at bottom */}
         <div
-          className={`mt-auto px-3 py-3 border-t border-dashed ${isDarkMode ? "border-white/10" : ""}`}
+          className={`mt-auto px-3 py-3 border-t border-dashed flex-shrink-0 ${isDarkMode ? "border-white/10" : ""}`}
           style={{ borderColor: isDarkMode ? "" : colorBorderSecondary }}
         >
           <UserTitle collapsed={collapsed} />

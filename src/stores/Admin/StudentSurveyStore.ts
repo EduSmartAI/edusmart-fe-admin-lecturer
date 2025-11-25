@@ -23,7 +23,7 @@ export interface StudentSurveyState {
  * Manages viewing student survey submissions
  * API: GET /quiz/api/v1/Admin/SelectStudentSurveys
  */
-export const useStudentSurveyStore = create<StudentSurveyState>((set, get) => ({
+export const useStudentSurveyStore = create<StudentSurveyState>((set) => ({
   surveys: [],
   isLoading: false,
   error: null,

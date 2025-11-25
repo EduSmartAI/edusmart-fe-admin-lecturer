@@ -40,6 +40,7 @@ function getSidFromReq(req: NextRequest): string | null {
 function getIdTokenFromReq(req: NextRequest): string | null {
   return (
     req.cookies.get("__Host-idt")?.value ??
+    req.cookies.get("idt")?.value ??
     null
   );
 }
@@ -80,13 +81,17 @@ export async function middleware(req: NextRequest) {
   if (sid && idt && claims?.role && (pathname.toLowerCase() === "/login" || pathname === "/")) {
     const url = req.nextUrl.clone();
     const role = claims.role;
+    const roleLower = typeof role === 'string' ? role.toLowerCase() : '';
     
-    if (role === 'Lecturer') {
+    console.log('Redirecting user with role:', role, '(lowercase:', roleLower + ')');
+    
+    if (roleLower === 'lecturer' || roleLower === 'teacher') {
       url.pathname = "/Lecturer";
-    } else if (role === 'Admin') {
+    } else if (roleLower === 'admin') {
       url.pathname = "/Admin";
     } else {
       // Only Admin and Lecturer allowed - invalid role, redirect to login
+      console.log('Unknown role, redirecting to login:', role);
       url.pathname = "/Login";
     }
     
@@ -114,23 +119,24 @@ export async function middleware(req: NextRequest) {
   // 4) Check role-based access for protected paths - Only Admin and Lecturer allowed
   if (isProtectedPath(pathname) && sid && claims) {
     const role = claims.role;
+    const roleLower = typeof role === 'string' ? role.toLowerCase() : '';
     
     // Only allow Lecturer and Admin roles
-    if (role !== "Lecturer" && role !== "Admin") {
+    if (roleLower !== "lecturer" && roleLower !== "admin" && roleLower !== "teacher") {
       const url = req.nextUrl.clone();
       url.pathname = "/Login";
       return NextResponse.redirect(url);
     }
     
     // Lecturer can access Lecturer pages, Admin can access both
-    if (pathname.startsWith("/Lecturer") && role !== "Lecturer" && role !== "Admin") {
+    if (pathname.startsWith("/Lecturer") && roleLower !== "lecturer" && roleLower !== "admin" && roleLower !== "teacher") {
       const url = req.nextUrl.clone();
       url.pathname = "/404";
       return NextResponse.redirect(url);
     }
     
     // Only Admin can access Admin pages
-    if (pathname.startsWith("/Admin") && role !== "Admin") {
+    if (pathname.startsWith("/Admin") && roleLower !== "admin") {
       const url = req.nextUrl.clone();
       url.pathname = "/404";
       return NextResponse.redirect(url);

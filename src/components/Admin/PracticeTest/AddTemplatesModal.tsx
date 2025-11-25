@@ -1,0 +1,276 @@
+"use client";
+
+import { useState } from "react";
+import { Modal, Form, Input, Select, Button, Card, Empty, message } from "antd";
+import { PlusOutlined, MinusCircleOutlined, SaveOutlined } from "@ant-design/icons";
+import { usePracticeTestStore } from "EduSmart/stores/Admin";
+import {
+  CodeTemplate,
+  ProgrammingLanguage,
+  LANGUAGE_NAMES,
+  LANGUAGE_ICONS,
+} from "EduSmart/types/practice-test";
+
+interface AddTemplatesModalProps {
+  problemId: string;
+  visible: boolean;
+  onClose: () => void;
+  existingLanguageIds?: number[];
+}
+
+export default function AddTemplatesModal({
+  problemId,
+  visible,
+  onClose,
+  existingLanguageIds = [],
+}: AddTemplatesModalProps) {
+  const [form] = Form.useForm();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { addTemplates } = usePracticeTestStore();
+
+  const handleSubmit = async (values: { templates: CodeTemplate[] }) => {
+    if (!values.templates || values.templates.length === 0) {
+      message.warning("Vui lòng thêm ít nhất 1 template");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await addTemplates(problemId, { templates: values.templates });
+      message.success(`Đã thêm ${values.templates.length} template mới!`);
+      form.resetFields();
+      onClose();
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Có lỗi xảy ra khi thêm template";
+      message.error(errorMessage);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCancel = () => {
+    form.resetFields();
+    onClose();
+  };
+
+  // Get newly selected languages to prevent duplicates within the form
+  const selectedLanguages = Form.useWatch('templates', form)?.map((t: CodeTemplate) => t.languageId) || [];
+
+  // Available languages = all languages - existing - already selected in form
+  const availableLanguages = Object.keys(LANGUAGE_NAMES)
+    .map(Number)
+    .filter(id => !existingLanguageIds.includes(id));
+
+  return (
+    <Modal
+      title={
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
+            <PlusOutlined className="text-white" />
+          </div>
+          <span className="text-lg font-bold">Thêm Code Template</span>
+        </div>
+      }
+      open={visible}
+      onCancel={handleCancel}
+      footer={null}
+      width={900}
+      destroyOnClose
+    >
+      <div className="mb-4">
+        <p className="text-gray-600 dark:text-gray-400">
+          Đã có: <span className="font-bold text-blue-600">{existingLanguageIds.length}</span> ngôn ngữ
+          {" | "}
+          Còn lại: <span className="font-bold text-green-600">{availableLanguages.length}</span> ngôn ngữ
+        </p>
+        {existingLanguageIds.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-2">
+            {existingLanguageIds.map(id => (
+              <span
+                key={id}
+                className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded text-xs"
+              >
+                <span>{LANGUAGE_ICONS[id as ProgrammingLanguage]}</span>
+                <span>{LANGUAGE_NAMES[id as ProgrammingLanguage]}</span>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {availableLanguages.length === 0 ? (
+        <Empty
+          description="Đã có template cho tất cả các ngôn ngữ"
+          className="my-8"
+        />
+      ) : (
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={handleSubmit}
+          initialValues={{ templates: [] }}
+          autoComplete="off"
+        >
+          <Form.List name="templates">
+            {(fields, { add, remove }) => (
+              <>
+                {fields.length === 0 && (
+                  <Empty
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description="Chưa có template mới. Thêm template bên dưới."
+                    className="my-6"
+                  />
+                )}
+
+                {fields.map(({ key, name, ...restField }, index) => {
+                  const currentLanguageId = form.getFieldValue(['templates', name, 'languageId']);
+
+                  return (
+                    <Card
+                      key={key}
+                      className="mb-4 border-l-4 border-l-blue-500 shadow-md"
+                      title={
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white font-bold text-sm">
+                            {currentLanguageId !== undefined ? LANGUAGE_ICONS[currentLanguageId as ProgrammingLanguage] : '💻'}
+                          </div>
+                          <span className="font-bold">
+                            Template {index + 1}
+                            {currentLanguageId !== undefined && ` - ${LANGUAGE_NAMES[currentLanguageId as ProgrammingLanguage]}`}
+                          </span>
+                        </div>
+                      }
+                      extra={
+                        <Button
+                          type="text"
+                          danger
+                          icon={<MinusCircleOutlined />}
+                          onClick={() => remove(name)}
+                        >
+                          Xóa
+                        </Button>
+                      }
+                    >
+                      <Form.Item
+                        {...restField}
+                        label="Ngôn ngữ lập trình"
+                        name={[name, "languageId"]}
+                        rules={[{ required: true, message: "Chọn ngôn ngữ" }]}
+                      >
+                        <Select
+                          size="large"
+                          placeholder="Chọn ngôn ngữ..."
+                          showSearch
+                          optionFilterProp="children"
+                          filterOption={(input, option) => {
+                            const label = String(option?.label || '');
+                            return label.toLowerCase().includes(input.toLowerCase());
+                          }}
+                        >
+                          {Object.entries(LANGUAGE_NAMES).map(([id, name]) => {
+                            const langId = Number(id);
+                            const isExisting = existingLanguageIds.includes(langId);
+                            const isSelected = selectedLanguages.includes(langId) && langId !== currentLanguageId;
+                            const isDisabled = isExisting || isSelected;
+
+                            return (
+                              <Select.Option
+                                key={id}
+                                value={langId}
+                                label={name}
+                                disabled={isDisabled}
+                              >
+                                <span className="flex items-center gap-2">
+                                  <span className="text-lg">{LANGUAGE_ICONS[langId as ProgrammingLanguage]}</span>
+                                  <span>{name}</span>
+                                  {isExisting && (
+                                    <span className="text-xs text-red-500">(Đã có sẵn)</span>
+                                  )}
+                                  {isSelected && (
+                                    <span className="text-xs text-orange-500">(Đã chọn)</span>
+                                  )}
+                                </span>
+                              </Select.Option>
+                            );
+                          })}
+                        </Select>
+                      </Form.Item>
+
+                      <Form.Item
+                        {...restField}
+                        label="Template Prefix (Code trước)"
+                        name={[name, "userTemplatePrefix"]}
+                        tooltip="Code được chạy trước code của user"
+                      >
+                        <Input.TextArea
+                          placeholder="VD: class Solution:\n"
+                          rows={3}
+                          className="font-mono text-sm bg-gray-50 dark:bg-gray-900"
+                        />
+                      </Form.Item>
+
+                      <Form.Item
+                        {...restField}
+                        label="Stub Code (Code khởi đầu cho user)"
+                        name={[name, "userStubCode"]}
+                        rules={[{ required: true, message: "Nhập stub code" }]}
+                        tooltip="Code mẫu mà user sẽ thấy và chỉnh sửa"
+                      >
+                        <Input.TextArea
+                          placeholder="VD:     def twoSum(self, nums: List[int], target: int) -> List[int]:\n        pass"
+                          rows={6}
+                          className="font-mono text-sm bg-gray-50 dark:bg-gray-900"
+                        />
+                      </Form.Item>
+
+                      <Form.Item
+                        {...restField}
+                        label="Template Suffix (Code sau)"
+                        name={[name, "userTemplateSuffix"]}
+                        tooltip="Code được chạy sau code của user"
+                      >
+                        <Input.TextArea
+                          placeholder="VD: # Test code here..."
+                          rows={3}
+                          className="font-mono text-sm bg-gray-50 dark:bg-gray-900"
+                        />
+                      </Form.Item>
+                    </Card>
+                  );
+                })}
+
+                <Button
+                  type="dashed"
+                  onClick={() => add()}
+                  block
+                  icon={<PlusOutlined />}
+                  size="large"
+                  className="border-2 border-blue-300 text-blue-600 hover:border-blue-400 hover:text-blue-700 font-semibold"
+                  disabled={fields.length >= availableLanguages.length}
+                >
+                  Thêm Code Template
+                </Button>
+              </>
+            )}
+          </Form.List>
+
+          <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 dark:border-gray-700 mt-6">
+            <Button onClick={handleCancel} size="large">
+              Hủy
+            </Button>
+            <Button
+              type="primary"
+              htmlType="submit"
+              size="large"
+              icon={<SaveOutlined />}
+              loading={isSubmitting}
+              className="bg-gradient-to-r from-blue-600 to-cyan-600 border-0 px-6"
+            >
+              {isSubmitting ? "Đang lưu..." : "Lưu Template"}
+            </Button>
+          </div>
+        </Form>
+      )}
+    </Modal>
+  );
+}

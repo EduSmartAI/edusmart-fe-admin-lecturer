@@ -8,6 +8,7 @@
  */
 
 import axios, { AxiosInstance } from 'axios';
+import { useAuthStore } from 'EduSmart/stores/Auth/AuthStore';
 
 // ============================================================================
 // Types & Interfaces
@@ -288,7 +289,6 @@ class QuizAdminServiceApi {
     if (typeof window === 'undefined') return null;
     try {
       // First, try to get from Zustand store
-      const { useAuthStore } = require('EduSmart/stores/Auth/AuthStore');
       const token = useAuthStore.getState().token;
       if (token) return token;
       

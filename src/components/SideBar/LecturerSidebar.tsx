@@ -57,6 +57,11 @@ const navItems: NavMenuItem[] = [
   getItem("Audience", "audience", <TeamOutlined />, undefined, "/Lecturer/audience"),
   getItem("Posts", "posts", <FileTextOutlined />, undefined, "/Lecturer/posts"),
   getItem("Schedules", "schedules", <CalendarOutlined />, undefined, "/Lecturer/schedules"),
+  getItem("Bình luận", "comments", <FileTextOutlined />, undefined, "/Lecturer/comments"),
+  getItem("Giáo trình", "syllabus", <FileTextOutlined />, [
+    getItem("Chuyên ngành", "major", undefined, undefined, "/Lecturer/syllabus/major"),
+    getItem("Môn học", "subject", undefined, undefined, "/Lecturer/syllabus/subject"),
+  ]),
   getItem("Quản lý khóa học", "course-management", <BarChartOutlined />, [
     getItem("Xem khóa học", "view-courses", undefined, undefined, "/Lecturer/courses"),
     getItem("Tạo khóa học", "create-course", undefined, undefined, "/Lecturer/courses/create-course"),
@@ -100,8 +105,8 @@ const parentMap = (() => {
 
 
 function getSelectedKeys(pathname: string): string[] {
-    const key = pathKeyMap[pathname];
-    return key ? [key] : [];
+  const key = pathKeyMap[pathname];
+  return key ? [key] : [];
 }
 
 const toAntdItems = (items: NavMenuItem[]): MenuItem[] =>
@@ -167,7 +172,7 @@ export const LecturerSidebar: React.FC<LecturerSidebarProps> = ({
       hideLoading();
       return;
     }
-    
+
     const path = keyPathMap[key];
     if (path) {
       // Use router.push for navigation
@@ -236,13 +241,13 @@ export const LecturerSidebar: React.FC<LecturerSidebarProps> = ({
       {/* User Profile & Theme Switch */}
       <div className="p-4 border-t border-gray-200 dark:border-gray-700">
         {!collapsed && (
-            <div className="flex items-center mb-4">
-                <Avatar src="https://i.pravatar.cc/150?u=a042581f4e29026024d" />
-                <div className="ml-3">
-                    <p className="font-semibold text-sm">{profile?.name}</p>
-                    <p className="text-xs text-gray-500">{profile?.email}</p>
-                </div>
+          <div className="flex items-center mb-4">
+            <Avatar src="https://i.pravatar.cc/150?u=a042581f4e29026024d" />
+            <div className="ml-3">
+              <p className="font-semibold text-sm">{profile?.name}</p>
+              <p className="text-xs text-gray-500">{profile?.email}</p>
             </div>
+          </div>
         )}
         <ThemeSwitch />
       </div>

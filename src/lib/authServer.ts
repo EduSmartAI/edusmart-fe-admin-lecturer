@@ -55,11 +55,14 @@ function pickTokens(data: TokenResponse) {
 
 async function setIdTokenCookie(idt: string) {
   const jar = await cookies();
+  const IDT_NAME = isProd ? "__Host-idt" : "idt"; // dev không dùng __Host-
+  const mustSecureIdt = IDT_NAME.startsWith("__Host-"); // __Host-* bắt buộc Secure
+  
   jar.set({
-    name: "__Host-idt",
+    name: IDT_NAME,
     value: idt,
     httpOnly: true,
-    secure: true,
+    secure: mustSecureIdt || isProd,
     sameSite: "strict",
     path: "/",
     maxAge: 60 * 60, // 1h; nên ngắn
@@ -96,7 +99,7 @@ export async function exchangePassword(email: string, password: string) {
     throw new Error(data?.error || `Đăng nhập thất bại (HTTP ${resp.status})`);
 
   const { access, refresh, expSec, id_token } = pickTokens(data);
-  console.log('[exchangePassword] Parsed tokens - access:', !!access, 'refresh:', !!refresh);
+  console.log('[exchangePassword] Parsed tokens - access:', !!access, 'refresh:', !!refresh, 'id_token:', !!id_token);
   if (!access || !refresh) throw new Error("Thiếu token từ backend");
 
   const sid = randomUUID();
@@ -104,7 +107,12 @@ export async function exchangePassword(email: string, password: string) {
   await saveTokens(sid, { access, refresh, expAt, id_token });
 
   await setSidCookie(sid); // nhớ await
-  if (id_token) await setIdTokenCookie(id_token);
+  if (id_token) {
+    console.log('[exchangePassword] Setting ID token cookie');
+    await setIdTokenCookie(id_token);
+  } else {
+    console.warn('[exchangePassword] No ID token received from backend!');
+  }
   return { sid, access };
 }
 
@@ -136,15 +144,21 @@ export async function refreshTokens(sid: string) {
   const data = await resp.json().catch(() => ({}));
   if (!resp.ok) throw new Error(data?.error || "Refresh failed");
 
-  const { access, refresh, expSec } = pickTokens(data);
+  const { access, refresh, expSec, id_token } = pickTokens(data);
   if (!access || !refresh) throw new Error("Refresh response invalid");
 
   await updateTokens(sid, {
     access,
     refresh,
     expAt: Date.now() + Math.max(30, expSec) * 1000,
-    id_token: data.id_token ?? null,
+    id_token: id_token ?? null,
   });
+  
+  // Update ID token cookie if we got a new one
+  if (id_token) {
+    await setIdTokenCookie(id_token);
+  }
+  
   return true;
 }
 
@@ -167,9 +181,12 @@ export async function getBearerForSid(sid: string) {
 
 export async function clearAppCookies() {
   const jar = await cookies();
+  const IDT_NAME = isProd ? "__Host-idt" : "idt";
   const deletable = jar.getAll().filter(c =>
-    c.name === "__Host-idt" ||
-    c.name === (process.env.NODE_ENV === "production" ? "__Host-sid" : "sid")
+    c.name === IDT_NAME ||
+    c.name === "__Host-idt" || // also clear production cookie if exists
+    c.name === "idt" || // also clear dev cookie if exists
+    c.name === SID_NAME
   );
 
   for (const c of deletable) {
@@ -177,7 +194,7 @@ export async function clearAppCookies() {
       name: c.name,
       value: "",
       httpOnly: true,     // có hay không không ảnh hưởng xoá, nhưng giữ consistent
-      secure: c.name.startsWith("__Host-") ? true : (process.env.NODE_ENV === "production"),
+      secure: c.name.startsWith("__Host-") ? true : isProd,
       sameSite: "strict",
       path: "/",
       maxAge: 0,
@@ -214,7 +231,8 @@ export async function getSidFromCookie(): Promise<string | null> {
 
 export async function getIdTokenFromCookie(): Promise<string | null> {
   const jar = await cookies();
-  const idTokenCookie = jar.get("__Host-idt");
+  const IDT_NAME = isProd ? "__Host-idt" : "idt";
+  const idTokenCookie = jar.get(IDT_NAME);
   return idTokenCookie?.value ?? null;
 }
 

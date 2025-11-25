@@ -50,7 +50,7 @@ export abstract class HttpClient {
   ): Promise<ResType> {
     const url = `${this.baseUrl}${path}`;
     const headers = params?.headers ?? { "Content-Type": "application/json" };
-    
+
     const requestInit: RequestInit = {
       method,
       headers,
@@ -97,10 +97,10 @@ export const axiosFetch = async (
 ): Promise<Response> => {
   const url = typeof input === "string" ? input : input.toString();
   const { method, headers, body, credentials } = init ?? {};
-  
+
   // For course API, use access token for authorization
   let accessToken: string | null = null;
-  
+
   // Try to get access token from localStorage first
   if (typeof window !== 'undefined') {
     try {
@@ -112,7 +112,7 @@ export const axiosFetch = async (
     } catch (storageError) {
       // Silent error handling
     }
-    
+
     // Fallback: Try to get from server action if not in localStorage
     if (!accessToken) {
       try {
@@ -126,10 +126,10 @@ export const axiosFetch = async (
       }
     }
   }
-  
+
   // Prepare headers with access token
   let requestHeaders = headers as Record<string, string> || {};
-  
+
   // Add Authorization header with access token
   if (accessToken) {
     requestHeaders = {
@@ -140,7 +140,7 @@ export const axiosFetch = async (
     // Fallback: try to get access token from auth store as last resort
     const authState = useAuthStore.getState();
     const { token } = authState;
-    
+
     if (token) {
       requestHeaders = {
         ...requestHeaders,
@@ -151,7 +151,7 @@ export const axiosFetch = async (
       try {
         const { refreshAction } = await import('EduSmart/app/(auth)/action');
         const refreshResult = await refreshAction();
-        
+
         if (refreshResult.ok && refreshResult.accessToken) {
           requestHeaders = {
             ...requestHeaders,
@@ -188,24 +188,24 @@ export const axiosFetch = async (
     const h = axios.AxiosHeaders.from(cfg.headers);
     const base = cfg.baseURL ?? resolveCourseBaseUrl();
     const reqUrl = cfg.url ?? '';
-    
+
     if (base.includes('ngrok') || reqUrl.includes('ngrok')) {
       h.set('ngrok-skip-browser-warning', 'true');
     }
-    
+
     // Ensure auth token is always present - check both initial headers and store
     const currentToken = useAuthStore.getState().token;
     const existingAuth = h.get('Authorization');
-    
+
     if (currentToken && !existingAuth) {
       h.set('Authorization', `Bearer ${currentToken}`);
     }
-    
+
     cfg.headers = h;
-    
+
     // Log final request details
 
-    
+
     return cfg;
   });
 
@@ -216,47 +216,47 @@ export const axiosFetch = async (
     async (error: any) => {
       const status = error.response?.status;
       const originalRequest = error.config;
-      
+
       // Enhanced 400 error logging for course creation
       if (status === 400) {
         // Log minimal error info for debugging
       }
-      
-            if (status === 401 && !originalRequest._retry) {
+
+      if (status === 401 && !originalRequest._retry) {
         originalRequest._retry = true;
-        
+
         // Try to refresh access token via server action
         try {
           const { refreshAction } = await import('EduSmart/app/(auth)/action');
           const refreshResult = await refreshAction();
-          
+
           if (refreshResult.ok && refreshResult.accessToken) {
             // Update the request with new access token
             originalRequest.headers = {
               ...originalRequest.headers,
               'Authorization': `Bearer ${refreshResult.accessToken}`,
             };
-            
+
             return axiosInstance.request(originalRequest);
           }
         } catch (refreshError) {
           // Silent error handling
         }
       }
-      
+
       if (status === 401 && !originalRequest._retry) {
         originalRequest._retry = true;
-        
+
         try {
           // Try to get fresh ID token from client-side cookies
           let newIdToken: string | null = null;
-          
+
           // Try to refresh tokens first
           const authStore = useAuthStore.getState();
           if (authStore.refreshTokenValue) {
             try {
               await authStore.refreshToken();
-              
+
               // After refresh, try to get ID token via server action
               try {
                 const { getIdTokenAction } = await import('EduSmart/app/(auth)/action');
@@ -271,7 +271,7 @@ export const axiosFetch = async (
               // Silent error handling
             }
           }
-          
+
           if (newIdToken) {
             originalRequest.headers = axios.AxiosHeaders.from(originalRequest.headers);
             originalRequest.headers.set('Authorization', `Bearer ${newIdToken}`);
@@ -286,12 +286,12 @@ export const axiosFetch = async (
           useValidateStore.getState().setInValid(true);
         }
       }
-      
+
       if ((status === 403 || status === 418) && !originalRequest._retry) {
         useAuthStore.getState().logout();
         useValidateStore.getState().setInValid(true);
       }
-      
+
       return Promise.reject(error);
     },
   );
@@ -328,9 +328,9 @@ function resolveCourseBaseUrl(): string {
         const v = fromStorage.replace(/\/$/, '');
         return v.includes('/course') ? v : `${v}/course`;
       }
-    } catch {}
+    } catch { }
   }
-  
+
   // No fallback - require proper env configuration
   throw new Error('Missing NEXT_PUBLIC_COURSE_BASE_URL or NEXT_PUBLIC_API_URL. Define one in .env.local');
 }
@@ -772,6 +772,7 @@ export interface PaginatedResult<T> {
   pageSize: number;
   totalCount: number;
   data?: T[];
+  items?: T[];
   totalPages: number;
   hasPreviousPage: boolean;
   hasNextPage: boolean;
@@ -815,10 +816,50 @@ export enum CourseSortBy {
   Title = 3,
   Price = 4
 }
+// Comment DTOs
+export interface CommentDto {
+  commentId: string;
+  courseId: string;
+  userId: string;
+  userDisplayName?: string;
+  userAvatar?: string;
+  content: string;
+  parentCommentId?: string;
+  isReplied: boolean;
+  createdAt: string;
+  replies?: CommentDto[];
+}
 
-/**
- * Module gọi Course Service API với auth handling tự động
- */
+export type GetCommentsResponse = ApiResponse<PaginatedResult<CommentDto>>;
+
+export interface GetCommentsQuery {
+  courseId: string;
+  page?: number;
+  size?: number;
+}
+
+// Module Discussion DTOs
+export interface DiscussionThreadDto {
+  commentId: string;
+  moduleId: string;
+  userId: string;
+  userDisplayName?: string;
+  userAvatar?: string;
+  content: string;
+  parentCommentId?: string;
+  isReplied: boolean;
+  createdAt: string;
+  replies?: DiscussionThreadDto[];
+}
+
+export type GetDiscussionThreadResponse = ApiResponse<PaginatedResult<DiscussionThreadDto>>;
+
+export interface GetDiscussionThreadQuery {
+  moduleId: string;
+  page?: number;
+  size?: number;
+}
+
 export class ApiCourseModule extends HttpClient {
   constructor(config: ApiConfig) {
     super(config);
@@ -838,12 +879,12 @@ export class ApiCourseModule extends HttpClient {
         'Filter.IsActive': query.isActive,
         'Filter.SortBy': query.sortBy,
       } : {};
-      
+
       const queryString = new URLSearchParams(
         Object.entries(queryParams).filter(([_, value]) => value !== undefined)
           .map(([key, value]) => [key, String(value)])
       ).toString();
-      
+
       const path = queryString ? `/api/v1/Courses?${queryString}` : '/api/v1/Courses';
       return this.request<GetCoursesResponse>(path, "GET", undefined, params);
     },
@@ -858,7 +899,7 @@ export class ApiCourseModule extends HttpClient {
         'Pagination.PageSize': query.pageSize,
         'Filter.LectureId': query.lectureId,
       };
-      
+
       // Only add optional filters if they have values
       if (query.search && query.search.trim()) {
         queryParams['Filter.Search'] = query.search;
@@ -872,14 +913,14 @@ export class ApiCourseModule extends HttpClient {
       if (query.sortBy !== undefined) {
         queryParams['Filter.SortBy'] = query.sortBy;
       }
-      
+
       const queryString = new URLSearchParams(
         Object.entries(queryParams).filter(([_, value]) => value !== undefined)
           .map(([key, value]) => [key, String(value)])
       ).toString();
-      
+
       const fullUrl = `/api/v1/Courses/lecture?${queryString}`;
-      
+
       return this.request<GetCoursesResponse>(fullUrl, "GET", undefined, params);
     },
 
@@ -971,9 +1012,9 @@ export class ApiCourseModule extends HttpClient {
           });
         };
 
-        const discussions = normalizeDiscussions(workingModule.discussions) 
+        const discussions = normalizeDiscussions(workingModule.discussions)
           ?? normalizeDiscussions(workingModule.moduleDiscussionDetails);
-        const materials = normalizeMaterials(workingModule.materials) 
+        const materials = normalizeMaterials(workingModule.materials)
           ?? normalizeMaterials(workingModule.moduleMaterialDetails);
 
         if (discussions) {
@@ -1020,7 +1061,7 @@ export class ApiCourseModule extends HttpClient {
     uploadImage: async (file: File, params?: RequestParams): Promise<string> => {
       const formData = new FormData();
       formData.append('file', file);
-      
+
       try {
         const response = await this.request<ApiResponse<string>>('/api/v1/Media/Images', "POST", formData, params);
         if (response.success && response.response) return response.response;
@@ -1040,7 +1081,7 @@ export class ApiCourseModule extends HttpClient {
     uploadVideo: async (file: File, params?: RequestParams): Promise<string> => {
       const formData = new FormData();
       formData.append('file', file);
-      
+
       try {
         const response = await this.request<ApiResponse<string>>('/api/v1/Media/Videos', "POST", formData, params);
         if (response.success && response.response) return response.response;
@@ -1064,7 +1105,7 @@ export class ApiCourseModule extends HttpClient {
       try {
         // Get auth token
         let accessToken: string | null = null;
-        
+
         if (typeof window !== 'undefined') {
           try {
             const authStorage = localStorage.getItem('auth-storage');
@@ -1075,7 +1116,7 @@ export class ApiCourseModule extends HttpClient {
           } catch (error) {
             // Silent error handling
           }
-          
+
           if (!accessToken) {
             try {
               const { getAccessTokenAction } = await import('EduSmart/app/(auth)/action');
@@ -1088,7 +1129,7 @@ export class ApiCourseModule extends HttpClient {
             }
           }
         }
-        
+
         const formData = new FormData();
         formData.append('formFile', file);
         const response = await fetch('https://api.edusmart.pro.vn/utility/api/v1/UploadVideos', {
@@ -1098,13 +1139,13 @@ export class ApiCourseModule extends HttpClient {
             'accept': 'text/plain'
           },
           body: formData
-        });        
+        });
         if (!response.ok) {
           const errorText = await response.text();
           throw new Error(`Upload failed: ${response.status} - ${errorText}`);
         }
 
-        const result = await response.json();        
+        const result = await response.json();
         if (result.success && result.response) {
           return result.response;
         } else {
@@ -1123,7 +1164,7 @@ export class ApiCourseModule extends HttpClient {
       try {
         // Get auth token
         let accessToken: string | null = null;
-        
+
         if (typeof window !== 'undefined') {
           try {
             const authStorage = localStorage.getItem('auth-storage');
@@ -1134,7 +1175,7 @@ export class ApiCourseModule extends HttpClient {
           } catch (error) {
             // Silent error handling
           }
-          
+
           if (!accessToken) {
             try {
               const { getAccessTokenAction } = await import('EduSmart/app/(auth)/action');
@@ -1147,7 +1188,7 @@ export class ApiCourseModule extends HttpClient {
             }
           }
         }
-        
+
         const formData = new FormData();
         formData.append('formFile', file);
         const response = await fetch('https://api.edusmart.pro.vn/utility/api/UploadFiles', {
@@ -1157,13 +1198,13 @@ export class ApiCourseModule extends HttpClient {
             'accept': 'text/plain'
           },
           body: formData
-        });        
+        });
         if (!response.ok) {
           const errorText = await response.text();
           throw new Error(`Document upload failed: ${response.status} - ${errorText}`);
         }
 
-        const result = await response.json();        
+        const result = await response.json();
         if (result.success && result.response) {
           return result.response;
         } else {
@@ -1172,6 +1213,133 @@ export class ApiCourseModule extends HttpClient {
       } catch (error) {
         throw error;
       }
+    },
+  };
+
+  comments = {
+    /**
+     * @description Lấy danh sách bình luận của khóa học
+     * @request GET:/api/CourseComments
+     */
+    get: (query: GetCommentsQuery, params?: RequestParams) => {
+      const queryParams = {
+        'courseId': query.courseId,
+        'page': query.page ?? 0,
+        'size': query.size ?? 10,
+      };
+
+      const queryString = new URLSearchParams(
+        Object.entries(queryParams).map(([key, value]) => [key, String(value)])
+      ).toString();
+
+      return this.request<GetCommentsResponse>(`/api/CourseComments?${queryString}`, "GET", undefined, params);
+    },
+
+    /**
+     * @description Tạo bình luận mới
+     * @request POST:/api/CourseComments
+     */
+    create: (courseId: string, content: string, params?: RequestParams) => {
+      return this.request<ApiResponse<any>>(
+        `/api/CourseComments?courseId=${courseId}`,
+        "POST",
+        { content },
+        params
+      );
+    },
+
+    /**
+     * @description Xóa bình luận
+     * @request DELETE:/api/CourseComments/{id}
+     */
+    delete: (commentId: string, courseId: string, params?: RequestParams) => {
+      return this.request<ApiResponse<any>>(`/api/CourseComments?courseId=${courseId}&commentId=${commentId}`, "DELETE", undefined, params);
+    },
+    reply: (commentId: string, content: string, courseId: string, params?: RequestParams) => {
+      return this.request<ApiResponse<any>>(
+        `/api/CourseComments/${commentId}/replies?courseId=${courseId}`,
+        "POST",
+        { content },
+        params
+      );
+    },
+  };
+
+  moduleDiscussions = {
+    /**
+     * @description Lấy danh sách thảo luận của module
+     * @request GET:/api/modules/{moduleId}/discussion/thread
+     */
+    getThread: (query: GetDiscussionThreadQuery, params?: RequestParams) => {
+      const queryParams = {
+        'page': query.page ?? 0,
+        'size': query.size ?? 10,
+      };
+
+      const queryString = new URLSearchParams(
+        Object.entries(queryParams).map(([key, value]) => [key, String(value)])
+      ).toString();
+
+      return this.request<GetDiscussionThreadResponse>(
+        `/api/modules/${query.moduleId}/discussion/thread?${queryString}`,
+        "GET",
+        undefined,
+        params
+      );
+    },
+
+    /**
+     * @description Tạo bình luận mới trong thảo luận module
+     * @request POST:/api/ModuleDiscussionComments/{moduleId}
+     */
+    createComment: (moduleId: string, content: string, params?: RequestParams) => {
+      return this.request<ApiResponse<any>>(
+        `/api/ModuleDiscussionComments/${moduleId}`,
+        "POST",
+        { content },
+        params
+      );
+    },
+
+    /**
+     * @description Trả lời bình luận trong thảo luận module
+     * @request POST:/api/ModuleDiscussionComments/{moduleId}/{commentId}/reply
+     */
+    replyToComment: (moduleId: string, commentId: string, content: string, params?: RequestParams) => {
+      return this.request<ApiResponse<any>>(
+        `/api/ModuleDiscussionComments/${moduleId}/${commentId}/reply`,
+        "POST",
+        { content },
+        params
+      );
+    },
+  };
+
+  syllabus = {
+    /**
+     * @description Tạo chuyên ngành (Major)
+     * @request POST:/api/Syllabus/CreateMajorProcess
+     */
+    createMajor: (data: { majorCode: string; majorName: string; description: string }, params?: RequestParams) => {
+      return this.request<ApiResponse<any>>(
+        '/api/Syllabus/CreateMajorProcess',
+        "POST",
+        { createMajorDto: data },
+        params
+      );
+    },
+
+    /**
+     * @description Tạo môn học (Subject)
+     * @request POST:/api/Syllabus/CreateSubjectProcess
+     */
+    createSubject: (data: { subjectCode: string; subjectName: string }, params?: RequestParams) => {
+      return this.request<ApiResponse<any>>(
+        '/api/Syllabus/CreateSubjectProcess',
+        "POST",
+        { createSubjectDto: data },
+        params
+      );
     },
   };
 }
@@ -1198,8 +1366,11 @@ export const courseServiceAPI = {
   uploadVideo: courseService.media.uploadVideo,
   uploadVideosUtility: courseService.media.uploadVideosUtility,
   uploadDocuments: courseService.media.uploadDocuments,
-  
+
   // Full service access for new code
   courses: courseService.courses,
   media: courseService.media,
+  comments: courseService.comments,
+  moduleDiscussions: courseService.moduleDiscussions,
+  syllabus: courseService.syllabus,
 };

@@ -30,7 +30,7 @@ export interface StudentTestState {
  * - GET /quiz/api/v1/Admin/SelectStudentTests
  * - GET /quiz/api/v1/Admin/SelectStudentTestDetail
  */
-export const useStudentTestStore = create<StudentTestState>((set, get) => ({
+export const useStudentTestStore = create<StudentTestState>((set) => ({
   tests: [],
   selectedTestDetail: null,
   isLoading: false,

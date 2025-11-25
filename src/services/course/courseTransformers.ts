@@ -367,10 +367,7 @@ const isRealQuizId = (id?: string): boolean => {
 };
 
 const mapQuizForPayload = (quiz?: ModuleQuiz | Lesson['lessonQuiz']): QuizPayload | null => {
-  if (!quiz) {
-    console.log('⚠️ [mapQuizForPayload] Quiz is null or undefined');
-    return null;
-  }
+  if (!quiz) return null;
 
   const extendedQuiz = quiz as (ModuleQuiz & {
     quizId?: string;
@@ -384,20 +381,12 @@ const mapQuizForPayload = (quiz?: ModuleQuiz | Lesson['lessonQuiz']): QuizPayloa
 
   const candidateQuizId = typeof extendedQuiz.quizId === 'string' ? extendedQuiz.quizId : quiz.id;
 
-  console.log('🔍 [mapQuizForPayload] Candidate quiz ID:', candidateQuizId);
-  console.log('🔍 [mapQuizForPayload] Is real UUID:', isRealQuizId(candidateQuizId));
-
   // Skip temporary IDs - these quizzes don't exist in the database yet
   if (!isRealQuizId(candidateQuizId)) {
-    console.log(`⚠️ [mapQuizForPayload] Skipping quiz with temporary ID: ${candidateQuizId}`);
     return null;
   }
 
   const settings = quiz.quizSettings ?? {};
-  const questions = mapQuestionsForQuiz(quiz.questions);
-
-  console.log('🔍 [mapQuizForPayload] Quiz settings:', settings);
-  console.log('🔍 [mapQuizForPayload] Questions count:', questions.length);
 
   return {
     quizId: candidateQuizId,
@@ -406,7 +395,7 @@ const mapQuizForPayload = (quiz?: ModuleQuiz | Lesson['lessonQuiz']): QuizPayloa
     shuffleQuestions: settings.shuffleQuestions,
     showResultsImmediately: settings.showResultsImmediately,
     allowRetake: settings.allowRetake,
-    questions,
+    questions: mapQuestionsForQuiz(quiz.questions),
   } satisfies QuizPayload;
 };
 
@@ -416,27 +405,20 @@ export const buildCourseQuizUpdatePayload = (
 ): UpdateCourseQuizPayload => {
   const quizzes: QuizPayload[] = [];
 
-  console.log('🔧 [buildCourseQuizUpdatePayload] Edited quiz IDs:', Array.from(editedQuizIds || []));
-
-  modules.forEach((module, moduleIndex) => {
+  modules.forEach((module) => {
     const moduleQuiz = module.moduleQuiz as (ModuleQuiz & { lastModified?: number; quizId?: string }) | undefined;
     
     // Only include module quiz if it was EXPLICITLY edited in this session
     if (moduleQuiz) {
       const quizId = moduleQuiz.quizId || moduleQuiz.id;
-      console.log(`🔧 [Module ${moduleIndex}] Module quiz found. ID: ${quizId}, Is edited: ${editedQuizIds?.has(quizId || '')}`);
       
       if (editedQuizIds && quizId && editedQuizIds.has(quizId)) {
-        console.log(`📝 [Module ${moduleIndex}] Processing module quiz ${quizId}...`);
         const mapped = mapQuizForPayload(moduleQuiz);
         if (mapped) {
-          console.log(`✅ [Module ${moduleIndex}] Module quiz mapped successfully:`, JSON.stringify(mapped, null, 2));
           quizzes.push(mapped);
-        } else {
-          console.warn(`⚠️ [Module ${moduleIndex}] Module quiz ${quizId} mapping returned null`);
         }
       } else if (editedQuizIds) {
-        console.log(`⏭️ [Module ${moduleIndex}] Skipping module quiz ${quizId} (not in edited set)`);
+        // Quiz not in edited set, skip it
       } else {
         // Fallback: if no editedQuizIds provided, use old time-based logic
         const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
@@ -449,25 +431,20 @@ export const buildCourseQuizUpdatePayload = (
       }
     }
 
-    module.lessons.forEach((lesson, lessonIndex) => {
+    module.lessons.forEach((lesson) => {
       const lessonQuiz = lesson.lessonQuiz as (Lesson['lessonQuiz'] & { lastModified?: number; quizId?: string }) | undefined;
       
       // Only include lesson quiz if it was EXPLICITLY edited in this session
       if (lessonQuiz) {
         const quizId = lessonQuiz.quizId || lessonQuiz.id;
-        console.log(`🔧 [Module ${moduleIndex}, Lesson ${lessonIndex}] Lesson quiz found. ID: ${quizId}, Is edited: ${editedQuizIds?.has(quizId || '')}`);
         
         if (editedQuizIds && quizId && editedQuizIds.has(quizId)) {
-          console.log(`📝 [Module ${moduleIndex}, Lesson ${lessonIndex}] Processing lesson quiz ${quizId}...`);
           const mapped = mapQuizForPayload(lessonQuiz);
           if (mapped) {
-            console.log(`✅ [Module ${moduleIndex}, Lesson ${lessonIndex}] Lesson quiz mapped successfully:`, JSON.stringify(mapped, null, 2));
             quizzes.push(mapped);
-          } else {
-            console.warn(`⚠️ [Module ${moduleIndex}, Lesson ${lessonIndex}] Lesson quiz ${quizId} mapping returned null`);
           }
         } else if (editedQuizIds) {
-          console.log(`⏭️ [Module ${moduleIndex}, Lesson ${lessonIndex}] Skipping lesson quiz ${quizId} (not in edited set)`);
+          // Quiz not in edited set, skip it
         } else {
           // Fallback: if no editedQuizIds provided, use old time-based logic
           const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
@@ -481,9 +458,6 @@ export const buildCourseQuizUpdatePayload = (
       }
     });
   });
-
-  console.log(`🔧 [buildCourseQuizUpdatePayload] Total quizzes to update: ${quizzes.length}`);
-  console.log('🔧 [buildCourseQuizUpdatePayload] Final payload:', JSON.stringify({ quizzes }, null, 2));
 
   return {
     quizzes,
