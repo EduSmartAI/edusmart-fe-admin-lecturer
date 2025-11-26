@@ -12,7 +12,7 @@ interface AdminLayoutProps {
 
 export default function AdminLayout({ children }: AdminLayoutProps) {
   const router = useRouter();
-  const { profile, loadProfile, isLoading } = useUserProfileStore();
+  const { profile, isLoading } = useUserProfileStore();
   const [isChecking, setIsChecking] = useState(true);
   const hasCheckedAuth = useRef(false);
 
@@ -22,9 +22,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
     const checkAuth = async () => {
       try {
+        // Get current state directly from store
+        const state = useUserProfileStore.getState();
+        
         // Load profile if not already loaded
-        if (!profile && !isLoading) {
-          await loadProfile();
+        if (!state.profile && !state.isLoading) {
+          await state.loadProfile();
         }
 
         // Wait a bit for profile to load
@@ -68,7 +71,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     };
 
     checkAuth();
-  }, []); // Empty dependency array - only run once on mount
+  }, [router]); // router is stable, no need for other deps since we use getState()
 
   // Show loading spinner while checking authentication
   if (isChecking || isLoading) {

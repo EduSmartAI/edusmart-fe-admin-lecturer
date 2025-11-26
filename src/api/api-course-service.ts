@@ -101,7 +101,7 @@ export const axiosFetch = async (
   // For course API, use access token for authorization
   let accessToken: string | null = null;
 
-  // Try to get access token from localStorage first
+  // Try to get access token from localStorage first (fastest)
   if (typeof window !== 'undefined') {
     try {
       const authStorage = localStorage.getItem('auth-storage');
@@ -113,17 +113,10 @@ export const axiosFetch = async (
       // Silent error handling
     }
 
-    // Fallback: Try to get from server action if not in localStorage
+    // Fallback: try auth store (synchronous, fast)
     if (!accessToken) {
-      try {
-        const { getAccessTokenAction } = await import('EduSmart/app/(auth)/action');
-        const result = await getAccessTokenAction();
-        if (result.ok && result.accessToken) {
-          accessToken = result.accessToken;
-        }
-      } catch (serverError) {
-        // Silent error handling
-      }
+      const authState = useAuthStore.getState();
+      accessToken = authState.token || null;
     }
   }
 
@@ -136,32 +129,6 @@ export const axiosFetch = async (
       ...requestHeaders,
       'Authorization': `Bearer ${accessToken}`,
     };
-  } else {
-    // Fallback: try to get access token from auth store as last resort
-    const authState = useAuthStore.getState();
-    const { token } = authState;
-
-    if (token) {
-      requestHeaders = {
-        ...requestHeaders,
-        'Authorization': `Bearer ${token}`,
-      };
-    } else {
-      // Last resort: try to refresh tokens since user is logged in (JWT extraction worked)
-      try {
-        const { refreshAction } = await import('EduSmart/app/(auth)/action');
-        const refreshResult = await refreshAction();
-
-        if (refreshResult.ok && refreshResult.accessToken) {
-          requestHeaders = {
-            ...requestHeaders,
-            'Authorization': `Bearer ${refreshResult.accessToken}`,
-          };
-        }
-      } catch (refreshError) {
-        // Silent error handling
-      }
-    }
   }
 
   // Add ngrok headers if needed
@@ -1250,10 +1217,15 @@ export class ApiCourseModule extends HttpClient {
 
     /**
      * @description Xóa bình luận
-     * @request DELETE:/api/CourseComments/{id}
+     * @request DELETE:/api/CourseComments?courseId={courseId}&commentId={commentId}
      */
     delete: (commentId: string, courseId: string, params?: RequestParams) => {
-      return this.request<ApiResponse<any>>(`/api/CourseComments?courseId=${courseId}&commentId=${commentId}`, "DELETE", undefined, params);
+      return this.request<ApiResponse<any>>(
+        `/api/CourseComments?courseId=${courseId}&commentId=${commentId}`,
+        "DELETE",
+        undefined,
+        params
+      );
     },
     reply: (commentId: string, content: string, courseId: string, params?: RequestParams) => {
       return this.request<ApiResponse<any>>(

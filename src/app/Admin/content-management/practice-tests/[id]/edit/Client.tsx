@@ -9,7 +9,7 @@ import type { UpdatePracticeTestDto, UpdatePracticeProblem, UpdateTestCase, Upda
 import ProblemInfoStep from "EduSmart/components/Admin/PracticeTest/ProblemInfoStep";
 import ExamplesStep from "EduSmart/components/Admin/PracticeTest/ExamplesStep";
 import TestCasesStep from "EduSmart/components/Admin/PracticeTest/TestCasesStep";
-import TemplatesStep from "EduSmart/components/Admin/PracticeTest/TemplatesStepNew";
+import TemplatesStep from "EduSmart/components/Admin/PracticeTest/TemplatesStep";
 import ReviewStep from "EduSmart/components/Admin/PracticeTest/ReviewStep";
 
 interface EditPracticeTestClientProps {
@@ -22,8 +22,8 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
-  const { isLoading, error, getPracticeTestDetail, updatePracticeTest } = usePracticeTestStore();
-
+  const { selectedTest, isLoading, error, getPracticeTestDetail, updatePracticeTest } = usePracticeTestStore();
+  
   const [formData, setFormData] = useState<Partial<UpdatePracticeTestDto>>({
     problemId,
     problem: {
@@ -41,7 +41,7 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
     const loadPracticeTest = async () => {
       setIsInitializing(true);
       const test = await getPracticeTestDetail(problemId);
-
+      
       if (test) {
         /**
          * Convert PracticeTest to UpdatePracticeTestDto format
@@ -73,59 +73,28 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
             explanation: ex.explanation,
           })),
           // API now returns testCases (capital C) as flat array with isPublic flag
-          testcases: (test.testCases || []).map(tc => {
-            console.log('🔍 [Edit] Transforming testcase:', {
-              testcaseId: tc.testcaseId,
-              isPublic: tc.isPublic,
-              hasInput: !!tc.inputData,
-              hasOutput: !!tc.expectedOutput,
-            });
-            return {
-              testcaseId: tc.testcaseId, // Include ID to update existing test case
-              inputData: tc.inputData,
-              expectedOutput: tc.expectedOutput,
-              isPublic: tc.isPublic,
-            };
-          }),
+          testcases: (test.testCases || []).map(tc => ({
+            testcaseId: tc.testcaseId, // Include ID to update existing test case
+            inputData: tc.inputData,
+            expectedOutput: tc.expectedOutput,
+            isPublic: tc.isPublic,
+          })),
           // Transform API template response (templatePrefix/Suffix) to update format (userTemplatePrefix/Suffix)
-          templates: (test.templates || []).map(t => {
-            console.log('🔍 [Edit] Transforming template:', {
-              templateId: t.templateId,
-              languageId: t.languageId,
-              languageName: t.languageName,
-              hasPrefix: !!t.templatePrefix,
-              hasSuffix: !!t.templateSuffix,
-              hasStubCode: !!t.userStubCode,
-              templatePrefix: t.templatePrefix,
-              templateSuffix: t.templateSuffix,
-              userStubCode: t.userStubCode
-            });
-
-            return {
-              templateId: t.templateId, // Include ID to update existing template
-              languageId: t.languageId,
-              userTemplatePrefix: t.templatePrefix, // API uses templatePrefix
-              userTemplateSuffix: t.templateSuffix, // API uses templateSuffix
-              userStubCode: t.userStubCode,
-            };
-          }),
+          templates: (test.templates || []).map(t => ({
+            templateId: t.templateId, // Include ID to update existing template
+            languageId: t.languageId,
+            userTemplatePrefix: t.templatePrefix, // API uses templatePrefix
+            userTemplateSuffix: t.templateSuffix, // API uses templateSuffix
+            userStubCode: t.userStubCode,
+          })),
         };
-
-        console.log('🔍 [Edit] Final formData:', {
-          testcasesCount: updateData.testcases?.length || 0,
-          publicCount: updateData.testcases?.filter(tc => tc.isPublic).length || 0,
-          privateCount: updateData.testcases?.filter(tc => !tc.isPublic).length || 0,
-          templatesCount: updateData.templates?.length || 0,
-          examplesCount: updateData.examples?.length || 0,
-        });
-        console.log('🔍 [Edit] Testcases detail:', updateData.testcases);
-        console.log('🔍 [Edit] Templates detail:', updateData.templates);
+        
         setFormData(updateData);
       }
-
+      
       setIsInitializing(false);
     };
-
+    
     loadPracticeTest();
   }, [problemId, getPracticeTestDetail]);
 
@@ -185,7 +154,7 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
     setIsSubmitting(true);
     try {
       await updatePracticeTest(formData as UpdatePracticeTestDto);
-
+      
       console.log('✅ [Edit] Practice test updated successfully');
       message.success("Cập nhật Practice Test thành công!");
       router.push("/Admin/content-management/practice-tests");
@@ -268,9 +237,7 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
         <div className="mb-6">
           {currentStep === 0 && (
             <ProblemInfoStep
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               initialData={formData.problem as any}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onNext={handleProblemInfoComplete as any}
               onCancel={() => router.push(`/Admin/content-management/practice-tests/${problemId}`)}
             />
@@ -278,9 +245,7 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
 
           {currentStep === 1 && (
             <ExamplesStep
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               initialData={formData.examples as any || []}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onNext={handleExamplesComplete as any}
               onBack={handleBack}
             />
@@ -321,9 +286,7 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
 
           {currentStep === 3 && (
             <TemplatesStep
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               initialData={formData.templates as any || []}
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onNext={handleTemplatesComplete as any}
               onBack={handleBack}
             />
@@ -349,7 +312,6 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
                   })) || [],
                 }],
                 templates: formData.templates || [],
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
               } as any}
               onBack={handleBack}
               onEdit={handleEdit}

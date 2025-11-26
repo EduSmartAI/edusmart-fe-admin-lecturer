@@ -93,6 +93,7 @@ const CourseDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [reviews, setReviews] = useState<CommentDto[]>([]);
+  const [reviewsKey, setReviewsKey] = useState(0); // Force re-render key
   const [loadingReviews, setLoadingReviews] = useState(false);
   const [activeReplyId, setActiveReplyId] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState("");
@@ -116,6 +117,9 @@ const CourseDetailPage: React.FC = () => {
         const parent = commentMap.get(comment.parentCommentId);
         if (parent && parent.replies) {
           parent.replies.push(commentWithReplies);
+        } else {
+          // Parent not found in current batch - add as root
+          rootComments.push(commentWithReplies);
         }
       } else {
         // This is a root comment
@@ -126,9 +130,9 @@ const CourseDetailPage: React.FC = () => {
     return rootComments;
   };
 
-  const fetchReviews = useCallback(async () => {
+  const fetchReviews = useCallback(async (silent = false) => {
     if (!courseId) return;
-    setLoadingReviews(true);
+    if (!silent) setLoadingReviews(true);
     try {
       const res = await courseServiceAPI.comments.get({
         courseId: courseId,
@@ -138,12 +142,14 @@ const CourseDetailPage: React.FC = () => {
       if (res.success && res.response) {
         const flatReviews = res.response.items || res.response.data || [];
         const nestedReviews = buildCommentTree(flatReviews);
-        setReviews(nestedReviews);
+        // Force new array reference and increment key to trigger re-render
+        setReviews([...nestedReviews]);
+        setReviewsKey(prev => prev + 1);
       }
     } catch (error) {
       console.error("Failed to fetch reviews:", error);
     } finally {
-      setLoadingReviews(false);
+      if (!silent) setLoadingReviews(false);
     }
   }, [courseId]);
 
@@ -209,8 +215,9 @@ const CourseDetailPage: React.FC = () => {
         });
       };
       const updated = updateComments(prevReviews);
-      return updated;
+      return [...updated]; // Force new reference
     });
+    setReviewsKey(prev => prev + 1); // Force re-render
 
     try {
       await courseServiceAPI.comments.reply(
@@ -219,57 +226,55 @@ const CourseDetailPage: React.FC = () => {
         courseId
       );
       messageApi.success("Đã gửi câu trả lời thành công!");
-
-      // Refresh from server after a short delay to get real data
-      setTimeout(() => {
-        fetchReviews();
-      }, 800);
+      // Keep optimistic update - don't fetch from server immediately
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       messageApi.error((error as Error).message || "Gửi câu trả lời thất bại");
-      // Revert optimistic update on error
-      fetchReviews();
+      // Revert optimistic update on error by fetching from server
+      await fetchReviews(true);
     }
   };
 
   const handleDeleteComment = (commentId: string) => {
+    // Don't allow deleting temp comments (not yet saved to server)
+    if (commentId.startsWith('temp-')) {
+      messageApi.warning("Bình luận này đang được lưu, vui lòng đợi...");
+      return;
+    }
+
     modal.confirm({
       title: 'Xóa bình luận',
       content: 'Bạn có chắc chắn muốn xóa bình luận này?',
       okText: 'Xóa',
       okType: 'danger',
       cancelText: 'Hủy',
-      onOk: () => {
+      onOk: async () => {
+        // Helper function to recursively remove comment
+        const removeComment = (comments: CommentDto[]): CommentDto[] => {
+          return comments
+            .filter(comment => comment.commentId !== commentId)
+            .map(comment => ({
+              ...comment,
+              replies: comment.replies ? removeComment(comment.replies) : []
+            }));
+        };
+
         // Optimistic update - remove from UI immediately
         setReviews(prevReviews => {
-          const removeComment = (comments: CommentDto[]): CommentDto[] => {
-            return comments
-              .filter(comment => comment.commentId !== commentId)
-              .map(comment => ({
-                ...comment,
-                replies: comment.replies ? removeComment(comment.replies) : []
-              }));
-          };
-          return removeComment(prevReviews);
+          const updated = removeComment(prevReviews);
+          return [...updated]; // Force new reference
         });
+        setReviewsKey(prev => prev + 1); // Force re-render
 
-        // Call API in background
-        (async () => {
-          try {
-            await courseServiceAPI.comments.delete(commentId, courseId);
-            messageApi.success("Đã xóa bình luận thành công");
-
-            // Refresh from server to ensure consistency
-            setTimeout(() => {
-              fetchReviews();
-            }, 300);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          } catch (error: any) {
-            messageApi.error((error as Error).message || "Xóa bình luận thất bại");
-            // Revert on error
-            fetchReviews();
-          }
-        })();
+        try {
+          await courseServiceAPI.comments.delete(commentId, courseId);
+          messageApi.success("Đã xóa bình luận thành công");
+          // Keep optimistic update - don't fetch from server
+        } catch (error: unknown) {
+          messageApi.error((error as Error).message || "Xóa bình luận thất bại");
+          // Revert on error - refresh from server
+          await fetchReviews(true);
+        }
       },
     });
   };
@@ -1214,7 +1219,7 @@ const CourseDetailPage: React.FC = () => {
                             <p className="mt-2 text-gray-500">Đang tải đánh giá...</p>
                           </div>
                         ) : reviews.length > 0 ? (
-                          <div className="space-y-2">
+                          <div className="space-y-2" key={`reviews-${reviewsKey}`}>
                             {reviews.map((review) => (
                               <div key={review.commentId} className="bg-white dark:bg-gray-800 rounded-lg p-3 hover:shadow-sm transition-shadow duration-200">
                                 {/* Main Comment */}

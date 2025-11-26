@@ -75,13 +75,12 @@ export default function TestCasesStep({ initialData, onNext, onBack }: TestCases
                 >
                   <Form.Item
                     {...restField}
-                    label={<span className="font-semibold">Input</span>}
+                    label="Input Data"
                     name={[name, "inputData"]}
                     rules={[{ required: true, message: "Nhập input" }]}
-                    tooltip="Nhập dữ liệu đầu vào. Mỗi dòng là một tham số (format: tên = giá trị)"
                   >
                     <Input.TextArea
-                      placeholder="nums = [2,7,11,15]&#10;target = 9"
+                      placeholder="VD: [2,7,11,15]\n9"
                       rows={4}
                       className="font-mono text-sm bg-gray-50 dark:bg-gray-900"
                     />
@@ -89,13 +88,12 @@ export default function TestCasesStep({ initialData, onNext, onBack }: TestCases
 
                   <Form.Item
                     {...restField}
-                    label={<span className="font-semibold">Output</span>}
+                    label="Expected Output"
                     name={[name, "expectedOutput"]}
                     rules={[{ required: true, message: "Nhập expected output" }]}
-                    tooltip="Kết quả mong đợi khi chạy với input trên"
                   >
                     <Input.TextArea
-                      placeholder="[0,1]"
+                      placeholder="VD: [0,1]"
                       rows={3}
                       className="font-mono text-sm bg-gray-50 dark:bg-gray-900"
                     />

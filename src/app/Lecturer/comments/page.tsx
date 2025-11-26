@@ -134,11 +134,11 @@ export default function LecturerCommentsPage() {
     const fetchIdRef = React.useRef(0);
 
     // Fetch comments or discussion threads based on selection
-    const fetchComments = React.useCallback(async () => {
+    const fetchComments = React.useCallback(async (silent = false) => {
         if (!selectedCourseId) return;
 
         const currentFetchId = ++fetchIdRef.current;
-        setLoadingComments(true);
+        if (!silent) setLoadingComments(true);
         console.log(`[Fetch ${currentFetchId}] Starting fetch for Course: ${selectedCourseId}, Module: ${selectedModuleId}, Modules Count: ${modules.length}`);
 
         try {
@@ -235,7 +235,7 @@ export default function LecturerCommentsPage() {
                 console.error(`[Fetch ${currentFetchId}] Failed to fetch comments:`, error);
             }
         } finally {
-            if (currentFetchId === fetchIdRef.current) {
+            if (currentFetchId === fetchIdRef.current && !silent) {
                 setLoadingComments(false);
             }
         }
@@ -358,55 +358,54 @@ export default function LecturerCommentsPage() {
             }
 
             notification.success("Đã gửi câu trả lời thành công!");
-
-            // Refresh from server after delay
-            setTimeout(() => {
-                fetchComments();
-            }, 800);
+            // Keep optimistic update - don't fetch from server (server may have cache/delay)
         } catch (error: unknown) {
             console.error("Reply error:", error);
             notification.error((error as Error).message || "Gửi câu trả lời thất bại");
             // Revert on error
-            fetchComments();
+            await fetchComments(true);
         }
     };
 
     const handleDeleteComment = (commentId: string) => {
+        // Don't allow deleting temp comments (not yet saved to server)
+        if (commentId.startsWith('temp-')) {
+            message.warning("Bình luận này đang được lưu, vui lòng đợi...");
+            return;
+        }
+
         Modal.confirm({
             title: 'Xóa bình luận',
             content: 'Bạn có chắc chắn muốn xóa bình luận này?',
             okText: 'Xóa',
             okType: 'danger',
             cancelText: 'Hủy',
-            onOk: () => {
-                // Optimistic update - remove from UI immediately
-                setComments(prev => {
-                    const removeComment = (items: CommentDto[]): CommentDto[] => {
-                        return items
-                            .filter(item => item.commentId !== commentId)
-                            .map(item => ({
-                                ...item,
-                                replies: item.replies ? removeComment(item.replies) : []
-                            }));
-                    };
-                    return removeComment(prev);
-                });
+            onOk: async () => {
+                // Helper function to recursively remove comment
+                const removeComment = (items: CommentDto[]): CommentDto[] => {
+                    return items
+                        .filter(item => item.commentId !== commentId)
+                        .map(item => ({
+                            ...item,
+                            replies: item.replies ? removeComment(item.replies) : []
+                        }));
+                };
 
-                // Call API in background
-                (async () => {
-                    try {
-                        if (selectedCourseId) {
-                            await courseServiceAPI.comments.delete(commentId, selectedCourseId);
-                            message.success("Đã xóa bình luận thành công");
-                            // Refresh from server to ensure consistency
-                            setTimeout(fetchComments, 800);
-                        }
-                    } catch (error: unknown) {
-                        message.error((error as Error).message || "Xóa bình luận thất bại");
-                        // Revert on error
-                        fetchComments();
+                // Optimistic update - remove from UI immediately
+                setComments(prev => removeComment(prev));
+                setDiscussionThreads(prev => removeComment(prev as unknown as CommentDto[]) as unknown as typeof prev);
+
+                try {
+                    if (selectedCourseId) {
+                        await courseServiceAPI.comments.delete(commentId, selectedCourseId);
+                        message.success("Đã xóa bình luận thành công");
+                        // Keep optimistic update - don't fetch from server
                     }
-                })();
+                } catch (error: unknown) {
+                    message.error((error as Error).message || "Xóa bình luận thất bại");
+                    // Revert on error - refresh from server
+                    await fetchComments(true);
+                }
             }
         });
     };
@@ -457,14 +456,11 @@ export default function LecturerCommentsPage() {
             }
 
             notification.success("Đã tạo bình luận thành công!");
-
-            setTimeout(() => {
-                fetchComments();
-            }, 800);
+            // Keep optimistic update - don't fetch from server
         } catch (error: unknown) {
             console.error("Create comment error:", error);
             notification.error((error as Error).message || "Tạo bình luận thất bại");
-            fetchComments();
+            await fetchComments(true);
         } finally {
             setIsSubmitting(false);
         }

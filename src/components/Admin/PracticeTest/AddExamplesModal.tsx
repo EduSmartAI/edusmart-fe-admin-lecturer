@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Modal, Form, Input, Button, Card, Empty, InputNumber, App } from "antd";
+import { Modal, Form, Input, Button, Card, Empty, InputNumber, message } from "antd";
 import { PlusOutlined, MinusCircleOutlined, SaveOutlined } from "@ant-design/icons";
 import { usePracticeTestStore } from "EduSmart/stores/Admin";
 import { PracticeExample } from "EduSmart/types/practice-test";
@@ -21,7 +21,6 @@ export default function AddExamplesModal({
 }: AddExamplesModalProps) {
   const [form] = Form.useForm();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { message } = App.useApp();
   const { addExamples } = usePracticeTestStore();
 
   const handleSubmit = async (values: { examples: PracticeExample[] }) => {

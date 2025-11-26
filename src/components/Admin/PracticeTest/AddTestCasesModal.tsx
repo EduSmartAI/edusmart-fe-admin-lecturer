@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Modal, Form, Input, Button, Card, Empty, Tabs, App } from "antd";
+import { Modal, Form, Input, Button, Card, Empty, Tabs, message } from "antd";
 import {
   PlusOutlined,
   MinusCircleOutlined,
@@ -29,7 +29,6 @@ export default function AddTestCasesModal({
 }: AddTestCasesModalProps) {
   const [form] = Form.useForm();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { message } = App.useApp();
   const { addTestCases } = usePracticeTestStore();
 
   const handleSubmit = async (values: { publicTestcases?: TestCase[]; privateTestcases?: TestCase[] }) => {

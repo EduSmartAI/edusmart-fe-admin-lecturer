@@ -19,6 +19,7 @@ import {
   Popconfirm,
   message,
   Select,
+  Switch,
 } from "antd";
 import {
   PlusOutlined,
@@ -29,6 +30,7 @@ import {
   FileTextOutlined,
   CheckOutlined,
   StopOutlined,
+  MinusCircleOutlined,
 } from "@ant-design/icons";
 import { useSurveyStore } from "EduSmart/stores/Admin";
 import type { Survey, SurveyQuestion } from "EduSmart/stores/Admin";
@@ -78,20 +80,12 @@ export default function SurveysClient() {
   }) => {
     try {
       if (modalMode === "create") {
-        // Match the exact API structure from curl - including answerRules as empty array
+        // Match the exact API structure from curl
         const payload = {
           title: values.title.trim(),
           description: values.description?.trim() || "",
           surveyCode: values.surveyCode.trim().toUpperCase(),
-          questions: (values.questions || []).map((q) => ({
-            questionText: q.questionText,
-            questionType: q.questionType,
-            answers: (q.answers || []).map((a) => ({
-              answerText: a.answerText,
-              isCorrect: a.isCorrect,
-              answerRules: [], // Empty array as per API spec
-            })),
-          })),
+          questions: values.questions || [],
         };
 
         const result = await createSurvey(payload);
@@ -461,7 +455,7 @@ export default function SurveysClient() {
         open={modalMode !== null}
         onCancel={handleModalClose}
         footer={null}
-        width={900}
+        width={700}
         destroyOnClose
         centered
         styles={{
@@ -488,63 +482,53 @@ export default function SurveysClient() {
           autoComplete="off"
           initialValues={{
             questions: [],
-            description: "",
+            description: "1", // Default points value
           }}
         >
           <div className="px-6 py-4 max-h-[calc(100vh-250px)] overflow-y-auto">
-            {/* Survey Basic Information */}
-            <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
-                Thông tin khảo sát
-              </h3>
-              
-              <Form.Item
-                label={<span className="text-sm">Tiêu đề khảo sát</span>}
-                name="title"
-                rules={[
-                  { required: true, message: "Vui lòng nhập tiêu đề khảo sát" },
-                  { min: 3, message: "Tiêu đề phải có ít nhất 3 ký tự" },
-                ]}
-                className="mb-3"
-              >
-                <Input
-                  placeholder="Ví dụ: Khảo sát thói quen học tập"
-                  className="w-full"
-                />
-              </Form.Item>
+            {/* Basic Information - Compact inline layout */}
+            <Form.Item
+              label={<span className="text-sm">Nhập câu hỏi</span>}
+              name="title"
+              rules={[
+                { required: true, message: "Vui lòng nhập tiêu đề" },
+                { min: 3, message: "Tiêu đề phải có ít nhất 3 ký tự" },
+              ]}
+              className="mb-4"
+            >
+              <Input.TextArea
+                placeholder="Nhập câu hỏi..."
+                rows={3}
+                className="resize-none"
+              />
+            </Form.Item>
 
-              <Form.Item
-                label={<span className="text-sm">Mô tả khảo sát</span>}
-                name="description"
-                rules={[
-                  { required: true, message: "Vui lòng nhập mô tả" },
-                ]}
-                className="mb-3"
-              >
-                <Input.TextArea
-                  placeholder="Mô tả mục đích của khảo sát..."
-                  rows={2}
-                  className="resize-none"
-                />
-              </Form.Item>
-
-              <Form.Item
-                label={<span className="text-sm flex items-center gap-1">
-                  <span className="text-red-500">*</span> Mã khảo sát
-                </span>}
-                name="surveyCode"
-                rules={[
-                  { required: true, message: "Vui lòng nhập mã khảo sát" },
-                  { pattern: /^[A-Z_]+$/, message: "Mã chỉ được chứa chữ in hoa và dấu gạch dưới" },
-                ]}
-                className="mb-0"
-              >
-                <Input
-                  placeholder="VD: HABIT, INTEREST, LEARNING_STYLE"
-                  className="w-full"
-                />
-              </Form.Item>
-            </div>
+            {/* Question Type - Full width, no points field */}
+            <Form.Item
+              label={<span className="text-sm flex items-center gap-1">
+                <span className="text-red-500">*</span> Loại câu hỏi
+              </span>}
+              name="surveyCode"
+              rules={[
+                { required: true, message: "Chọn loại câu hỏi" },
+              ]}
+              className="mb-4"
+            >
+              <Select placeholder="Trắc nghiệm">
+                <Select.Option value="MULTIPLE_CHOICE">
+                  Trắc nghiệm
+                </Select.Option>
+                <Select.Option value="TEXT">
+                  Văn bản
+                </Select.Option>
+                <Select.Option value="NUMBER">
+                  Số
+                </Select.Option>
+                <Select.Option value="RATING">
+                  Đánh giá
+                </Select.Option>
+              </Select>
+            </Form.Item>
 
             {/* Questions Section */}
             <Form.List name="questions">
@@ -586,25 +570,6 @@ export default function SurveysClient() {
                           rows={2}
                           className="resize-none"
                         />
-                      </Form.Item>
-
-                      {/* Question Type */}
-                      <Form.Item
-                        {...restField}
-                        label={<span className="text-sm">Loại câu hỏi</span>}
-                        name={[name, "questionType"]}
-                        rules={[
-                          { required: true, message: "Vui lòng chọn loại câu hỏi" },
-                        ]}
-                        initialValue={1}
-                        className="mb-3"
-                      >
-                        <Select placeholder="Chọn loại câu hỏi">
-                          <Select.Option value={1}>Trắc nghiệm (Multiple Choice)</Select.Option>
-                          <Select.Option value={2}>Văn bản (Text)</Select.Option>
-                          <Select.Option value={3}>Số (Numeric)</Select.Option>
-                          <Select.Option value={4}>Đánh giá (Rating)</Select.Option>
-                        </Select>
                       </Form.Item>
 
                       {/* Answers Section */}
@@ -702,6 +667,19 @@ export default function SurveysClient() {
                         </Form.List>
                       </div>
 
+                      {/* Explanation */}
+                      <Form.Item
+                        {...restField}
+                        label={<span className="text-sm">Giải thích (tùy chọn)</span>}
+                        name={[name, "explanation"]}
+                        className="mb-0"
+                      >
+                        <Input.TextArea
+                          placeholder="Giải thích đáp án..."
+                          rows={2}
+                          className="resize-none"
+                        />
+                      </Form.Item>
                     </div>
                   ))}
 
