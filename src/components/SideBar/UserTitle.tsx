@@ -29,14 +29,10 @@ export const UserTitle: React.FC<UserTitleProps> = ({ collapsed }) => {
 
   // Load user profile on mount
   useEffect(() => {
-    console.log('UserTitle: Current profile:', profile);
     if (!profile) {
-      console.log('UserTitle: Loading profile...');
       loadProfile();
     }
   }, [profile, loadProfile]);
-
-  console.log('UserTitle render:', { profile, name: profile?.name, email: profile?.email });
 
   const displayName = profile?.name || "User";
   const email = profile?.email || "user@example.com";

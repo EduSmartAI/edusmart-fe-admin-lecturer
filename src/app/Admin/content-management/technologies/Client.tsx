@@ -16,9 +16,9 @@ import {
   Col,
   Card,
   Tooltip,
-  Badge,
   Popconfirm,
-  Cascader,
+  message,
+  Tag,
 } from "antd";
 import {
   PlusOutlined,
@@ -26,70 +26,34 @@ import {
   DeleteOutlined,
   SearchOutlined,
   ReloadOutlined,
-  AppstoreOutlined,
+  CodeOutlined,
+  FilterOutlined,
 } from "@ant-design/icons";
-import { useTechnologyStore, type Technology, type TechnologyType, type TechnologyCategory } from "EduSmart/stores/Admin";
-import { useNotification } from "EduSmart/Provider/NotificationProvider";
-import {
-  validateTechName,
-} from "EduSmart/utils/adminValidation";
+import { useTechnologyStore, type Technology, type TechnologyTypeValue } from "EduSmart/stores/Admin";
 import { formatErrorMessage } from "EduSmart/utils/adminErrorHandling";
+import { useDebouncedSearch } from "EduSmart/hooks/useDebounce";
 
 type ModalMode = "create" | "edit" | null;
 
-const TECH_TYPES: { label: string; value: TechnologyType; color: string }[] = [
-  { label: "Framework", value: "FRAMEWORK", color: "blue" },
-  { label: "Thư viện", value: "LIBRARY", color: "green" },
-  { label: "Công cụ", value: "TOOL", color: "orange" },
-  { label: "Nền tảng", value: "PLATFORM", color: "purple" },
+// Technology Types based on API specification
+const TECH_TYPES: { label: string; value: TechnologyTypeValue; color: string }[] = [
+  { label: "Ngôn ngữ lập trình", value: 1, color: "blue" },
+  { label: "Framework", value: 2, color: "green" },
+  { label: "Cơ sở dữ liệu", value: 3, color: "orange" },
+  { label: "Công cụ", value: 4, color: "purple" },
 ];
 
-const CATEGORIES = [
-  {
-    label: "Frontend",
-    value: "FRONTEND",
-    children: [
-      { label: "Frameworks", value: "FRONTEND_FRAMEWORKS" },
-      { label: "Libraries", value: "FRONTEND_LIBRARIES" },
-      { label: "Tools", value: "FRONTEND_TOOLS" },
-    ],
-  },
-  {
-    label: "Backend",
-    value: "BACKEND",
-    children: [
-      { label: "Frameworks", value: "BACKEND_FRAMEWORKS" },
-      { label: "Databases", value: "BACKEND_DATABASES" },
-      { label: "Tools", value: "BACKEND_TOOLS" },
-    ],
-  },
-  {
-    label: "Mobile",
-    value: "MOBILE",
-    children: [
-      { label: "iOS", value: "MOBILE_IOS" },
-      { label: "Android", value: "MOBILE_ANDROID" },
-      { label: "Cross-Platform", value: "MOBILE_CROSS" },
-    ],
-  },
-  {
-    label: "DevOps",
-    value: "DEVOPS",
-    children: [
-      { label: "CI/CD", value: "DEVOPS_CICD" },
-      { label: "Containers", value: "DEVOPS_CONTAINERS" },
-      { label: "Infrastructure", value: "DEVOPS_INFRA" },
-    ],
-  },
-];
+const getTechnologyTypeInfo = (type: TechnologyTypeValue) => {
+  return TECH_TYPES.find((t) => t.value === type) || TECH_TYPES[0];
+};
 
 export default function TechnologiesClient() {
   const [form] = Form.useForm();
-  const [searchText, setSearchText] = useState("");
+  const [searchValue, setSearchValue, debouncedSearch] = useDebouncedSearch("", 500);
   const [currentPage, setCurrentPage] = useState(1);
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [selectedTech, setSelectedTech] = useState<Technology | null>(null);
-  const messageApi = useNotification();
+  const [filterType, setFilterType] = useState<TechnologyTypeValue | undefined>(undefined);
 
   const {
     technologies,
@@ -97,6 +61,7 @@ export default function TechnologiesClient() {
     error,
     total,
     pageSize,
+    totalPages,
     fetchTechnologies,
     createTechnology,
     updateTechnology,
@@ -104,176 +69,166 @@ export default function TechnologiesClient() {
     clearError,
   } = useTechnologyStore();
 
-  // Load technologies on mount and when search/page changes
+  // Load technologies on mount and when search/page/filter changes
   useEffect(() => {
-    fetchTechnologies(currentPage, 20, searchText);
-  }, [currentPage, searchText, fetchTechnologies]);
+    fetchTechnologies(currentPage, 10, debouncedSearch, filterType);
+  }, [currentPage, debouncedSearch, filterType, fetchTechnologies]);
 
-  // Handle create/edit submission
-  const handleSubmit = async (values: { name: string; description?: string; type: TechnologyType; category?: TechnologyCategory[]; isActive?: boolean }) => {
+  const handleSubmit = async (values: {
+    technologyName: string;
+    description: string;
+    technologyType: TechnologyTypeValue;
+  }) => {
     try {
-      // Validate tech name
-      const nameError = validateTechName(values.name);
-      if (nameError) {
-        messageApi.error(nameError);
-        return;
-      }
-
       if (modalMode === "create") {
-        const result = await createTechnology({
-          name: values.name.trim(),
+        const success = await createTechnology({
+          technologyName: values.technologyName.trim(),
           description: values.description?.trim() || "",
-          type: values.type,
-          category: values.category?.[0] || "FRONTEND",
+          technologyType: values.technologyType,
         });
 
-        if (result) {
-          messageApi.success("Tạo công nghệ thành công!");
+        if (success) {
+          message.success("Tạo công nghệ thành công!");
           form.resetFields();
           setModalMode(null);
         } else {
-          messageApi.error("Không thể tạo công nghệ");
+          message.error("Không thể tạo công nghệ");
         }
       } else if (modalMode === "edit" && selectedTech) {
-        const result = await updateTechnology({
-          id: selectedTech.id,
-          name: values.name.trim(),
+        const success = await updateTechnology({
+          technologyId: selectedTech.technologyId,
+          technologyName: values.technologyName.trim(),
           description: values.description?.trim() || "",
-          type: values.type,
-          category: values.category?.[0] || selectedTech.category,
-          isActive: values.isActive ?? true,
+          technologyType: values.technologyType,
         });
 
-        if (result) {
-          messageApi.success("Cập nhật công nghệ thành công!");
+        if (success) {
+          message.success("Cập nhật công nghệ thành công!");
           form.resetFields();
           setModalMode(null);
           setSelectedTech(null);
         } else {
-          messageApi.error("Không thể cập nhật công nghệ");
+          message.error("Không thể cập nhật công nghệ");
         }
       }
     } catch (err) {
-      messageApi.error(formatErrorMessage(err));
+      message.error(formatErrorMessage(err));
     }
   };
 
-  // Handle delete
   const handleDelete = async (id: string) => {
     try {
       const success = await deleteTechnology(id);
       if (success) {
-        messageApi.success("Xóa công nghệ thành công!");
+        message.success("Xóa công nghệ thành công!");
+        // If we're on a page that no longer has items, go back one page
         if (technologies.length === 1 && currentPage > 1) {
           setCurrentPage(currentPage - 1);
-        } else {
-          fetchTechnologies(currentPage, pageSize, searchText);
         }
+      } else {
+        message.error("Không thể xóa công nghệ");
       }
     } catch (err) {
-      messageApi.error(formatErrorMessage(err));
+      message.error(formatErrorMessage(err));
     }
   };
 
-  // Handle edit modal open
   const handleEdit = (tech: Technology) => {
     setSelectedTech(tech);
     setModalMode("edit");
     form.setFieldsValue({
-      name: tech.name,
-      description: tech.description || "",
-      type: tech.type,
-      category: [tech.category],
-      isActive: tech.isActive,
+      technologyName: tech.technologyName,
+      description: tech.description,
+      technologyType: tech.technologyType,
     });
   };
 
-  // Handle create modal open
   const handleCreate = () => {
     form.resetFields();
     setSelectedTech(null);
     setModalMode("create");
   };
 
-  // Handle modal close
   const handleModalClose = () => {
     setModalMode(null);
     setSelectedTech(null);
     form.resetFields();
   };
 
-  const getTypeColor = (type: TechnologyType) => {
-    return TECH_TYPES.find((t) => t.value === type)?.color || "default";
-  };
-
-  const getTypeLabel = (type: TechnologyType) => {
-    return TECH_TYPES.find((t) => t.value === type)?.label || type;
-  };
-
-  // Table columns
   const columns = [
     {
-      title: "Tên",
-      dataIndex: "name",
-      key: "name",
-      width: "30%",
-      render: (text: string) => <span className="font-medium">{text}</span>,
+      title: "Tên công nghệ",
+      dataIndex: "technologyName",
+      key: "technologyName",
+      width: "25%",
+      render: (text: string) => (
+        <span className="font-semibold text-gray-900">{text}</span>
+      ),
+    },
+    {
+      title: "Mô tả",
+      dataIndex: "description",
+      key: "description",
+      width: "35%",
+      render: (text: string) => (
+        <span className="text-gray-600 text-sm">{text || "Không có mô tả"}</span>
+      ),
     },
     {
       title: "Loại",
-      dataIndex: "type",
-      key: "type",
-      width: "15%",
-      render: (type: TechnologyType) => (
-        <Badge color={getTypeColor(type)} text={getTypeLabel(type)} />
-      ),
-    },
-    {
-      title: "Danh mục",
-      dataIndex: "category",
-      key: "category",
+      dataIndex: "technologyType",
+      key: "technologyType",
       width: "20%",
-      render: (category: TechnologyCategory) => (
-        <Badge color="cyan" text={category} />
-      ),
+      render: (type: TechnologyTypeValue, record: Technology) => {
+        const typeInfo = getTechnologyTypeInfo(type);
+        return (
+          <Tag color={typeInfo.color} className="font-medium">
+            {record.technologyTypeName}
+          </Tag>
+        );
+      },
     },
     {
-      title: "Trạng thái",
-      dataIndex: "isActive",
-      key: "isActive",
+      title: "Ngày tạo",
+      dataIndex: "createdAt",
+      key: "createdAt",
       width: "15%",
-      render: (isActive: boolean) => (
-        <Badge status={isActive ? "success" : "default"} text={isActive ? "Hoạt động" : "Ngưng"} />
+      render: (date: string) => (
+        <span className="text-gray-500 text-sm">
+          {new Date(date).toLocaleDateString("vi-VN")}
+        </span>
       ),
     },
     {
       title: "Thao tác",
       key: "actions",
-      width: "20%",
+      width: "10%",
+      fixed: "right" as const,
       render: (_: unknown, record: Technology) => (
         <Space size="small">
           <Tooltip title="Chỉnh sửa">
             <Button
               type="text"
               icon={<EditOutlined />}
+              size="small"
               onClick={() => handleEdit(record)}
-              className="text-blue-600"
+              className="text-blue-600 hover:bg-blue-50"
             />
           </Tooltip>
           <Popconfirm
             title="Xóa công nghệ?"
-            description="Hành động này không thể hoàn tác."
-            onConfirm={() => handleDelete(record.id)}
-            okText="Có"
-            cancelText="Không"
+            description={`Bạn có chắc muốn xóa "${record.technologyName}"?`}
+            onConfirm={() => handleDelete(record.technologyId)}
+            okText="Xóa"
+            cancelText="Hủy"
             okButtonProps={{ danger: true }}
           >
             <Tooltip title="Xóa">
               <Button
                 type="text"
                 icon={<DeleteOutlined />}
+                size="small"
                 danger
-                loading={isLoading}
               />
             </Tooltip>
           </Popconfirm>
@@ -282,6 +237,15 @@ export default function TechnologiesClient() {
     },
   ];
 
+  // Calculate statistics
+  const stats = {
+    total: total,
+    programmingLanguage: technologies.filter((t) => t.technologyType === 1).length,
+    framework: technologies.filter((t) => t.technologyType === 2).length,
+    database: technologies.filter((t) => t.technologyType === 3).length,
+    tool: technologies.filter((t) => t.technologyType === 4).length,
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
@@ -289,52 +253,48 @@ export default function TechnologiesClient() {
         <div className="mb-6">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-3">
-              <AppstoreOutlined className="text-2xl text-green-600" />
-              <h1 className="text-3xl font-bold text-gray-900">Công Nghệ</h1>
+              <CodeOutlined className="text-3xl text-blue-600" />
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900 m-0">Quản lý Công nghệ</h1>
+                <p className="text-gray-600 text-sm m-0">
+                  Quản lý ngôn ngữ lập trình, framework, database và công cụ
+                </p>
+              </div>
             </div>
           </div>
-          <p className="text-gray-600">
-            Quản lý công nghệ, framework và công cụ
-          </p>
         </div>
 
         {/* Stats Cards */}
         <Row gutter={16} className="mb-6">
           <Col xs={24} sm={12} lg={6}>
-            <Card className="shadow-sm hover:shadow-md transition-shadow">
+            <Card className="shadow-sm hover:shadow-md transition-shadow border-l-4 border-blue-500">
               <div className="text-center">
-                <div className="text-3xl font-bold text-green-600">{total}</div>
+                <div className="text-3xl font-bold text-blue-600">{stats.total}</div>
                 <div className="text-gray-600 text-sm mt-1">Tổng số</div>
               </div>
             </Card>
           </Col>
           <Col xs={24} sm={12} lg={6}>
-            <Card className="shadow-sm hover:shadow-md transition-shadow">
+            <Card className="shadow-sm hover:shadow-md transition-shadow border-l-4 border-blue-400">
               <div className="text-center">
-                <div className="text-3xl font-bold text-blue-600">
-                  {technologies.filter((t) => t.category === "FRONTEND").length}
-                </div>
-                <div className="text-gray-600 text-sm mt-1">Frontend</div>
+                <div className="text-3xl font-bold text-blue-600">{stats.programmingLanguage}</div>
+                <div className="text-gray-600 text-sm mt-1">Ngôn ngữ lập trình</div>
               </div>
             </Card>
           </Col>
           <Col xs={24} sm={12} lg={6}>
-            <Card className="shadow-sm hover:shadow-md transition-shadow">
+            <Card className="shadow-sm hover:shadow-md transition-shadow border-l-4 border-green-400">
               <div className="text-center">
-                <div className="text-3xl font-bold text-orange-600">
-                  {technologies.filter((t) => t.category === "BACKEND").length}
-                </div>
-                <div className="text-gray-600 text-sm mt-1">Backend</div>
+                <div className="text-3xl font-bold text-green-600">{stats.framework}</div>
+                <div className="text-gray-600 text-sm mt-1">Framework</div>
               </div>
             </Card>
           </Col>
           <Col xs={24} sm={12} lg={6}>
-            <Card className="shadow-sm hover:shadow-md transition-shadow">
+            <Card className="shadow-sm hover:shadow-md transition-shadow border-l-4 border-orange-400">
               <div className="text-center">
-                <div className="text-3xl font-bold text-purple-600">
-                  {technologies.filter((t) => t.category === "DEVOPS").length}
-                </div>
-                <div className="text-gray-600 text-sm mt-1">DevOps</div>
+                <div className="text-3xl font-bold text-orange-600">{stats.database}</div>
+                <div className="text-gray-600 text-sm mt-1">Cơ sở dữ liệu</div>
               </div>
             </Card>
           </Col>
@@ -355,23 +315,42 @@ export default function TechnologiesClient() {
         {/* Toolbar */}
         <Card className="mb-6 shadow-sm">
           <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between">
-            <Input
-              placeholder="Tìm kiếm công nghệ..."
-              prefix={<SearchOutlined />}
-              value={searchText}
-              onChange={(e) => {
-                setSearchText(e.target.value);
-                setCurrentPage(1);
-              }}
-              allowClear
-              className="w-full md:w-64"
-            />
+            <div className="flex flex-col sm:flex-row gap-3 flex-1">
+              <Input
+                placeholder="Tìm kiếm theo tên công nghệ..."
+                prefix={<SearchOutlined />}
+                value={searchValue}
+                onChange={(e) => {
+                  setSearchValue(e.target.value);
+                  setCurrentPage(1);
+                }}
+                allowClear
+                className="w-full sm:w-64"
+              />
+              <Select
+                placeholder="Lọc theo loại"
+                allowClear
+                value={filterType}
+                onChange={(value) => {
+                  setFilterType(value);
+                  setCurrentPage(1);
+                }}
+                className="w-full sm:w-48"
+                suffixIcon={<FilterOutlined />}
+              >
+                {TECH_TYPES.map((type) => (
+                  <Select.Option key={type.value} value={type.value}>
+                    {type.label}
+                  </Select.Option>
+                ))}
+              </Select>
+            </div>
             <Space>
               <Tooltip title="Làm mới">
                 <Button
                   icon={<ReloadOutlined />}
                   loading={isLoading}
-                  onClick={() => fetchTechnologies(currentPage, pageSize, searchText)}
+                  onClick={() => fetchTechnologies(currentPage, pageSize, debouncedSearch, filterType)}
                 />
               </Tooltip>
               <Button
@@ -379,7 +358,7 @@ export default function TechnologiesClient() {
                 icon={<PlusOutlined />}
                 onClick={handleCreate}
                 size="large"
-                className="bg-green-600 hover:bg-green-700"
+                className="bg-blue-600 hover:bg-blue-700"
               >
                 Thêm công nghệ
               </Button>
@@ -397,22 +376,28 @@ export default function TechnologiesClient() {
             </div>
           ) : technologies.length === 0 ? (
             <Empty
-              description="Chưa có công nghệ nào"
+              description={
+                debouncedSearch || filterType
+                  ? "Không tìm thấy công nghệ nào"
+                  : "Chưa có công nghệ nào"
+              }
               style={{ paddingTop: 48, paddingBottom: 48 }}
             >
-              <Button
-                type="primary"
-                onClick={handleCreate}
-                icon={<PlusOutlined />}
-              >
-                Thêm công nghệ đầu tiên
-              </Button>
+              {!debouncedSearch && !filterType && (
+                <Button
+                  type="primary"
+                  onClick={handleCreate}
+                  icon={<PlusOutlined />}
+                >
+                  Thêm công nghệ đầu tiên
+                </Button>
+              )}
             </Empty>
           ) : (
             <Table
               columns={columns}
               dataSource={technologies}
-              rowKey="id"
+              rowKey="technologyId"
               loading={isLoading}
               pagination={{
                 current: currentPage,
@@ -421,9 +406,11 @@ export default function TechnologiesClient() {
                 onChange: setCurrentPage,
                 showSizeChanger: false,
                 showTotal: (total, range) =>
-                  `${range[0]} đến ${range[1]} trong tổng ${total} công nghệ`,
+                  `${range[0]}-${range[1]} trong tổng số ${total} công nghệ`,
+                showQuickJumper: totalPages > 5,
               }}
               bordered
+              scroll={{ x: 1000 }}
             />
           )}
         </Card>
@@ -431,121 +418,104 @@ export default function TechnologiesClient() {
 
       {/* Create/Edit Modal */}
       <Modal
-        title={
-          modalMode === "create"
-            ? "Thêm công nghệ"
-            : "Chỉnh sửa công nghệ"
-        }
+        title={null}
         open={modalMode !== null}
         onCancel={handleModalClose}
         footer={null}
         width={600}
         destroyOnClose
+        centered
+        styles={{
+          body: {
+            padding: 0,
+          },
+        }}
       >
+        <div className="px-6 py-5 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+              <CodeOutlined className="text-xl text-white" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 m-0">
+                {modalMode === "create" ? "Thêm công nghệ mới" : "Chỉnh sửa công nghệ"}
+              </h2>
+              <p className="text-sm text-gray-600 m-0">
+                {modalMode === "create"
+                  ? "Thêm ngôn ngữ lập trình, framework hoặc công cụ mới"
+                  : "Cập nhật thông tin công nghệ"}
+              </p>
+            </div>
+          </div>
+        </div>
+
         <Form
           form={form}
           layout="vertical"
           onFinish={handleSubmit}
           autoComplete="off"
-          className="mt-6"
+          className="px-6 py-6"
         >
           <Form.Item
-            label="Tên công nghệ"
-            name="name"
+            label={<span className="font-medium">Tên công nghệ</span>}
+            name="technologyName"
             rules={[
-              {
-                required: true,
-                message: "Vui lòng nhập tên công nghệ",
-              },
-              {
-                min: 2,
-                message: "Tên phải có ít nhất 2 ký tự",
-              },
-              {
-                max: 255,
-                message: "Tên không được vượt quá 255 ký tự",
-              },
+              { required: true, message: "Vui lòng nhập tên công nghệ" },
+              { min: 2, message: "Tên phải có ít nhất 2 ký tự" },
+              { max: 100, message: "Tên không được quá 100 ký tự" },
             ]}
           >
             <Input
-              placeholder="Ví dụ: React, Node.js, Docker"
+              placeholder="VD: JavaScript, React, MySQL..."
               size="large"
             />
           </Form.Item>
 
           <Form.Item
-            label="Loại"
-            name="type"
+            label={<span className="font-medium">Loại công nghệ</span>}
+            name="technologyType"
             rules={[{ required: true, message: "Vui lòng chọn loại" }]}
           >
-            <Select size="large" placeholder="Chọn loại công nghệ">
+            <Select placeholder="Chọn loại công nghệ" size="large">
               {TECH_TYPES.map((type) => (
                 <Select.Option key={type.value} value={type.value}>
-                  <Badge color={type.color} text={type.label} />
+                  {type.label}
                 </Select.Option>
               ))}
             </Select>
           </Form.Item>
 
           <Form.Item
-            label="Danh mục"
-            name="category"
-            rules={[{ required: true, message: "Vui lòng chọn danh mục" }]}
-          >
-            <Cascader
-              options={CATEGORIES}
-              placeholder="Chọn danh mục chính"
-              changeOnSelect={false}
-            />
-          </Form.Item>
-
-          <Form.Item
-            label="Mô tả"
+            label={<span className="font-medium">Mô tả</span>}
             name="description"
             rules={[
-              {
-                max: 1000,
-                message: "Mô tả không được vượt quá 1000 ký tự",
-              },
+              { required: true, message: "Vui lòng nhập mô tả" },
+              { min: 10, message: "Mô tả phải có ít nhất 10 ký tự" },
+              { max: 500, message: "Mô tả không được quá 500 ký tự" },
             ]}
           >
             <Input.TextArea
-              placeholder="Nhập mô tả chi tiết về công nghệ này..."
+              placeholder="Mô tả chi tiết về công nghệ này..."
               rows={4}
               showCount
+              maxLength={500}
             />
           </Form.Item>
 
-          {modalMode === "edit" && (
-            <Form.Item
-              label="Trạng thái"
-              name="isActive"
-              valuePropName="checked"
+          <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
+            <Button onClick={handleModalClose} size="large">
+              Hủy
+            </Button>
+            <Button
+              type="primary"
+              htmlType="submit"
+              loading={isLoading}
+              size="large"
+              className="bg-blue-600 hover:bg-blue-700"
             >
-              <div className="flex items-center gap-2">
-                <Badge status={form.getFieldValue("isActive") ? "success" : "default"} />
-                <span>
-                  {form.getFieldValue("isActive")
-                    ? "Hoạt động"
-                    : "Ngưng"}
-                </span>
-              </div>
-            </Form.Item>
-          )}
-
-          <Form.Item className="mb-0">
-            <Space className="w-full justify-end gap-2">
-              <Button onClick={handleModalClose}>Hủy</Button>
-              <Button
-                type="primary"
-                htmlType="submit"
-                loading={isLoading}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                {modalMode === "create" ? "Thêm" : "Cập nhật"}
-              </Button>
-            </Space>
-          </Form.Item>
+              {modalMode === "create" ? "Thêm công nghệ" : "Cập nhật"}
+            </Button>
+          </div>
         </Form>
       </Modal>
     </div>

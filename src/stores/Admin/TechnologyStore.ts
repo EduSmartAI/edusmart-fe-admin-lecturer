@@ -13,41 +13,49 @@ const getHeaders = () => {
   };
 };
 
-export type TechnologyType = "FRAMEWORK" | "LIBRARY" | "TOOL" | "PLATFORM";
-export type TechnologyCategory = "FRONTEND" | "BACKEND" | "MOBILE" | "DEVOPS";
+// Technology Type Enum matching API
+// 1 = Programming Language
+// 2 = Framework
+// 3 = Database
+// 4 = Tool
+export type TechnologyTypeValue = 1 | 2 | 3 | 4;
 
 export interface Technology {
-  id: string;
-  name: string;
-  description?: string;
-  type: TechnologyType;
-  category: TechnologyCategory;
-  createdDate?: string;
-  modifiedDate?: string;
-  isActive: boolean;
+  technologyId: string;
+  technologyName: string;
+  description: string;
+  technologyType: TechnologyTypeValue;
+  technologyTypeName: string;
+  createdAt: string;
 }
 
 export interface TechnologyCreatePayload {
-  name: string;
-  description?: string;
-  type: TechnologyType;
-  category: TechnologyCategory;
+  technologyName: string;
+  description: string;
+  technologyType: TechnologyTypeValue;
 }
 
 export interface TechnologyUpdatePayload {
-  id: string;
-  name: string;
-  description?: string;
-  type: TechnologyType;
-  category: TechnologyCategory;
-  isActive: boolean;
+  technologyId: string;
+  technologyName: string;
+  description: string;
+  technologyType: TechnologyTypeValue;
 }
 
 export interface TechnologyListResponse {
-  data: Technology[];
-  total: number;
-  page: number;
-  pageSize: number;
+  response: {
+    items: Technology[];
+    totalCount: number;
+    pageNumber: number;
+    pageSize: number;
+    totalPages: number;
+    hasPreviousPage: boolean;
+    hasNextPage: boolean;
+  };
+  success: boolean;
+  messageId: string;
+  message: string;
+  detailErrors: string[] | null;
 }
 
 export interface TechnologyState {
@@ -59,12 +67,15 @@ export interface TechnologyState {
   total: number;
   currentPage: number;
   pageSize: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
 
   // Actions
-  fetchTechnologies: (page?: number, pageSize?: number, search?: string) => Promise<void>;
+  fetchTechnologies: (page?: number, pageSize?: number, search?: string, technologyType?: TechnologyTypeValue) => Promise<void>;
   getTechnologyById: (id: string) => Promise<Technology | null>;
-  createTechnology: (payload: TechnologyCreatePayload) => Promise<Technology | null>;
-  updateTechnology: (payload: TechnologyUpdatePayload) => Promise<Technology | null>;
+  createTechnology: (payload: TechnologyCreatePayload) => Promise<boolean>;
+  updateTechnology: (payload: TechnologyUpdatePayload) => Promise<boolean>;
   deleteTechnology: (id: string) => Promise<boolean>;
   clearError: () => void;
   clearSelected: () => void;
@@ -74,10 +85,10 @@ export interface TechnologyState {
  * Technology Store
  * Manages CRUD operations for technologies
  * APIs:
- * - POST /quiz/api/v1/Technology/InsertTechnology
- * - PUT /quiz/api/v1/Technology/{id}
- * - DELETE /quiz/api/v1/Technology/{id}
- * - GET /quiz/api/v1/ExternalQuiz/SelectTechnologies
+ * - POST /student/api/v1/Admin/InsertTechnology
+ * - GET /student/api/v1/Admin/SelectTechnologies
+ * - PUT /student/api/v1/Admin/UpdateTechnology
+ * - DELETE /student/api/v1/Admin/DeleteTechnology
  */
 export const useTechnologyStore = create<TechnologyState>((set, get) => ({
   technologies: [],
@@ -86,79 +97,76 @@ export const useTechnologyStore = create<TechnologyState>((set, get) => ({
   selectedTechnology: null,
   total: 0,
   currentPage: 1,
-  pageSize: 20,
+  pageSize: 10,
+  totalPages: 0,
+  hasNextPage: false,
+  hasPreviousPage: false,
 
-  fetchTechnologies: async (page = 1, pageSize = 20, search = "") => {
+  fetchTechnologies: async (page = 1, pageSize = 10, search = "", technologyType?: TechnologyTypeValue) => {
     set({ isLoading: true, error: null });
     try {
-      const fullUrl = `${API_BASE_URL}/quiz/api/v1/ExternalQuiz/SelectTechnologies`;
-      const requestParams = {
-        pageNumber: page - 1, // Convert from 1-based to 0-based
-        pageSize: pageSize,
-        searchTerm: search,
+      const params: Record<string, unknown> = {
+        PageNumber: page,
+        PageSize: pageSize,
       };
 
-      // API: GET /quiz/api/v1/ExternalQuiz/SelectTechnologies
-      // Note: Backend uses 0-based pageNumber, so we convert from 1-based
-      const response = await axios.get(fullUrl, {
-        params: requestParams,
-        headers: getHeaders(),
-      });
+      if (search) {
+        params.SearchTerm = search;
+      }
 
-      // Extract data from response - backend returns { response: [], success: true, ... }
-      const data = Array.isArray(response.data) 
-        ? response.data 
-        : response.data?.response || response.data?.data || [];
+      if (technologyType) {
+        params.TechnologyType = technologyType;
+      }
 
-      set({
-        technologies: data.map((t: Record<string, unknown>) => ({
-          id: t.id || t.technologyId,
-          name: t.technologyName || t.name,
-          description: t.description,
-          type: t.technologyType === 0 ? "FRAMEWORK" : "LIBRARY",
-          category: t.category || "FRONTEND",
-          isActive: t.isActive ?? true,
-          createdDate: t.createdDate,
-          modifiedDate: t.modifiedDate,
-        })) || [],
-        total: response.data?.total || data.length || 0,
-        currentPage: page,
-        pageSize: pageSize,
-        isLoading: false,
-      });
+      // API: GET /student/api/v1/Admin/SelectTechnologies
+      const response = await axios.get<TechnologyListResponse>(
+        `${API_BASE_URL}/student/api/v1/Admin/SelectTechnologies`,
+        {
+          params,
+          headers: getHeaders(),
+        }
+      );
+
+      if (response.data.success && response.data.response) {
+        const { items, totalCount, pageNumber, pageSize: size, totalPages, hasPreviousPage, hasNextPage } = response.data.response;
+
+        set({
+          technologies: items || [],
+          total: totalCount,
+          currentPage: pageNumber,
+          pageSize: size,
+          totalPages,
+          hasPreviousPage,
+          hasNextPage,
+          isLoading: false,
+        });
+      } else {
+        set({
+          technologies: [],
+          total: 0,
+          isLoading: false,
+          error: response.data.message || "Failed to fetch technologies",
+        });
+      }
     } catch (error: unknown) {
       const err = error as { 
-        response?: { status?: number; statusText?: string; data?: unknown }; 
-        config?: { url?: string; method?: string; params?: unknown };
+        response?: { status?: number; data?: { message?: string } }; 
         message?: string;
       };
-      const errorMessage =
-        error instanceof Error ? error.message : "Failed to fetch technologies";
-      console.error("[TechnologyStore] Error fetching technologies:", {
-        message: errorMessage,
-        status: err.response?.status,
-        statusText: err.response?.statusText,
-        data: err.response?.data,
-        config: {
-          url: err.config?.url,
-          method: err.config?.method,
-          params: err.config?.params,
-        },
-      });
-      set({ error: errorMessage, isLoading: false });
+      const errorMessage = err.response?.data?.message || err.message || "Failed to fetch technologies";
+      console.error("[TechnologyStore] Error fetching technologies:", error);
+      set({ error: errorMessage, isLoading: false, technologies: [] });
     }
   },
 
   getTechnologyById: async (id: string) => {
-    set({ isLoading: true, error: null });
     try {
-      const tech = get().technologies.find((t) => t.id === id) || null;
-      set({ selectedTechnology: tech, isLoading: false });
+      const tech = get().technologies.find((t) => t.technologyId === id) || null;
+      set({ selectedTechnology: tech });
       return tech;
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Failed to fetch technology";
-      set({ error: errorMessage, isLoading: false });
+      const errorMessage = error instanceof Error ? error.message : "Failed to fetch technology";
+      set({ error: errorMessage });
       console.error("[TechnologyStore] Error fetching technology:", error);
       return null;
     }
@@ -167,107 +175,101 @@ export const useTechnologyStore = create<TechnologyState>((set, get) => ({
   createTechnology: async (payload: TechnologyCreatePayload) => {
     set({ isLoading: true, error: null });
     try {
-      // API: POST /quiz/api/v1/Technology/InsertTechnology
+      // API: POST /student/api/v1/Admin/InsertTechnology
       const response = await axios.post(
-        `${API_BASE_URL}/quiz/api/v1/Technology/InsertTechnology`,
-        {
-          technologyName: payload.name,
-          description: payload.description,
-          technologyType: 0, // Default type mapping
-        },
+        `${API_BASE_URL}/student/api/v1/Admin/InsertTechnology`,
+        payload,
         { headers: getHeaders() }
       );
 
-      const newTech: Technology = {
-        id: response.data?.id || response.data?.technologyId || Date.now().toString(),
-        name: response.data?.technologyName || payload.name,
-        description: response.data?.description || payload.description,
-        type: payload.type,
-        category: payload.category,
-        isActive: response.data?.isActive ?? true,
-        createdDate: response.data?.createdDate,
+      if (response.data.success || response.status === 200) {
+        // Refresh the list after creation
+        await get().fetchTechnologies(get().currentPage, get().pageSize);
+        set({ isLoading: false });
+        return true;
+      } else {
+        set({ 
+          error: response.data.message || "Failed to create technology", 
+          isLoading: false 
+        });
+        return false;
+      }
+    } catch (error: unknown) {
+      const err = error as { 
+        response?: { data?: { message?: string } }; 
+        message?: string 
       };
-
-      const currentTechs = get().technologies;
-      set({
-        technologies: [newTech, ...currentTechs],
-        isLoading: false,
-      });
-      return newTech;
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Failed to create technology";
+      const errorMessage = err.response?.data?.message || err.message || "Failed to create technology";
       set({ error: errorMessage, isLoading: false });
       console.error("[TechnologyStore] Error creating technology:", error);
-      return null;
+      return false;
     }
   },
 
   updateTechnology: async (payload: TechnologyUpdatePayload) => {
     set({ isLoading: true, error: null });
     try {
-      // API: PUT /quiz/api/v1/Technology/{id}
-      await axios.put(
-        `${API_BASE_URL}/quiz/api/v1/Technology/${payload.id}`,
-        {
-          id: payload.id,
-          technologyName: payload.name,
-          description: payload.description,
-          technologyType: 0,
-          category: payload.category,
-          isActive: payload.isActive ?? true,
-        },
+      // API: PUT /student/api/v1/Admin/UpdateTechnology
+      const response = await axios.put(
+        `${API_BASE_URL}/student/api/v1/Admin/UpdateTechnology`,
+        payload,
         { headers: getHeaders() }
       );
 
-      const updatedTechs = get().technologies.map((t) =>
-        t.id === payload.id
-          ? {
-              ...t,
-              name: payload.name,
-              description: payload.description,
-              type: payload.type,
-              category: payload.category,
-              isActive: payload.isActive,
-            }
-          : t
-      );
-
-      set({
-        technologies: updatedTechs,
-        selectedTechnology: updatedTechs.find((t) => t.id === payload.id) || null,
-        isLoading: false,
-      });
-
-      return updatedTechs.find((t) => t.id === payload.id) || null;
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Failed to update technology";
+      if (response.data.success || response.status === 200) {
+        // Refresh the list after update
+        await get().fetchTechnologies(get().currentPage, get().pageSize);
+        set({ isLoading: false });
+        return true;
+      } else {
+        set({ 
+          error: response.data.message || "Failed to update technology", 
+          isLoading: false 
+        });
+        return false;
+      }
+    } catch (error: unknown) {
+      const err = error as { 
+        response?: { data?: { message?: string } }; 
+        message?: string 
+      };
+      const errorMessage = err.response?.data?.message || err.message || "Failed to update technology";
       set({ error: errorMessage, isLoading: false });
       console.error("[TechnologyStore] Error updating technology:", error);
-      return null;
+      return false;
     }
   },
 
   deleteTechnology: async (id: string) => {
     set({ isLoading: true, error: null });
     try {
-      // API: DELETE /quiz/api/v1/Technology/{id}
-      await axios.delete(
-        `${API_BASE_URL}/quiz/api/v1/Technology/${id}`,
-        { headers: getHeaders() }
+      // API: DELETE /student/api/v1/Admin/DeleteTechnology?technologyId={id}
+      const response = await axios.delete(
+        `${API_BASE_URL}/student/api/v1/Admin/DeleteTechnology`,
+        { 
+          params: { technologyId: id },
+          headers: getHeaders() 
+        }
       );
 
-      const updatedTechs = get().technologies.filter((t) => t.id !== id);
-      set({
-        technologies: updatedTechs,
-        selectedTechnology: get().selectedTechnology?.id === id ? null : get().selectedTechnology,
-        isLoading: false,
-      });
-      return true;
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Failed to delete technology";
+      if (response.data.success || response.status === 200) {
+        // Refresh the list after deletion
+        await get().fetchTechnologies(get().currentPage, get().pageSize);
+        set({ isLoading: false });
+        return true;
+      } else {
+        set({ 
+          error: response.data.message || "Failed to delete technology", 
+          isLoading: false 
+        });
+        return false;
+      }
+    } catch (error: unknown) {
+      const err = error as { 
+        response?: { data?: { message?: string } }; 
+        message?: string 
+      };
+      const errorMessage = err.response?.data?.message || err.message || "Failed to delete technology";
       set({ error: errorMessage, isLoading: false });
       console.error("[TechnologyStore] Error deleting technology:", error);
       return false;

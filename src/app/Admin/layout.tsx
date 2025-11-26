@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import React, { useEffect, useState, useRef } from "react";
 import { Spin } from "antd";
 import BaseScreenAdmin from "EduSmart/layout/BaseScreenAdmin";
 import { useUserProfileStore } from "EduSmart/stores/User/UserProfileStore";
@@ -11,52 +10,48 @@ interface AdminLayoutProps {
 }
 
 export default function AdminLayout({ children }: AdminLayoutProps) {
-  const router = useRouter();
-  const { profile, loadProfile, isLoading } = useUserProfileStore();
-  const [isChecking, setIsChecking] = useState(true);
+  const { isLoading } = useUserProfileStore();
+  const [isReady, setIsReady] = useState(false);
+  const hasLoadedRef = useRef(false);
 
   useEffect(() => {
-    const checkAuth = async () => {
+    // Only load profile once
+    if (hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
+
+    const loadUserProfile = async () => {
       try {
-        // Load profile if not already loaded
-        if (!profile && !isLoading) {
-          await loadProfile();
-        }
-
-        // After loading, check if user is authenticated and has Admin role
-        const currentProfile = useUserProfileStore.getState().profile;
+        const state = useUserProfileStore.getState();
         
-        if (!currentProfile) {
-          // Not authenticated - redirect to login
-          router.push("/Login?error=unauthorized");
+        // If profile already loaded, just mark as ready
+        if (state.profile) {
+          setIsReady(true);
           return;
         }
 
-        // Block Student role explicitly
-        if (currentProfile.role === "Student") {
-          router.push("/Login?error=student_not_allowed");
-          return;
-        }
-
-        if (currentProfile.role !== "Admin") {
-          // Not an admin - redirect to login
-          router.push("/Login?error=unauthorized");
-          return;
-        }
-
-        // User is authenticated and is Admin
-        setIsChecking(false);
+        // Load profile
+        await state.loadProfile();
+        
+        // Wait for state to update
+        await new Promise(resolve => setTimeout(resolve, 50));
+        
+        // Trust middleware for authorization
+        // Middleware already verified this is an Admin, so just load the profile for display
+        // If profile fails to load, still render the page (middleware already authorized)
+        setIsReady(true);
+        
       } catch (error) {
-        console.error('[AdminLayout] Auth check failed:', error);
-        router.push("/Login?error=unauthorized");
+        console.error('[AdminLayout] Error loading profile:', error);
+        // Still mark as ready - middleware already authorized this request
+        setIsReady(true);
       }
     };
 
-    checkAuth();
-  }, [profile, loadProfile, isLoading, router]);
+    loadUserProfile();
+  }, []);
 
-  // Show loading spinner while checking authentication
-  if (isChecking || isLoading) {
+  // Show loading spinner while loading profile
+  if (!isReady || isLoading) {
     return (
       <div
         style={{
@@ -72,11 +67,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         </Spin>
       </div>
     );
-  }
-
-  // Only render content if user is authenticated and is Admin
-  if (!profile || profile.role !== "Admin") {
-    return null;
   }
 
   return (

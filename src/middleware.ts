@@ -35,7 +35,11 @@ function getSidFromReq(req: NextRequest): string | null {
 }
 
 function getIdTokenFromReq(req: NextRequest): string | null {
-  return req.cookies.get("__Host-idt")?.value ?? null;
+  return (
+    req.cookies.get("__Host-idt")?.value ??
+    req.cookies.get("idt")?.value ??
+    null
+  );
 }
 
 function decodeJwtPayload(jwt: string) {
@@ -61,7 +65,6 @@ export async function middleware(req: NextRequest) {
   const sid = getSidFromReq(req);
   const idt = getIdTokenFromReq(req);
   const claims = idt ? decodeJwtPayload(idt) : null;
-  console.log("Token claims:", claims);
 
   // Nếu truy cập root "/" mà chưa có token hoặc không có role → redirect về /Login
   if (pathname === "/" && (!sid || !idt || !claims?.role)) {
@@ -79,13 +82,16 @@ export async function middleware(req: NextRequest) {
   ) {
     const url = req.nextUrl.clone();
     const role = claims.role;
+    const roleLower = typeof role === 'string' ? role.toLowerCase() : '';
 
-    if (role === "Lecturer") {
+    if (roleLower === "lecturer" || roleLower === "teacher") {
       url.pathname = "/Lecturer";
-    } else if (role === "Admin") {
+    } else if (roleLower === "admin") {
       url.pathname = "/Admin";
     } else {
-      return NextResponse.next();
+      // Only Admin and Lecturer allowed - invalid role, redirect to login
+      console.log('Unknown role, redirecting to login:', role);
+      url.pathname = "/Login";
     }
 
     return NextResponse.redirect(url);
@@ -112,9 +118,10 @@ export async function middleware(req: NextRequest) {
   // 4) Check role-based access for protected paths - Only Admin and Lecturer allowed
   if (isProtectedPath(pathname) && sid && claims) {
     const role = claims.role;
-
+    const roleLower = typeof role === 'string' ? role.toLowerCase() : '';
+    
     // Only allow Lecturer and Admin roles
-    if (role !== "Lecturer" && role !== "Admin") {
+    if (roleLower !== "lecturer" && roleLower !== "admin" && roleLower !== "teacher") {
       const url = req.nextUrl.clone();
       url.pathname = "/Login";
       return NextResponse.redirect(url);
@@ -123,8 +130,8 @@ export async function middleware(req: NextRequest) {
     // Lecturer can access Lecturer pages, Admin can access both
     if (
       pathname.startsWith("/Lecturer") &&
-      role !== "Lecturer" &&
-      role !== "Admin"
+      roleLower !== "lecturer" &&
+      roleLower !== "admin" && roleLower !== "teacher"
     ) {
       const url = req.nextUrl.clone();
       url.pathname = "/404";
@@ -132,7 +139,7 @@ export async function middleware(req: NextRequest) {
     }
 
     // Only Admin can access Admin pages
-    if (pathname.startsWith("/Admin") && role !== "Admin") {
+    if (pathname.startsWith("/Admin") && roleLower !== "admin") {
       const url = req.nextUrl.clone();
       url.pathname = "/404";
       return NextResponse.redirect(url);

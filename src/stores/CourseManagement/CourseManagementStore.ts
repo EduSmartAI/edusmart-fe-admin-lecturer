@@ -367,19 +367,6 @@ export const useCourseManagementStore = create<CourseManagementState>()(
           if (response.success && response.response) {
             const { data, ...paginationData } = response.response;
             
-            console.log('📊 fetchCoursesByLecturer API Response:', {
-              success: response.success,
-              totalCount: paginationData.totalCount,
-              dataLength: data?.length,
-              firstCourse: data?.[0] ? {
-                courseId: data[0].courseId,
-                title: data[0].title,
-                courseImageUrl: data[0].courseImageUrl,
-                teacherId: data[0].teacherId,
-                isActive: data[0].isActive
-              } : 'no data'
-            });
-            
             set({
               courses: data || [],
               pagination: {

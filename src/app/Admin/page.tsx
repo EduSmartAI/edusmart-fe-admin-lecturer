@@ -1,16 +1,13 @@
 "use client";
 
 import React from "react";
-import { Card, Row, Col, Statistic, Button } from "antd";
+import { Card, Row, Col, Button } from "antd";
 import {
-  UserOutlined,
-  BookOutlined,
-  DollarOutlined,
-  TeamOutlined,
   FileTextOutlined,
   AppstoreOutlined,
-  BarsOutlined,
   FundOutlined,
+  FormOutlined,
+  CheckCircleOutlined,
 } from "@ant-design/icons";
 import { useRouter } from "next/navigation";
 
@@ -22,7 +19,7 @@ export default function AdminDashboard() {
   const router = useRouter();
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
@@ -33,223 +30,147 @@ export default function AdminDashboard() {
         </p>
       </div>
 
-      {/* Statistics Cards */}
-      <Row gutter={[16, 16]}>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic
-              title="Total Users"
-              value={0}
-              prefix={<UserOutlined />}
-              valueStyle={{ color: "#1890ff" }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic
-              title="Total Courses"
-              value={0}
-              prefix={<BookOutlined />}
-              valueStyle={{ color: "#52c41a" }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic
-              title="Total Revenue"
-              value={0}
-              prefix={<DollarOutlined />}
-              valueStyle={{ color: "#faad14" }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic
-              title="Active Lecturers"
-              value={0}
-              prefix={<TeamOutlined />}
-              valueStyle={{ color: "#eb2f96" }}
-            />
-          </Card>
-        </Col>
-      </Row>
-
-      {/* Management Sections */}
-      <Row gutter={[16, 16]}>
-        <Col xs={24} md={12}>
-          <Card
-            title="User Management"
-            className="h-full flex flex-col"
-            extra={
-              <Button type="primary" onClick={() => router.push("/Admin/Users")}>
-                Manage Users
-              </Button>
-            }
-          >
-            <p className="text-gray-600 dark:text-gray-400">
-              Manage platform users, roles, and permissions
-            </p>
-          </Card>
-        </Col>
-
-        <Col xs={24} md={12}>
-          <Card
-            title="Course Management"
-            className="h-full flex flex-col"
-            extra={
-              <Button type="primary" onClick={() => router.push("/Admin/Courses")}>
-                Manage Courses
-              </Button>
-            }
-          >
-            <p className="text-gray-600 dark:text-gray-400">
-              Review and moderate course content
-            </p>
-          </Card>
-        </Col>
-
-        <Col xs={24} md={12}>
-          <Card
-            title="Content Moderation"
-            className="h-full flex flex-col"
-            extra={
-              <Button type="primary" onClick={() => router.push("/Admin/Moderation")}>
-                Review Content
-              </Button>
-            }
-          >
-            <p className="text-gray-600 dark:text-gray-400">
-              Review flagged content and manage violations
-            </p>
-          </Card>
-        </Col>
-
-        <Col xs={24} md={12}>
-          <Card
-            title="Platform Settings"
-            className="h-full flex flex-col"
-            extra={
-              <Button type="primary" onClick={() => router.push("/Admin/Settings")}>
-                Configure
-              </Button>
-            }
-          >
-            <p className="text-gray-600 dark:text-gray-400">
-              Configure platform settings and features
-            </p>
-          </Card>
-        </Col>
-      </Row>
-
       {/* Content Management Section */}
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+      <div className="mb-3">
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white">
           Content Management
         </h2>
-        <p className="text-gray-600 dark:text-gray-400 mb-6">
+        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
           Manage learning goals, technologies, surveys, and questions
         </p>
       </div>
 
-      <Row gutter={[16, 16]}>
-        <Col xs={24} sm={12} lg={6}>
+      <Row gutter={[24, 24]} className="mb-8">
+        {/* Learning Goals */}
+        <Col xs={24} sm={12} lg={8}>
           <Card
-            hoverable
-            className="h-full cursor-pointer transition-all hover:shadow-lg"
+            className="shadow-sm hover:shadow-lg transition-all cursor-pointer h-full border-0"
+            styles={{ body: { padding: '28px', textAlign: 'center' } }}
             onClick={() => router.push("/Admin/content-management/learning-goals")}
           >
-            <div className="text-center">
-              <div className="text-4xl mb-3">
-                <FundOutlined className="text-blue-600" />
+            <div className="mb-4">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+                <FundOutlined className="text-3xl text-blue-600 dark:text-blue-400" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-                Learning Goals
-              </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                Manage academic, professional, and skill-based goals
-              </p>
-              <Button type="primary" size="small" block>
-                Manage
-              </Button>
             </div>
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
+              Learning Goals
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6 min-h-[40px]">
+              Manage academic, professional, and skill-based goals
+            </p>
+            <Button type="primary" block size="large">
+              Manage
+            </Button>
           </Card>
         </Col>
 
-        <Col xs={24} sm={12} lg={6}>
+        {/* Technologies */}
+        <Col xs={24} sm={12} lg={8}>
           <Card
-            hoverable
-            className="h-full cursor-pointer transition-all hover:shadow-lg"
+            className="shadow-sm hover:shadow-lg transition-all cursor-pointer h-full border-0"
+            styles={{ body: { padding: '28px', textAlign: 'center' } }}
             onClick={() => router.push("/Admin/content-management/technologies")}
           >
-            <div className="text-center">
-              <div className="text-4xl mb-3">
-                <AppstoreOutlined className="text-green-600" />
+            <div className="mb-4">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-lg bg-green-50 dark:bg-green-900/20">
+                <AppstoreOutlined className="text-3xl text-green-600 dark:text-green-400" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-                Technologies
-              </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                Manage frameworks, libraries, tools, and platforms
-              </p>
-              <Button type="primary" size="small" block>
-                Manage
-              </Button>
             </div>
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
+              Technologies
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6 min-h-[40px]">
+              Manage frameworks, libraries, tools, and platforms
+            </p>
+            <Button type="primary" block size="large">
+              Manage
+            </Button>
           </Card>
         </Col>
 
-        <Col xs={24} sm={12} lg={6}>
+        {/* Surveys */}
+        <Col xs={24} sm={12} lg={8}>
           <Card
-            hoverable
-            className="h-full cursor-pointer transition-all hover:shadow-lg"
+            className="shadow-sm hover:shadow-lg transition-all cursor-pointer h-full border-0"
+            styles={{ body: { padding: '28px', textAlign: 'center' } }}
             onClick={() => router.push("/Admin/content-management/surveys")}
           >
-            <div className="text-center">
-              <div className="text-4xl mb-3">
-                <FileTextOutlined className="text-orange-600" />
+            <div className="mb-4">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-lg bg-orange-50 dark:bg-orange-900/20">
+                <FileTextOutlined className="text-3xl text-orange-600 dark:text-orange-400" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-                Surveys
-              </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                Create and manage course feedback surveys
-              </p>
-              <Button type="primary" size="small" block>
-                Manage
-              </Button>
             </div>
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
+              Surveys
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6 min-h-[40px]">
+              Create and manage course feedback surveys
+            </p>
+            <Button type="primary" block size="large">
+              Manage
+            </Button>
           </Card>
         </Col>
 
-        <Col xs={24} sm={12} lg={6}>
+        {/* Student Surveys */}
+        <Col xs={24} sm={12} lg={8}>
           <Card
-            hoverable
-            className="h-full cursor-pointer transition-all hover:shadow-lg"
-            onClick={() => router.push("/Admin/content-management/questions")}
+            className="shadow-sm hover:shadow-lg transition-all cursor-pointer h-full border-0"
+            styles={{ body: { padding: '28px', textAlign: 'center' } }}
+            onClick={() => router.push("/Admin/content-management/student-surveys")}
           >
-            <div className="text-center">
-              <div className="text-4xl mb-3">
-                <BarsOutlined className="text-purple-600" />
+            <div className="mb-4">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-lg bg-cyan-50 dark:bg-cyan-900/20">
+                <FormOutlined className="text-3xl text-cyan-600 dark:text-cyan-400" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-                Questions
-              </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                Create and manage reusable survey questions
-              </p>
-              <Button type="primary" size="small" block>
-                Manage
-              </Button>
             </div>
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
+              Student Surveys
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6 min-h-[40px]">
+              View student survey submissions and results
+            </p>
+            <Button type="primary" block size="large">
+              Manage
+            </Button>
+          </Card>
+        </Col>
+
+        {/* Student Tests */}
+        <Col xs={24} sm={12} lg={8}>
+          <Card
+            className="shadow-sm hover:shadow-lg transition-all cursor-pointer h-full border-0"
+            styles={{ body: { padding: '28px', textAlign: 'center' } }}
+            onClick={() => router.push("/Admin/content-management/student-tests")}
+          >
+            <div className="mb-4">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-lg bg-emerald-50 dark:bg-emerald-900/20">
+                <CheckCircleOutlined className="text-3xl text-emerald-600 dark:text-emerald-400" />
+              </div>
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
+              Student Tests
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6 min-h-[40px]">
+              View test results and detailed breakdowns
+            </p>
+            <Button type="primary" block size="large">
+              Manage
+            </Button>
           </Card>
         </Col>
       </Row>
 
       {/* Recent Activity */}
-      <Card title="Recent Activity">
+      <Card 
+        title={
+          <span className="text-xl font-bold text-gray-900 dark:text-white">
+            Recent Activity
+          </span>
+        }
+        className="shadow-sm"
+      >
         <p className="text-gray-600 dark:text-gray-400">
           No recent activity to display
         </p>

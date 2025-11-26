@@ -13,37 +13,46 @@ const getHeaders = () => {
   };
 };
 
-export type LearningGoalType = "ACADEMIC" | "PROFESSIONAL" | "SKILL";
+// Learning Goal Type based on API
+// 0 = Chưa có định hướng
+// 1-10 = Various career paths
+export type LearningGoalTypeValue = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
 
 export interface LearningGoal {
-  id: string;
-  name: string;
+  goalId: string;
+  goalName: string;
   description: string;
-  type: LearningGoalType;
-  createdDate?: string;
-  modifiedDate?: string;
-  isActive: boolean;
+  learningGoalType: LearningGoalTypeValue;
+  createdAt: string;
 }
 
 export interface LearningGoalCreatePayload {
-  name: string;
+  goalName: string;
   description: string;
-  type: LearningGoalType;
+  learningGoalType: LearningGoalTypeValue;
 }
 
 export interface LearningGoalUpdatePayload {
-  id: string;
-  name: string;
+  goalId: string;
+  goalName: string;
   description: string;
-  type: LearningGoalType;
-  isActive: boolean;
+  learningGoalType: LearningGoalTypeValue;
 }
 
 export interface LearningGoalListResponse {
-  data: LearningGoal[];
-  total: number;
-  page: number;
-  pageSize: number;
+  response: {
+    items: LearningGoal[];
+    totalCount: number;
+    pageNumber: number;
+    pageSize: number;
+    totalPages: number;
+    hasPreviousPage: boolean;
+    hasNextPage: boolean;
+  };
+  success: boolean;
+  messageId: string;
+  message: string;
+  detailErrors: string[] | null;
 }
 
 export interface LearningGoalState {
@@ -55,12 +64,15 @@ export interface LearningGoalState {
   total: number;
   currentPage: number;
   pageSize: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
 
   // Actions
-  fetchGoals: (page?: number, pageSize?: number, search?: string) => Promise<void>;
+  fetchGoals: (page?: number, pageSize?: number, search?: string, learningGoalType?: LearningGoalTypeValue) => Promise<void>;
   getGoalById: (id: string) => Promise<LearningGoal | null>;
-  createGoal: (payload: LearningGoalCreatePayload) => Promise<LearningGoal | null>;
-  updateGoal: (payload: LearningGoalUpdatePayload) => Promise<LearningGoal | null>;
+  createGoal: (payload: LearningGoalCreatePayload) => Promise<boolean>;
+  updateGoal: (payload: LearningGoalUpdatePayload) => Promise<boolean>;
   deleteGoal: (id: string) => Promise<boolean>;
   clearError: () => void;
   clearSelected: () => void;
@@ -70,10 +82,10 @@ export interface LearningGoalState {
  * Learning Goal Store
  * Manages CRUD operations for learning goals
  * APIs:
- * - POST /quiz/api/v1/LearningGoal
- * - PUT /quiz/api/v1/LearningGoal
- * - DELETE /quiz/api/v1/LearningGoal/{id}
- * - GET /quiz/api/v1/ExternalQuiz/SelectLearningGoals
+ * - POST /student/api/v1/Admin/InsertLearningGoal
+ * - GET /student/api/v1/Admin/SelectLearningGoals
+ * - PUT /student/api/v1/Admin/UpdateLearningGoal
+ * - DELETE /student/api/v1/Admin/DeleteLearningGoal
  */
 export const useLearningGoalStore = create<LearningGoalState>((set, get) => ({
   goals: [],
@@ -82,80 +94,76 @@ export const useLearningGoalStore = create<LearningGoalState>((set, get) => ({
   selectedGoal: null,
   total: 0,
   currentPage: 1,
-  pageSize: 20,
+  pageSize: 10,
+  totalPages: 0,
+  hasNextPage: false,
+  hasPreviousPage: false,
 
-  fetchGoals: async (page = 1, pageSize = 20, search = "") => {
+  fetchGoals: async (page = 1, pageSize = 10, search = "", learningGoalType?: LearningGoalTypeValue) => {
     set({ isLoading: true, error: null });
     try {
-      // API: GET /quiz/api/v1/ExternalQuiz/SelectLearningGoals
-      // Note: Backend uses 0-based pageNumber
-      const response = await axios.get(
-        `${API_BASE_URL}/quiz/api/v1/ExternalQuiz/SelectLearningGoals`,
+      const params: Record<string, unknown> = {
+        PageNumber: page,
+        PageSize: pageSize,
+      };
+
+      if (search) {
+        params.SearchTerm = search;
+      }
+
+      if (learningGoalType !== undefined) {
+        params.LearningGoalType = learningGoalType;
+      }
+
+      // API: GET /student/api/v1/Admin/SelectLearningGoals
+      const response = await axios.get<LearningGoalListResponse>(
+        `${API_BASE_URL}/student/api/v1/Admin/SelectLearningGoals`,
         {
-          params: {
-            pageNumber: page - 1, // Convert from 1-based to 0-based
-            pageSize: pageSize,
-            searchTerm: search,
-          },
+          params,
           headers: getHeaders(),
         }
       );
 
-      // Extract data from response - backend returns { response: [], success: true, ... }
-      const data = Array.isArray(response.data) ? response.data : response.data?.response || response.data?.data || [];
-      
-      // Map learningGoalType: 0 = ACADEMIC, 1 = PROFESSIONAL, 2 = SKILL
-      const mapGoalType = (type: number | string): LearningGoalType => {
-        if (typeof type === 'string') return type as LearningGoalType;
-        switch (type) {
-          case 0: return "ACADEMIC";
-          case 1: return "PROFESSIONAL";
-          case 2: return "SKILL";
-          default: return "ACADEMIC";
-        }
-      };
-      
-      set({
-        goals: data.map((g: Record<string, unknown>) => ({
-          id: (g.learningGoalId || g.id) as string,
-          name: (g.learningGoalName || g.goalName || g.name) as string,
-          description: (g.description || "") as string,
-          type: mapGoalType(g.learningGoalType as number || g.type as string || 0),
-          isActive: (g.isActive ?? true) as boolean,
-          createdDate: g.createdDate as string | undefined,
-          modifiedDate: g.modifiedDate as string | undefined,
-        })) || [],
-        total: response.data?.total || data.length || 0,
-        currentPage: page,
-        pageSize: pageSize,
-        isLoading: false,
-      });
+      if (response.data.success && response.data.response) {
+        const { items, totalCount, pageNumber, pageSize: size, totalPages, hasPreviousPage, hasNextPage } = response.data.response;
+
+        set({
+          goals: items || [],
+          total: totalCount,
+          currentPage: pageNumber,
+          pageSize: size,
+          totalPages,
+          hasPreviousPage,
+          hasNextPage,
+          isLoading: false,
+        });
+      } else {
+        set({
+          goals: [],
+          total: 0,
+          isLoading: false,
+          error: response.data.message || "Failed to fetch learning goals",
+        });
+      }
     } catch (error: unknown) {
-      const err = error as { response?: { data?: { message?: string }; status?: number; headers?: unknown }; message?: string };
-      const errorMessage = err?.response?.data?.message 
-        || (error as Error)?.message 
-        || "Failed to fetch learning goals";
-      console.error("[LearningGoalStore] Full error:", {
-        status: err.response?.status,
-        message: (error as Error)?.message,
-        data: err.response?.data,
-        headers: err.response?.headers,
-      });
-      set({ error: errorMessage, isLoading: false });
+      const err = error as { 
+        response?: { status?: number; data?: { message?: string } }; 
+        message?: string;
+      };
+      const errorMessage = err.response?.data?.message || err.message || "Failed to fetch learning goals";
+      console.error("[LearningGoalStore] Error fetching goals:", error);
+      set({ error: errorMessage, isLoading: false, goals: [] });
     }
   },
 
   getGoalById: async (id: string) => {
-    set({ isLoading: true, error: null });
     try {
-      // TODO: Implement API call to get single goal
-      const goal = get().goals.find((g) => g.id === id) || null;
-      set({ selectedGoal: goal, isLoading: false });
+      const goal = get().goals.find((g) => g.goalId === id) || null;
+      set({ selectedGoal: goal });
       return goal;
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Failed to fetch learning goal";
-      set({ error: errorMessage, isLoading: false });
+      const errorMessage = error instanceof Error ? error.message : "Failed to fetch learning goal";
+      set({ error: errorMessage });
       console.error("[LearningGoalStore] Error fetching goal:", error);
       return null;
     }
@@ -164,104 +172,101 @@ export const useLearningGoalStore = create<LearningGoalState>((set, get) => ({
   createGoal: async (payload: LearningGoalCreatePayload) => {
     set({ isLoading: true, error: null });
     try {
-      // API: POST /quiz/api/v1/LearningGoal
+      // API: POST /student/api/v1/Admin/InsertLearningGoal
       const response = await axios.post(
-        `${API_BASE_URL}/quiz/api/v1/LearningGoal`,
-        {
-          goalName: payload.name,
-          description: payload.description,
-          learningGoalType: ["ACADEMIC", "PROFESSIONAL", "SKILL"].indexOf(payload.type),
-        },
+        `${API_BASE_URL}/student/api/v1/Admin/InsertLearningGoal`,
+        payload,
         { headers: getHeaders() }
       );
 
-      const newGoal: LearningGoal = {
-        id: response.data?.id || response.data?.learningGoalId || Date.now().toString(),
-        name: response.data?.goalName || payload.name,
-        description: response.data?.description || payload.description,
-        type: payload.type,
-        isActive: response.data?.isActive ?? true,
-        createdDate: response.data?.createdDate,
+      if (response.data.success || response.status === 200) {
+        // Refresh the list after creation
+        await get().fetchGoals(get().currentPage, get().pageSize);
+        set({ isLoading: false });
+        return true;
+      } else {
+        set({ 
+          error: response.data.message || "Failed to create learning goal", 
+          isLoading: false 
+        });
+        return false;
+      }
+    } catch (error: unknown) {
+      const err = error as { 
+        response?: { data?: { message?: string } }; 
+        message?: string 
       };
-
-      const currentGoals = get().goals;
-      set({
-        goals: [newGoal, ...currentGoals],
-        isLoading: false,
-      });
-      return newGoal;
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Failed to create learning goal";
+      const errorMessage = err.response?.data?.message || err.message || "Failed to create learning goal";
       set({ error: errorMessage, isLoading: false });
       console.error("[LearningGoalStore] Error creating goal:", error);
-      return null;
+      return false;
     }
   },
 
   updateGoal: async (payload: LearningGoalUpdatePayload) => {
     set({ isLoading: true, error: null });
     try {
-      // API: PUT /quiz/api/v1/LearningGoal
-      await axios.put(
-        `${API_BASE_URL}/quiz/api/v1/LearningGoal`,
-        {
-          id: payload.id,
-          goalName: payload.name,
-          description: payload.description,
-          learningGoalType: ["ACADEMIC", "PROFESSIONAL", "SKILL"].indexOf(payload.type),
-          isActive: payload.isActive ?? true,
-        },
+      // API: PUT /student/api/v1/Admin/UpdateLearningGoal
+      const response = await axios.put(
+        `${API_BASE_URL}/student/api/v1/Admin/UpdateLearningGoal`,
+        payload,
         { headers: getHeaders() }
       );
 
-      const updatedGoals = get().goals.map((g) =>
-        g.id === payload.id
-          ? {
-              ...g,
-              name: payload.name,
-              description: payload.description,
-              type: payload.type,
-              isActive: payload.isActive,
-            }
-          : g
-      );
-
-      set({
-        goals: updatedGoals,
-        selectedGoal: updatedGoals.find((g) => g.id === payload.id) || null,
-        isLoading: false,
-      });
-
-      return updatedGoals.find((g) => g.id === payload.id) || null;
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Failed to update learning goal";
+      if (response.data.success || response.status === 200) {
+        // Refresh the list after update
+        await get().fetchGoals(get().currentPage, get().pageSize);
+        set({ isLoading: false });
+        return true;
+      } else {
+        set({ 
+          error: response.data.message || "Failed to update learning goal", 
+          isLoading: false 
+        });
+        return false;
+      }
+    } catch (error: unknown) {
+      const err = error as { 
+        response?: { data?: { message?: string } }; 
+        message?: string 
+      };
+      const errorMessage = err.response?.data?.message || err.message || "Failed to update learning goal";
       set({ error: errorMessage, isLoading: false });
       console.error("[LearningGoalStore] Error updating goal:", error);
-      return null;
+      return false;
     }
   },
 
   deleteGoal: async (id: string) => {
     set({ isLoading: true, error: null });
     try {
-      // API: DELETE /quiz/api/v1/LearningGoal/{id}
-      await axios.delete(
-        `${API_BASE_URL}/quiz/api/v1/LearningGoal/${id}`,
-        { headers: getHeaders() }
+      // API: DELETE /student/api/v1/Admin/DeleteLearningGoal?GoalId={id}
+      const response = await axios.delete(
+        `${API_BASE_URL}/student/api/v1/Admin/DeleteLearningGoal`,
+        { 
+          params: { GoalId: id },
+          headers: getHeaders() 
+        }
       );
 
-      const updatedGoals = get().goals.filter((g) => g.id !== id);
-      set({
-        goals: updatedGoals,
-        selectedGoal: get().selectedGoal?.id === id ? null : get().selectedGoal,
-        isLoading: false,
-      });
-      return true;
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Failed to delete learning goal";
+      if (response.data.success || response.status === 200) {
+        // Refresh the list after deletion
+        await get().fetchGoals(get().currentPage, get().pageSize);
+        set({ isLoading: false });
+        return true;
+      } else {
+        set({ 
+          error: response.data.message || "Failed to delete learning goal", 
+          isLoading: false 
+        });
+        return false;
+      }
+    } catch (error: unknown) {
+      const err = error as { 
+        response?: { data?: { message?: string } }; 
+        message?: string 
+      };
+      const errorMessage = err.response?.data?.message || err.message || "Failed to delete learning goal";
       set({ error: errorMessage, isLoading: false });
       console.error("[LearningGoalStore] Error deleting goal:", error);
       return false;

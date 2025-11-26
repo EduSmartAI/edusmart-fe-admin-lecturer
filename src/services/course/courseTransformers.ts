@@ -281,7 +281,7 @@ export const transformModulesForUpdate = (modules: CourseModule[]): UpdateModule
       objectives: module.objectives.map((obj, objIdx) => ({
         objectiveId: obj.id,
         content: obj.content,
-        positionIndex: objIdx,
+        positionIndex: objIdx + 1, // API uses 1-based index
         isActive: obj.isActive,
       })),
       lessons: module.lessons.map((lesson, idx) => transformLessonForUpdate(lesson, idx)),
@@ -289,15 +289,17 @@ export const transformModulesForUpdate = (modules: CourseModule[]): UpdateModule
       discussions,
       moduleMaterialDetails: materials,
       materials,
-      ...(module.moduleQuiz
-        ? {
-            moduleQuiz: {
-              moduleQuizId: module.moduleQuiz.id,
-              quizSettings: transformQuizSettings(module.moduleQuiz.quizSettings),
-              questions: transformQuestions(module.moduleQuiz.questions) ?? [],
-            },
-          }
-        : {}),
+      // ❌ DON'T include moduleQuiz here - it's handled separately by updateCourseQuizzes()
+      // This prevents conflicts and "Lỗi hệ thống" errors from the backend
+      // ...(module.moduleQuiz
+      //   ? {
+      //       moduleQuiz: {
+      //         moduleQuizId: module.moduleQuiz.id,
+      //         quizSettings: transformQuizSettings(module.moduleQuiz.quizSettings),
+      //         questions: transformQuestions(module.moduleQuiz.questions) ?? [],
+      //       },
+      //     }
+      //   : {}),
     };
   });
 };
@@ -309,15 +311,17 @@ const transformLessonForUpdate = (lesson: Lesson, index: number) => ({
   videoDurationSec: lesson.videoDurationSec,
   positionIndex: index + 1, // API uses 1-based index
   isActive: lesson.isActive,
-  ...(lesson.lessonQuiz
-    ? {
-        lessonQuiz: {
-          lessonQuizId: lesson.lessonQuiz.id,
-          quizSettings: transformQuizSettings(lesson.lessonQuiz.quizSettings),
-          questions: transformQuestions(lesson.lessonQuiz.questions) ?? [],
-        },
-      }
-    : {}),
+  // ❌ DON'T include lessonQuiz here - it's handled separately by updateCourseQuizzes()
+  // This prevents conflicts and "Lỗi hệ thống" errors from the backend
+  // ...(lesson.lessonQuiz
+  //   ? {
+  //       lessonQuiz: {
+  //         lessonQuizId: lesson.lessonQuiz.id,
+  //         quizSettings: transformQuizSettings(lesson.lessonQuiz.quizSettings),
+  //         questions: transformQuestions(lesson.lessonQuiz.questions) ?? [],
+  //       },
+  //     }
+  //   : {}),
 });
 
 const mapAnswersForQuiz = (options?: Array<{ id?: string; text?: string; isCorrect?: boolean }>): QuizAnswerPayload[] => {

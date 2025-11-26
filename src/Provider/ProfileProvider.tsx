@@ -12,7 +12,7 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
       console.log('[ProfileProvider] Initializing profile...');
       loadProfile();
     }
-  }, []); // Only run once on mount
+  }, [profile, isLoading, loadProfile]); // Include all dependencies
 
   return <>{children}</>;
 };
