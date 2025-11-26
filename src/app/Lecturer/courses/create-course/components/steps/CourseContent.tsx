@@ -1,6 +1,6 @@
 'use client';
-import { FC, useState, useCallback, useMemo } from 'react';
-import { ConfigProvider, theme, message, Modal, Form, Input, Button, Upload, InputNumber } from 'antd';
+import { FC, useState, useCallback, useMemo, useRef } from 'react';
+import { ConfigProvider, theme, message, Modal, Form, Input, Button, Upload, InputNumber, Progress } from 'antd';
 import { useTheme } from 'EduSmart/Provider/ThemeProvider';
 import { useCreateCourseStore, CourseContentItem } from 'EduSmart/stores/CreateCourse/CreateCourseStore';
 import { FadeInUp } from 'EduSmart/components/Animation/FadeInUp';
@@ -18,7 +18,11 @@ import {
   FaUpload,
   FaArrowRight,
   FaArrowLeft,
-  FaClock
+  FaClock,
+  FaCheckCircle,
+  FaTimes,
+  FaPlay,
+  FaRedo
 } from 'react-icons/fa';
 import {
   DndContext,
@@ -74,6 +78,19 @@ const CourseContent: FC = () => {
 
   // State management
   const [activeModuleId, setActiveModuleId] = useState<string | null>(null);
+  
+  // Video upload state
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [videoPreviewUrl, setVideoPreviewUrl] = useState<string>('');
+  const [uploadedVideoUrl, setUploadedVideoUrl] = useState<string>('');
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+
+  // Video upload constants
+  const MAX_VIDEO_SIZE_MB = 300;
+  const MAX_VIDEO_SIZE_BYTES = MAX_VIDEO_SIZE_MB * 1024 * 1024;
+  const ACCEPTED_VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/avi'];
 
   // Helper to get lessons for a module (mapped from new store structure)
   const getModuleItems = useCallback((moduleIndex: number): CourseContentItem[] => {
@@ -557,44 +574,262 @@ const CourseContent: FC = () => {
             </Form.Item>
 
             <Form.Item label="Upload Video">
-              <Upload.Dragger
-                name="video"
-                accept="video/*"
-                maxCount={1}
-                className="hover:border-blue-400 transition-colors duration-200"
-                customRequest={async (options) => {
-                  const { file, onSuccess, onError } = options;
-                  try {
-                    console.log('[CourseContent] Uploading video:', (file as File).name);
-                    const url = await courseServiceAPI.uploadVideo(file as File);
-                    console.log('[CourseContent] Got video URL:', url);
-                    form.setFieldsValue({ url });
-                    message.success('Tải video thành công');
-                    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-                    onSuccess && onSuccess('ok');
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  } catch (e: any) {
-                    console.error('[CourseContent] Video upload failed:', e);
-                    if (e?.response?.status === 413) {
-                      message.error('Video quá lớn. Vui lòng nén hoặc chọn file nhỏ hơn.');
-                    } else {
-                      message.error('Tải video thất bại');
-                    }
-                    // eslint-disable-next-line @typescript-eslint/no-unused-expressions, @typescript-eslint/no-explicit-any
-                    onError && onError(e as any);
+              {/* Hidden file input */}
+              <input
+                ref={videoInputRef}
+                type="file"
+                accept="video/mp4,video/quicktime,video/x-msvideo,.mp4,.mov,.avi"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+
+                  // Validate file type
+                  if (!ACCEPTED_VIDEO_TYPES.includes(file.type)) {
+                    message.error('Định dạng không hỗ trợ! Vui lòng chọn file MP4, MOV hoặc AVI.');
+                    return;
                   }
+
+                  // Validate file size
+                  if (file.size > MAX_VIDEO_SIZE_BYTES) {
+                    message.error(`Video quá lớn! Kích thước tối đa cho phép là ${MAX_VIDEO_SIZE_MB}MB.`);
+                    return;
+                  }
+
+                  // Create preview URL
+                  const previewUrl = URL.createObjectURL(file);
+                  setVideoFile(file);
+                  setVideoPreviewUrl(previewUrl);
+                  setUploadedVideoUrl('');
+                  setUploadProgress(0);
                 }}
-              >
-                <p className="ant-upload-drag-icon">
-                  <FaUpload className="text-4xl text-blue-500" />
-                </p>
-                <p className="ant-upload-text text-lg font-medium">
-                  Kéo thả video vào đây hoặc click để chọn
-                </p>
-                <p className="ant-upload-hint text-gray-500">
-                  Hỗ trợ: MP4, MOV, AVI (tối đa 2GB)
-                </p>
-              </Upload.Dragger>
+              />
+
+              {/* Show upload area or preview */}
+              {!videoFile && !uploadedVideoUrl && !videoPreviewUrl ? (
+                <div
+                  onClick={() => videoInputRef.current?.click()}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const file = e.dataTransfer.files[0];
+                    if (file) {
+                      if (!ACCEPTED_VIDEO_TYPES.includes(file.type)) {
+                        message.error('Định dạng không hỗ trợ! Vui lòng chọn file MP4, MOV hoặc AVI.');
+                        return;
+                      }
+                      if (file.size > MAX_VIDEO_SIZE_BYTES) {
+                        message.error(`Video quá lớn! Kích thước tối đa cho phép là ${MAX_VIDEO_SIZE_MB}MB.`);
+                        return;
+                      }
+                      const previewUrl = URL.createObjectURL(file);
+                      setVideoFile(file);
+                      setVideoPreviewUrl(previewUrl);
+                    }
+                  }}
+                  className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-all duration-300"
+                >
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                      <FaUpload className="text-2xl text-white" />
+                    </div>
+                    <div>
+                      <p className="text-base font-medium text-gray-700 dark:text-gray-300">
+                        Kéo thả video vào đây hoặc click để chọn
+                      </p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        Hỗ trợ: MP4, MOV, AVI (tối đa {MAX_VIDEO_SIZE_MB}MB)
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : isUploading ? (
+                /* Uploading state */
+                <div className="border-2 border-solid border-blue-300 dark:border-blue-700 rounded-xl p-6 bg-blue-50 dark:bg-blue-900/20">
+                  <div className="text-center">
+                    <div className="w-16 h-16 rounded-full bg-blue-500 flex items-center justify-center mx-auto mb-4 animate-pulse">
+                      <FaVideo className="text-2xl text-white" />
+                    </div>
+                    <h4 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-2">
+                      Đang tải video lên...
+                    </h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                      {videoFile?.name}
+                    </p>
+                    <Progress
+                      percent={uploadProgress}
+                      status="active"
+                      strokeColor={{
+                        '0%': '#3b82f6',
+                        '100%': '#10b981',
+                      }}
+                    />
+                    <p className="text-xs text-gray-500 mt-3">
+                      Vui lòng không đóng trang trong khi upload
+                    </p>
+                  </div>
+                </div>
+              ) : uploadedVideoUrl ? (
+                /* Upload success state with video preview */
+                <div className="border-2 border-solid border-green-300 dark:border-green-700 rounded-xl overflow-hidden bg-green-50 dark:bg-green-900/20">
+                  <div className="p-4 border-b border-green-200 dark:border-green-800 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center">
+                        <FaCheckCircle className="text-white text-lg" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-green-800 dark:text-green-200">
+                          Video đã tải lên thành công!
+                        </p>
+                        <p className="text-xs text-green-600 dark:text-green-400 truncate max-w-xs">
+                          {videoFile?.name}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      type="text"
+                      danger
+                      icon={<FaTimes />}
+                      onClick={() => {
+                        setVideoFile(null);
+                        setVideoPreviewUrl('');
+                        setUploadedVideoUrl('');
+                        form.setFieldsValue({ url: '' });
+                        if (videoInputRef.current) {
+                          videoInputRef.current.value = '';
+                        }
+                      }}
+                    >
+                      Xóa
+                    </Button>
+                  </div>
+                  <div className="p-4">
+                    <video
+                      src={uploadedVideoUrl}
+                      controls
+                      className="w-full rounded-lg max-h-64 bg-black"
+                      preload="metadata"
+                    >
+                      Trình duyệt không hỗ trợ video.
+                    </video>
+                  </div>
+                </div>
+              ) : videoPreviewUrl ? (
+                /* Preview before upload state */
+                <div className="border-2 border-solid border-orange-300 dark:border-orange-700 rounded-xl overflow-hidden bg-orange-50 dark:bg-orange-900/20">
+                  <div className="p-4 border-b border-orange-200 dark:border-orange-800">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-orange-500 flex items-center justify-center">
+                          <FaPlay className="text-white text-sm ml-0.5" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-orange-800 dark:text-orange-200">
+                            Xem trước video
+                          </p>
+                          <p className="text-xs text-orange-600 dark:text-orange-400">
+                            {videoFile?.name} ({(videoFile?.size || 0 / 1024 / 1024).toFixed(1)}MB)
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        type="text"
+                        danger
+                        icon={<FaTimes />}
+                        onClick={() => {
+                          if (videoPreviewUrl) {
+                            URL.revokeObjectURL(videoPreviewUrl);
+                          }
+                          setVideoFile(null);
+                          setVideoPreviewUrl('');
+                          if (videoInputRef.current) {
+                            videoInputRef.current.value = '';
+                          }
+                        }}
+                      >
+                        Hủy
+                      </Button>
+                    </div>
+                    {/* Video Preview */}
+                    <video
+                      src={videoPreviewUrl}
+                      controls
+                      className="w-full rounded-lg max-h-48 bg-black"
+                      preload="metadata"
+                    >
+                      Trình duyệt không hỗ trợ video.
+                    </video>
+                  </div>
+                  <div className="p-4 flex gap-3">
+                    <Button
+                      type="default"
+                      icon={<FaRedo />}
+                      onClick={() => videoInputRef.current?.click()}
+                      className="flex-1"
+                    >
+                      Chọn video khác
+                    </Button>
+                    <Button
+                      type="primary"
+                      icon={<FaUpload />}
+                      loading={isUploading}
+                      onClick={async () => {
+                        if (!videoFile) return;
+                        
+                        setIsUploading(true);
+                        setUploadProgress(0);
+                        
+                        // Simulate progress
+                        const progressInterval = setInterval(() => {
+                          setUploadProgress(prev => {
+                            if (prev >= 90) {
+                              clearInterval(progressInterval);
+                              return prev;
+                            }
+                            return prev + Math.random() * 10;
+                          });
+                        }, 500);
+                        
+                        try {
+                          // Use uploadVideosUtility for streaming video format (.m3u8)
+                          const url = await courseServiceAPI.uploadVideosUtility(videoFile);
+                          clearInterval(progressInterval);
+                          setUploadProgress(100);
+                          
+                          // Cleanup preview URL
+                          if (videoPreviewUrl) {
+                            URL.revokeObjectURL(videoPreviewUrl);
+                          }
+                          
+                          setUploadedVideoUrl(url);
+                          setVideoPreviewUrl('');
+                          form.setFieldsValue({ url });
+                          message.success('Tải video thành công! Video đang được xử lý để phát streaming.');
+                        } catch (error) {
+                          clearInterval(progressInterval);
+                          console.error('[CourseContent] Video upload failed:', error);
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          const e = error as any;
+                          if (e?.response?.status === 413 || e?.message?.includes('413')) {
+                            message.error('Video quá lớn. Vui lòng chọn file nhỏ hơn 300MB.');
+                          } else {
+                            message.error(`Tải video thất bại: ${e?.message || 'Vui lòng thử lại.'}`);
+                          }
+                        } finally {
+                          setIsUploading(false);
+                        }
+                      }}
+                      className="flex-1"
+                    >
+                      Tải lên
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
             </Form.Item>
           </>
         )}
@@ -725,7 +960,21 @@ const CourseContent: FC = () => {
         <Modal
           title={editingItem ? 'Chỉnh sửa nội dung' : 'Thêm nội dung mới'}
           open={isModalOpen}
-          onCancel={() => { setIsModalOpen(false); setEditingItem(null); form.resetFields(); setSelectedType(null); }}
+          onCancel={() => { 
+            setIsModalOpen(false); 
+            setEditingItem(null); 
+            form.resetFields(); 
+            setSelectedType(null);
+            // Reset video upload state
+            if (videoPreviewUrl) {
+              URL.revokeObjectURL(videoPreviewUrl);
+            }
+            setVideoFile(null);
+            setVideoPreviewUrl('');
+            setUploadedVideoUrl('');
+            setUploadProgress(0);
+            setIsUploading(false);
+          }}
           footer={null}
           width={selectedType ? 600 : 800}
           destroyOnHidden
@@ -739,7 +988,21 @@ const CourseContent: FC = () => {
             <Form form={form} layout="vertical" onFinish={handleSubmitContent}>
               {renderModalContent()}
               <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
-                <Button onClick={() => { setIsModalOpen(false); setEditingItem(null); form.resetFields(); setSelectedType(null); }}>Hủy</Button>
+                <Button onClick={() => { 
+                  setIsModalOpen(false); 
+                  setEditingItem(null); 
+                  form.resetFields(); 
+                  setSelectedType(null);
+                  // Reset video upload state
+                  if (videoPreviewUrl) {
+                    URL.revokeObjectURL(videoPreviewUrl);
+                  }
+                  setVideoFile(null);
+                  setVideoPreviewUrl('');
+                  setUploadedVideoUrl('');
+                  setUploadProgress(0);
+                  setIsUploading(false);
+                }}>Hủy</Button>
                 <Button type="primary" htmlType="submit">{editingItem ? 'Cập nhật' : 'Thêm nội dung'}</Button>
               </div>
             </Form>
