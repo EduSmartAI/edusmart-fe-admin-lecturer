@@ -162,6 +162,59 @@ export async function refreshTokens(sid: string) {
   return true;
 }
 
+export async function refreshTokensByUrl(refreshToken: string) {
+  const body = new URLSearchParams({
+    grant_type: "refresh_token",
+    refresh_token: refreshToken,
+    client_id: CID,
+    client_secret: CSECRET,
+  });
+
+  let resp: Response;
+  try {
+    resp = await fetch(`${BACKEND}/auth/connect/token`, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+      cache: "no-store",
+    });
+  } catch (err) {
+    console.error("[refreshTokensByUrl] fetch error:", err);
+    throw new Error("Không gọi được /auth/connect/token");
+  }
+
+  const raw = await resp.clone().text();
+  console.log("[refreshTokensByUrl] Raw response:", raw);
+
+  const data = safeJson(raw);
+  if (!resp.ok) {
+    return { ok: false, error: data?.error || `Refresh failed (HTTP ${resp.status})` };
+  }
+
+  const { access, refresh, expSec, id_token } = pickTokens(data as TokenResponse);
+  console.log(
+    "[refreshTokensByUrl] Parsed tokens - access:",
+    !!access,
+    "refresh:",
+    !!refresh
+  );
+
+  if (!access || !refresh) {
+    throw new Error("Refresh response invalid / thiếu token từ backend");
+  }
+
+  const sid = randomUUID();
+  const expAt = Date.now() + Math.max(30, expSec) * 1000;
+
+  await saveTokens(sid, { access, refresh, expAt, id_token });
+
+  await setSidCookie(sid);
+  if (id_token) await setIdTokenCookie(id_token);
+  return { sid, access };
+}
+
+
+
 export async function getBearerForSid(sid: string) {
   const b = await loadTokens(sid);
   if (!b) return null;

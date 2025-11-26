@@ -10,10 +10,7 @@ const PUBLIC_PATHS = [
   "/api/public", // ví dụ
 ];
 
-const PROTECTED_PREFIXES = [
-  "/Lecturer",
-  "/Admin",
-];
+const PROTECTED_PREFIXES = ["/Lecturer", "/Admin"];
 
 /** Kiểm tra xem pathname có nằm trong PUBLIC_PATHS không */
 function isPublicPath(pathname: string): boolean {
@@ -68,7 +65,7 @@ export async function middleware(req: NextRequest) {
   const sid = getSidFromReq(req);
   const idt = getIdTokenFromReq(req);
   const claims = idt ? decodeJwtPayload(idt) : null;
-  console.log('Token claims:', claims);
+  console.log("Token claims:", claims);
 
   // Nếu truy cập root "/" mà chưa có token hoặc không có role → redirect về /Login
   if (pathname === "/" && (!sid || !idt || !claims?.role)) {
@@ -78,23 +75,28 @@ export async function middleware(req: NextRequest) {
   }
 
   // Nếu đã login với role hợp lệ mà truy cập /login hoặc / → redirect về home based on role
-  if (sid && idt && claims?.role && (pathname.toLowerCase() === "/login" || pathname === "/")) {
+  if (
+    sid &&
+    idt &&
+    claims?.role &&
+    (pathname.toLowerCase() === "/login" || pathname === "/")
+  ) {
     const url = req.nextUrl.clone();
     const role = claims.role;
     const roleLower = typeof role === 'string' ? role.toLowerCase() : '';
     
     console.log('Redirecting user with role:', role, '(lowercase:', roleLower + ')');
-    
-    if (roleLower === 'lecturer' || roleLower === 'teacher') {
+
+    if (roleLower === "lecturer' || roleLower === 'teacher") {
       url.pathname = "/Lecturer";
-    } else if (roleLower === 'admin') {
+    } else if (roleLower === "admin") {
       url.pathname = "/Admin";
     } else {
       // Only Admin and Lecturer allowed - invalid role, redirect to login
       console.log('Unknown role, redirecting to login:', role);
       url.pathname = "/Login";
     }
-    
+
     return NextResponse.redirect(url);
   }
 
@@ -127,14 +129,18 @@ export async function middleware(req: NextRequest) {
       url.pathname = "/Login";
       return NextResponse.redirect(url);
     }
-    
+
     // Lecturer can access Lecturer pages, Admin can access both
-    if (pathname.startsWith("/Lecturer") && roleLower !== "lecturer" && roleLower !== "admin" && roleLower !== "teacher") {
+    if (
+      pathname.startsWith("/Lecturer") &&
+      roleLower !== "lecturer" &&
+      roleLower !== "admin" && roleLower !== "teacher"
+    ) {
       const url = req.nextUrl.clone();
       url.pathname = "/404";
       return NextResponse.redirect(url);
     }
-    
+
     // Only Admin can access Admin pages
     if (pathname.startsWith("/Admin") && roleLower !== "admin") {
       const url = req.nextUrl.clone();

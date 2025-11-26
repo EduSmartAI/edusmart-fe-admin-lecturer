@@ -9,6 +9,7 @@ import {
   loginAction,
   logoutAction,
   refreshAction,
+  refreshTokensByUrlAction,
 } from "EduSmart/app/(auth)/action";
 import { StudentInsertResponse } from "EduSmart/api/api-auth-service";
 
@@ -28,6 +29,7 @@ export interface AuthState {
     firstName: string,
     lastName: string,
   ) => Promise<StudentInsertResponse>;
+  refreshTokenByUrl?: (refreshToken: string) => Promise<boolean>;
 }
 
 type PersistedAuth = {
@@ -61,25 +63,28 @@ export const useAuthStore = create<AuthState>()(
 
       initializeAuth: async () => {
         try {
-          const { initializeAuthAction } = await import('EduSmart/app/(auth)/action');
+          const { initializeAuthAction } = await import(
+            "EduSmart/app/(auth)/action"
+          );
           const result = await initializeAuthAction();
-          
+
           if (result.ok) {
-            set({ 
+            set({
               token: result.accessToken,
-              isAuthen: result.isAuthenticated 
+              isAuthen: result.isAuthenticated,
             });
-            
+
             if (result.accessToken) {
-              apiClient.authEduService.setSecurityData({ token: result.accessToken });
+              apiClient.authEduService.setSecurityData({
+                token: result.accessToken,
+              });
             }
-            
 
             return true;
           }
           return false;
         } catch (error) {
-          console.error('[AuthStore] Failed to initialize:', error);
+          console.error("[AuthStore] Failed to initialize:", error);
           return false;
         }
       },
@@ -103,18 +108,17 @@ export const useAuthStore = create<AuthState>()(
             const token = resp.accessToken;
             set({ token });
             apiClient.authEduService.setSecurityData({ token });
-            return true
+            return true;
           }
-          return false
+          return false;
         } catch (error) {
-          console.error('[AuthStore] Login failed:', error);
-          return false
+          console.error("[AuthStore] Login failed:", error);
+          return false;
         }
       },
 
       // 2) Refresh token và revoke khi cần
       refreshToken: async () => {
-
         const res = await refreshAction();
         if (!res.ok || !res.accessToken) {
           set({ token: null });
@@ -123,6 +127,29 @@ export const useAuthStore = create<AuthState>()(
         }
         set({ token: res.accessToken });
         apiClient.authEduService.setSecurityData({ token: res.accessToken });
+      },
+
+      refreshTokenByUrl: async (refreshToken: string) => {
+        try {
+          const res = await refreshTokensByUrlAction(refreshToken);
+          if (!res.ok || !res.accessToken) {
+            console.error("[AuthStore] refreshTokenByUrl: no access token");
+            return false;
+          }
+
+          const token = res.accessToken;
+
+          // giống login: set token + authEduService + update isAuthen
+          const ok = await getAuthen();
+          set({ token, isAuthen: ok });
+
+          apiClient.authEduService.setSecurityData({ token });
+
+          return true;
+        } catch (error) {
+          console.error("[AuthStore] refreshTokenByUrl failed:", error);
+          return false;
+        }
       },
 
       logout: async () => {
