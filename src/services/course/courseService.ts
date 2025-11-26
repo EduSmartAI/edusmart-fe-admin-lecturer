@@ -177,11 +177,8 @@ export const createCourse = async (course: Course): Promise<OperationResult<stri
       };
     }
 
-    // Get current teacher ID
-    const teacherId = await getCurrentTeacherId();
-
-    // Transform to DTO
-    const createDto = await transformToCreateDto(course, teacherId);
+    // Transform to DTO (teacherId no longer needed, extracted from JWT by backend)
+    const createDto = await transformToCreateDto(course);
 
     // Call API
     const response = await courseServiceAPI.createCourse(createDto);
