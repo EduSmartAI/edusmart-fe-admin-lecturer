@@ -165,11 +165,11 @@ export const LecturerSidebar: React.FC<LecturerSidebarProps> = ({
     if (key === "logout") {
       const { showLoading, hideLoading } = useLoadingStore.getState();
       showLoading();
-      useAuthStore.getState().logout();
+      await useAuthStore.getState().logout();
       useAuthStore.persist.clearStorage();
       messageApi.success("Đăng xuất thành công!");
-      router.push("/Login");
-      hideLoading();
+      // Use window.location to force full page reload and clear all states
+      window.location.href = "/Login";
       return;
     }
 

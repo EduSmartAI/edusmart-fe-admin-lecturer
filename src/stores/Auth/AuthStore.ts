@@ -3,6 +3,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import Cookies from "js-cookie";
 import apiClient from "EduSmart/hooks/apiClient";
+import { useUserProfileStore } from "EduSmart/stores/User/UserProfileStore";
 import {
   getAuthen,
   insertStudentAction,
@@ -154,11 +155,15 @@ export const useAuthStore = create<AuthState>()(
 
       logout: async () => {
         await logoutAction();
-        set({ token: null, refreshTokenValue: null });
+        set({ token: null, refreshTokenValue: null, isAuthen: false });
         apiClient.authEduService.setSecurityData({
           token: null,
           refreshToken: null,
         });
+        // Clear user profile to prevent old data from persisting
+        useUserProfileStore.getState().clearProfile();
+        // Clear auth cookie
+        Cookies.remove("auth-storage");
       },
     }),
     {

@@ -242,6 +242,7 @@ export interface CourseContentItem {
     file?: File;
     url?: string;
     quiz?: unknown;
+    question?: string; // For discussion type
     metadata?: Record<string, unknown>;
     order: number;
 }
@@ -306,23 +307,7 @@ const convertToCreateCourseDto = async (state: CreateCourseState): Promise<Creat
         });
     });
     
-    // Get lecturer ID from JWT token (don't hardcode teacher_id) 
-    let teacherId = state.courseInformation.teacherId?.trim() || '';
-
-    if (!teacherId) {
-        try {
-            const { getUserIdFromTokenAction } = await import('EduSmart/app/(auth)/action');
-            const userInfo = await getUserIdFromTokenAction();
-            
-            if (userInfo.ok && userInfo.userId) {
-                teacherId = userInfo.userId;
-            } else {
-                throw new Error('Unable to get lecturer ID from logged-in account');
-            }
-        } catch (error) {
-            throw new Error('Failed to get lecturer ID: ' + (error instanceof Error ? error.message : 'Unknown error'));
-        }
-    }
+    // Note: teacherId is now extracted from JWT token by backend, no longer sent in payload
     
     // Derive total course duration from modules/lessons if not explicitly set
     const totalMinutesFromState = (state.modules || []).reduce((sum, mod) => {
@@ -333,7 +318,7 @@ const convertToCreateCourseDto = async (state: CreateCourseState): Promise<Creat
     }, 0);
 
     const dto: CreateCourseDto = {
-        teacherId: teacherId, // Use dynamically extracted lecturer ID
+        // teacherId is now extracted from JWT token by backend
         subjectId: state.courseInformation.subjectId,
         title: state.courseInformation.title,
         shortDescription: state.courseInformation.shortDescription,
@@ -403,20 +388,35 @@ const convertToCreateCourseDto = async (state: CreateCourseState): Promise<Creat
                         title: lesson.title,
                         videoUrl: lesson.videoUrl && lesson.videoUrl.trim().length > 0 
                             ? lesson.videoUrl 
-                            : '', // Leave empty if no video uploaded
+                            : undefined, // Don't send empty string, let it be undefined
                         videoDurationSec: lesson.videoDurationSec || 0,
                         positionIndex: (lesson.positionIndex ?? lIdx) + 1,
                         isActive: lesson.isActive ?? true,
-                        // Optional: lesson quiz
-                        ...(lesson.lessonQuiz && {
+                        // Optional: lesson quiz - only include if has questions
+                        ...(lesson.lessonQuiz && lesson.lessonQuiz.questions && lesson.lessonQuiz.questions.length > 0 && {
                             lessonQuiz: {
-                                quizSettings: lesson.lessonQuiz.quizSettings ? {
-                                    durationMinutes: lesson.lessonQuiz.quizSettings.durationMinutes,
-                                    passingScorePercentage: lesson.lessonQuiz.quizSettings.passingScorePercentage,
-                                    shuffleQuestions: lesson.lessonQuiz.quizSettings.shuffleQuestions,
-                                    showResultsImmediately: lesson.lessonQuiz.quizSettings.showResultsImmediately,
-                                    allowRetake: lesson.lessonQuiz.quizSettings.allowRetake,
-                                } : undefined,
+                                // Only include quizSettings if it has meaningful values
+                                ...(lesson.lessonQuiz.quizSettings && (
+                                    lesson.lessonQuiz.quizSettings.durationMinutes !== undefined ||
+                                    lesson.lessonQuiz.quizSettings.passingScorePercentage !== undefined
+                                ) ? {
+                                    quizSettings: {
+                                        durationMinutes: lesson.lessonQuiz.quizSettings.durationMinutes ?? 10,
+                                        passingScorePercentage: lesson.lessonQuiz.quizSettings.passingScorePercentage ?? 70,
+                                        shuffleQuestions: lesson.lessonQuiz.quizSettings.shuffleQuestions ?? true,
+                                        showResultsImmediately: lesson.lessonQuiz.quizSettings.showResultsImmediately ?? true,
+                                        allowRetake: lesson.lessonQuiz.quizSettings.allowRetake ?? true,
+                                    }
+                                } : {
+                                    // Provide default quizSettings if none specified
+                                    quizSettings: {
+                                        durationMinutes: 10,
+                                        passingScorePercentage: 70,
+                                        shuffleQuestions: true,
+                                        showResultsImmediately: true,
+                                        allowRetake: true,
+                                    }
+                                }),
                                 questions: lesson.lessonQuiz.questions?.map(question => ({
                                     questionType: question.questionType,
                                     questionText: question.questionText,
@@ -456,16 +456,31 @@ const convertToCreateCourseDto = async (state: CreateCourseState): Promise<Creat
                     }))
             }),
             
-            // Optional: module quiz
-            ...(module.moduleQuiz && {
+            // Optional: module quiz - only include if has questions
+            ...(module.moduleQuiz && module.moduleQuiz.questions && module.moduleQuiz.questions.length > 0 && {
                 moduleQuiz: {
-                    quizSettings: module.moduleQuiz.quizSettings ? {
-                        durationMinutes: module.moduleQuiz.quizSettings.durationMinutes,
-                        passingScorePercentage: module.moduleQuiz.quizSettings.passingScorePercentage,
-                        shuffleQuestions: module.moduleQuiz.quizSettings.shuffleQuestions,
-                        showResultsImmediately: module.moduleQuiz.quizSettings.showResultsImmediately,
-                        allowRetake: module.moduleQuiz.quizSettings.allowRetake,
-                    } : undefined,
+                    // Only include quizSettings if it has meaningful values
+                    ...(module.moduleQuiz.quizSettings && (
+                        module.moduleQuiz.quizSettings.durationMinutes !== undefined ||
+                        module.moduleQuiz.quizSettings.passingScorePercentage !== undefined
+                    ) ? {
+                        quizSettings: {
+                            durationMinutes: module.moduleQuiz.quizSettings.durationMinutes ?? 10,
+                            passingScorePercentage: module.moduleQuiz.quizSettings.passingScorePercentage ?? 70,
+                            shuffleQuestions: module.moduleQuiz.quizSettings.shuffleQuestions ?? true,
+                            showResultsImmediately: module.moduleQuiz.quizSettings.showResultsImmediately ?? true,
+                            allowRetake: module.moduleQuiz.quizSettings.allowRetake ?? true,
+                        }
+                    } : {
+                        // Provide default quizSettings if none specified
+                        quizSettings: {
+                            durationMinutes: 10,
+                            passingScorePercentage: 70,
+                            shuffleQuestions: true,
+                            showResultsImmediately: true,
+                            allowRetake: true,
+                        }
+                    }),
                     questions: module.moduleQuiz.questions?.map(question => ({
                         questionType: question.questionType,
                         questionText: question.questionText,
@@ -520,8 +535,36 @@ const convertToCreateCourseDto = async (state: CreateCourseState): Promise<Creat
                 const ll: any = { ...l };
                 if (!ll.videoUrl || String(ll.videoUrl).trim() === '') delete ll.videoUrl;
                 if (!ll.title || String(ll.title).trim() === '') delete ll.title;
+                // Clean up lessonQuiz - remove if quizSettings is empty object
+                if (ll.lessonQuiz) {
+                    if (ll.lessonQuiz.quizSettings && Object.keys(ll.lessonQuiz.quizSettings).length === 0) {
+                        delete ll.lessonQuiz.quizSettings;
+                    }
+                    // Remove lessonQuiz entirely if no questions
+                    if (!ll.lessonQuiz.questions || ll.lessonQuiz.questions.length === 0) {
+                        delete ll.lessonQuiz;
+                    }
+                }
                 return ll;
             });
+        }
+        // Clean up moduleQuiz - remove if quizSettings is empty object
+        if (mm.moduleQuiz) {
+            if (mm.moduleQuiz.quizSettings && Object.keys(mm.moduleQuiz.quizSettings).length === 0) {
+                delete mm.moduleQuiz.quizSettings;
+            }
+            // Remove moduleQuiz entirely if no questions
+            if (!mm.moduleQuiz.questions || mm.moduleQuiz.questions.length === 0) {
+                delete mm.moduleQuiz;
+            }
+        }
+        // Remove empty discussions array
+        if (mm.discussions && mm.discussions.length === 0) {
+            delete mm.discussions;
+        }
+        // Remove empty materials array
+        if (mm.materials && mm.materials.length === 0) {
+            delete mm.materials;
         }
         return mm;
     });
@@ -1078,7 +1121,11 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                 try {
                     const courseData = await convertToCreateCourseDto(state);
                     
-                    // Debug: Log the payload being sent to API                    
+                    // Debug: Log the payload being sent to API
+                    console.log('🚀 CREATE COURSE - Sending payload:', JSON.stringify({ payload: courseData }, null, 2));
+                    console.log('🔍 CREATE COURSE - SubjectId:', courseData.subjectId);
+                    console.log('🔍 CREATE COURSE - Modules:', courseData.modules?.length);
+                    
                     const response = await courseServiceAPI.createCourse(courseData);
 
                     if (response.success && response.response) {

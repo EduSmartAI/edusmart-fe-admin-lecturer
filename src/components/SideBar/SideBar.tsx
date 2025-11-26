@@ -235,10 +235,9 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       showLoading();
       await logout();
       messageApi.success("Đăng xuất thành công!");
-      // window.location.href = "/Login"
-      await hideLoading();
       useAuthStore.persist.clearStorage();
-      router.push("/Login");
+      // Force full page reload to clear all states
+      window.location.href = "/Login";
       return;
     }
     const path = keyPathMap[key];
