@@ -93,6 +93,11 @@ const nextConfig: NextConfig = {
         hostname: 'i.ytimg.com',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'static.tildacdn.one',
+        pathname: '/**',
+      },
     ],
   },
   compiler: {
