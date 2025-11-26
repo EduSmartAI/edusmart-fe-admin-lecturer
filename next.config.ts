@@ -78,6 +78,11 @@ const nextConfig: NextConfig = {
         hostname: 'cdn.example.com',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'analyticsstepsfiles.s3.ap-south-1.amazonaws.com',
+        pathname: '/**',
+      },
     ],
   },
   compiler: {

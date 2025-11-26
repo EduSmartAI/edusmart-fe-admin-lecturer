@@ -22,7 +22,7 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
   const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
-  const { selectedTest, isLoading, error, getPracticeTestDetail, updatePracticeTest } = usePracticeTestStore();
+  const { isLoading, error, getPracticeTestDetail, updatePracticeTest } = usePracticeTestStore();
   
   const [formData, setFormData] = useState<Partial<UpdatePracticeTestDto>>({
     problemId,
@@ -237,16 +237,16 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
         <div className="mb-6">
           {currentStep === 0 && (
             <ProblemInfoStep
-              initialData={formData.problem as any}
-              onNext={handleProblemInfoComplete as any}
+              initialData={formData.problem as unknown as Parameters<typeof ProblemInfoStep>[0]['initialData']}
+              onNext={handleProblemInfoComplete as unknown as Parameters<typeof ProblemInfoStep>[0]['onNext']}
               onCancel={() => router.push(`/Admin/content-management/practice-tests/${problemId}`)}
             />
           )}
 
           {currentStep === 1 && (
             <ExamplesStep
-              initialData={formData.examples as any || []}
-              onNext={handleExamplesComplete as any}
+              initialData={formData.examples as unknown as Parameters<typeof ExamplesStep>[0]['initialData'] || []}
+              onNext={handleExamplesComplete as unknown as Parameters<typeof ExamplesStep>[0]['onNext']}
               onBack={handleBack}
             />
           )}
@@ -286,8 +286,8 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
 
           {currentStep === 3 && (
             <TemplatesStep
-              initialData={formData.templates as any || []}
-              onNext={handleTemplatesComplete as any}
+              initialData={formData.templates as unknown as Parameters<typeof TemplatesStep>[0]['initialData'] || []}
+              onNext={handleTemplatesComplete as unknown as Parameters<typeof TemplatesStep>[0]['onNext']}
               onBack={handleBack}
             />
           )}
@@ -312,7 +312,7 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
                   })) || [],
                 }],
                 templates: formData.templates || [],
-              } as any}
+              }}
               onBack={handleBack}
               onEdit={handleEdit}
               onSubmit={handleSubmit}

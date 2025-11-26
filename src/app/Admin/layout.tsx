@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
-import { useRouter } from "next/navigation";
 import { Spin } from "antd";
 import BaseScreenAdmin from "EduSmart/layout/BaseScreenAdmin";
 import { useUserProfileStore } from "EduSmart/stores/User/UserProfileStore";
@@ -11,70 +10,48 @@ interface AdminLayoutProps {
 }
 
 export default function AdminLayout({ children }: AdminLayoutProps) {
-  const router = useRouter();
-  const { profile, isLoading } = useUserProfileStore();
-  const [isChecking, setIsChecking] = useState(true);
-  const hasCheckedAuth = useRef(false);
+  const { isLoading } = useUserProfileStore();
+  const [isReady, setIsReady] = useState(false);
+  const hasLoadedRef = useRef(false);
 
   useEffect(() => {
-    // Only run auth check once when component mounts
-    if (hasCheckedAuth.current) return;
+    // Only load profile once
+    if (hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
 
-    const checkAuth = async () => {
+    const loadUserProfile = async () => {
       try {
-        // Get current state directly from store
         const state = useUserProfileStore.getState();
         
-        // Load profile if not already loaded
-        if (!state.profile && !state.isLoading) {
-          await state.loadProfile();
-        }
-
-        // Wait a bit for profile to load
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        // After loading, check if user is authenticated and has Admin role
-        const currentProfile = useUserProfileStore.getState().profile;
-
-        if (!currentProfile) {
-          // Not authenticated - redirect to login
-          console.log('[AdminLayout] No profile found, redirecting to login');
-          router.push("/Login?error=unauthorized");
+        // If profile already loaded, just mark as ready
+        if (state.profile) {
+          setIsReady(true);
           return;
         }
 
-        const userRole = currentProfile.role?.toLowerCase() || '';
-        console.log('[AdminLayout] User role:', currentProfile.role, '(lowercase:', userRole + ')');
-
-        // Block Student role explicitly
-        if (userRole === "student") {
-          console.log('[AdminLayout] Student role not allowed');
-          router.push("/Login?error=student_not_allowed");
-          return;
-        }
-
-        if (userRole !== "admin") {
-          // Not an admin - redirect to login
-          console.log('[AdminLayout] Not admin role, redirecting');
-          router.push("/Login?error=unauthorized");
-          return;
-        }
-
-        // User is authenticated and is Admin
-        console.log('[AdminLayout] Admin authenticated successfully');
-        hasCheckedAuth.current = true;
-        setIsChecking(false);
+        // Load profile
+        await state.loadProfile();
+        
+        // Wait for state to update
+        await new Promise(resolve => setTimeout(resolve, 50));
+        
+        // Trust middleware for authorization
+        // Middleware already verified this is an Admin, so just load the profile for display
+        // If profile fails to load, still render the page (middleware already authorized)
+        setIsReady(true);
+        
       } catch (error) {
-        console.error('[AdminLayout] Auth check failed:', error);
-        router.push("/Login?error=unauthorized");
+        console.error('[AdminLayout] Error loading profile:', error);
+        // Still mark as ready - middleware already authorized this request
+        setIsReady(true);
       }
     };
 
-    checkAuth();
-  }, [router]); // router is stable, no need for other deps since we use getState()
+    loadUserProfile();
+  }, []);
 
-  // Show loading spinner while checking authentication
-  if (isChecking || isLoading) {
+  // Show loading spinner while loading profile
+  if (!isReady || isLoading) {
     return (
       <div
         style={{
@@ -90,11 +67,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         </Spin>
       </div>
     );
-  }
-
-  // Only render content if user is authenticated and is Admin
-  if (!profile || profile.role?.toLowerCase() !== "admin") {
-    return null;
   }
 
   return (

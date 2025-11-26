@@ -399,6 +399,37 @@ class PracticeTestAdminApi {
       };
     }
   }
+
+  /**
+   * Get available programming languages for code templates
+   * GET /quiz/api/v1/Admin/GetCodeLanguages
+   */
+  async getCodeLanguages(): Promise<ApiResponse<Array<{ languageId: number; name: string }>>> {
+    try {
+      const response = await this.client.get<ApiResponse<Array<{ languageId: number; name: string }>>>(
+        '/api/v1/Admin/GetCodeLanguages'
+      );
+      
+      return response.data;
+    } catch (error: unknown) {
+      const axiosError = error as { 
+        response?: { 
+          data?: { 
+            message?: string; 
+            detailErrors?: string[] 
+          } 
+        } 
+      };
+      
+      return {
+        response: [],
+        success: false,
+        messageId: 'E00009',
+        message: axiosError.response?.data?.message || 'Failed to fetch code languages',
+        detailErrors: axiosError.response?.data?.detailErrors || null,
+      };
+    }
+  }
 }
 
 // Export singleton instance

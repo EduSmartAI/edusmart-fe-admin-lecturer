@@ -65,7 +65,6 @@ export async function middleware(req: NextRequest) {
   const sid = getSidFromReq(req);
   const idt = getIdTokenFromReq(req);
   const claims = idt ? decodeJwtPayload(idt) : null;
-  console.log("Token claims:", claims);
 
   // Nếu truy cập root "/" mà chưa có token hoặc không có role → redirect về /Login
   if (pathname === "/" && (!sid || !idt || !claims?.role)) {
@@ -84,10 +83,8 @@ export async function middleware(req: NextRequest) {
     const url = req.nextUrl.clone();
     const role = claims.role;
     const roleLower = typeof role === 'string' ? role.toLowerCase() : '';
-    
-    console.log('Redirecting user with role:', role, '(lowercase:', roleLower + ')');
 
-    if (roleLower === "lecturer' || roleLower === 'teacher") {
+    if (roleLower === "lecturer" || roleLower === "teacher") {
       url.pathname = "/Lecturer";
     } else if (roleLower === "admin") {
       url.pathname = "/Admin";

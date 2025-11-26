@@ -89,7 +89,6 @@ export async function getUserIdFromTokenAction() {
     const { getIdTokenFromCookie } = await import('EduSmart/lib/authServer');
     const idToken = await getIdTokenFromCookie();
     
-    
     if (idToken) {
       // Decode JWT token to get user info
       const tokenParts = idToken.split('.');

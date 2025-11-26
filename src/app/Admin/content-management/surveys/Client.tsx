@@ -19,7 +19,6 @@ import {
   Popconfirm,
   message,
   Select,
-  Switch,
 } from "antd";
 import {
   PlusOutlined,
@@ -30,7 +29,6 @@ import {
   FileTextOutlined,
   CheckOutlined,
   StopOutlined,
-  MinusCircleOutlined,
 } from "@ant-design/icons";
 import { useSurveyStore } from "EduSmart/stores/Admin";
 import type { Survey, SurveyQuestion } from "EduSmart/stores/Admin";
