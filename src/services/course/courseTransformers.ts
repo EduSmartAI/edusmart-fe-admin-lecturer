@@ -82,7 +82,7 @@ const transformQuestions = (questions?: unknown[]) => {
 // Create DTO Transformers
 // ============================================
 
-export const transformToCreateDto = async (course: Course, _teacherId?: string): Promise<CreateCourseDto> => {
+export const transformToCreateDto = async (course: Course): Promise<CreateCourseDto> => {
   // Note: teacherId is now extracted from JWT token by backend, no longer sent in payload
   return {
     subjectId: course.courseInformation.subjectId,

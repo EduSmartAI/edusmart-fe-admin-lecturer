@@ -231,7 +231,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
 
   const handleMenuClick: MenuProps["onClick"] = async ({ key }) => {
     if (key === "logout") {
-      const { showLoading, hideLoading } = useLoadingStore.getState();
+      const { showLoading } = useLoadingStore.getState();
       showLoading();
       await logout();
       messageApi.success("Đăng xuất thành công!");

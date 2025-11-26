@@ -2,7 +2,7 @@
 import { FC, useState, useCallback, useMemo, useRef } from 'react';
 import { ConfigProvider, theme, message, Modal, Form, Input, Button, Upload, Progress, App } from 'antd';
 import { useTheme } from 'EduSmart/Provider/ThemeProvider';
-import { useCreateCourseStore, CourseContentItem } from 'EduSmart/stores/CreateCourse/CreateCourseStore';
+import { useCreateCourseStore, CourseContentItem, Lesson, Discussion, Material } from 'EduSmart/stores/CreateCourse/CreateCourseStore';
 import { FadeInUp } from 'EduSmart/components/Animation/FadeInUp';
 
 import { QuizBuilder } from 'EduSmart/components/Common/QuizBuilder';
@@ -92,7 +92,6 @@ const CourseContent: FC = () => {
   const videoInputRef = useRef<HTMLInputElement>(null);
 
   // Material file upload state
-  const [materialFile, setMaterialFile] = useState<File | null>(null);
   const [uploadedMaterialUrl, setUploadedMaterialUrl] = useState<string>('');
   const [isMaterialUploading, setIsMaterialUploading] = useState(false);
   const [materialUploadProgress, setMaterialUploadProgress] = useState(0);
@@ -131,19 +130,18 @@ const CourseContent: FC = () => {
     const items: CourseContentItem[] = [];
 
     // Convert lessons to CourseContentItem format
-    courseModule.lessons.forEach((lesson: any, index: number) => {
+    courseModule.lessons.forEach((lesson: Lesson, index: number) => {
       items.push({
         id: lesson.id || `lesson-${index}`,
         type: lesson.type || 'video', // Use lesson type or default to video
         title: lesson.title,
-        description: lesson.description || '',
+        description: '', // Lessons don't have description field
         duration: lesson.videoDurationSec ? Math.round(lesson.videoDurationSec / 60) : undefined,
-        url: lesson.videoUrl || lesson.fileUrl,
+        url: lesson.videoUrl,
         order: lesson.positionIndex,
-        question: lesson.discussionQuestion || '',
+        question: '',
         metadata: {
           lessonQuiz: lesson.lessonQuiz,
-          fileUrl: lesson.fileUrl,
           sourceType: 'lesson',
           sourceIndex: index
         }
@@ -152,14 +150,14 @@ const CourseContent: FC = () => {
 
     // Convert discussions to CourseContentItem format
     if (courseModule.discussions && courseModule.discussions.length > 0) {
-      courseModule.discussions.forEach((discussion: any, index: number) => {
+      courseModule.discussions.forEach((discussion: Discussion, index: number) => {
         items.push({
           id: discussion.id || `discussion-${index}`,
           type: 'question', // Map to QUESTION type
           title: discussion.title,
           description: discussion.description || '',
           question: discussion.discussionQuestion || '',
-          order: discussion.positionIndex ?? (courseModule.lessons.length + index),
+          order: courseModule.lessons.length + index, // Discussion doesn't have positionIndex
           metadata: {
             sourceType: 'discussion',
             sourceIndex: index
@@ -170,14 +168,14 @@ const CourseContent: FC = () => {
 
     // Convert materials to CourseContentItem format
     if (courseModule.materials && courseModule.materials.length > 0) {
-      courseModule.materials.forEach((material: any, index: number) => {
+      courseModule.materials.forEach((material: Material, index: number) => {
         items.push({
           id: material.id || `material-${index}`,
           type: 'file', // Map to FILE type
           title: material.title,
           description: material.description || '',
           url: material.fileUrl,
-          order: material.positionIndex ?? (courseModule.lessons.length + (courseModule.discussions?.length || 0) + index),
+          order: courseModule.lessons.length + (courseModule.discussions?.length || 0) + index, // Material doesn't have positionIndex
           metadata: {
             fileUrl: material.fileUrl,
             sourceType: 'material',
@@ -394,16 +392,14 @@ const CourseContent: FC = () => {
 
       } else {
         // VIDEO type - save to lessons array
-        const newLesson: any = {
+        const newLesson: Omit<Lesson, 'positionIndex'> = {
           id: editingItem?.id || `lesson-${Date.now()}`,
           title: values.title,
-          positionIndex: editingItem?.order ?? modules[moduleIndex].lessons.length,
           isActive: true,
-          type: selectedType || 'video'
+          type: selectedType || 'video',
+          videoUrl: uploadedVideoUrl || values.url || '',
+          videoDurationSec: autoDetectedDuration || undefined
         };
-
-        newLesson.videoUrl = uploadedVideoUrl || values.url || '';
-        newLesson.videoDurationSec = autoDetectedDuration || undefined;
 
         if (editingItem && editingItem.metadata?.sourceType === 'lesson') {
           // Find lesson index and update
@@ -432,7 +428,6 @@ const CourseContent: FC = () => {
       setVideoFile(null);
       setVideoPreviewUrl('');
       setUploadedMaterialUrl(''); // Reset material URL
-      setMaterialFile(null);
       form.resetFields();
       message.success(`Nội dung đã được ${editingItem ? 'cập nhật' : 'thêm'} thành công!`);
     } catch (error) {
@@ -553,7 +548,7 @@ const CourseContent: FC = () => {
     setSelectedType(null);
     setEditingModuleQuiz(null);
     message.success('Bài kiểm tra chương đã được lưu thành công!');
-  }, [activeModuleId, modules, addLesson, editingVideoQuiz, updateLesson, updateModule]);
+  }, [activeModuleId, modules, editingVideoQuiz, editingModuleQuiz, updateLesson, updateModule]);
 
   // Handle quiz builder cancel
   const handleQuizCancel = useCallback(() => {
@@ -562,53 +557,6 @@ const CourseContent: FC = () => {
     setEditingVideoQuiz(null);
     setEditingModuleQuiz(null);
   }, []);
-
-  // Handle content deletion
-  const handleDeleteContent = useCallback((moduleId: string, itemId: string, item?: CourseContentItem) => {
-    Modal.confirm({
-      title: 'Xác nhận xóa',
-      content: 'Bạn có chắc chắn muốn xóa nội dung này?',
-      onOk: () => {
-        // Find the module index from moduleId
-        const moduleIndex = modules.findIndex((m, index) =>
-          m.id === moduleId || `module-${index}` === moduleId
-        );
-        if (moduleIndex === -1) {
-          message.error('Không tìm thấy chương');
-          return;
-        }
-
-        const courseModule = modules[moduleIndex];
-        const sourceType = item?.metadata?.sourceType;
-        const sourceIndex = item?.metadata?.sourceIndex as number | undefined;
-
-        if (sourceType === 'discussion' && sourceIndex !== undefined) {
-          // Delete from discussions array
-          const discussions = [...(courseModule.discussions || [])];
-          discussions.splice(sourceIndex, 1);
-          updateModule(moduleIndex, { discussions });
-          message.success('Đã xóa câu hỏi thảo luận thành công!');
-        } else if (sourceType === 'material' && sourceIndex !== undefined) {
-          // Delete from materials array
-          const materials = [...(courseModule.materials || [])];
-          materials.splice(sourceIndex, 1);
-          updateModule(moduleIndex, { materials });
-          message.success('Đã xóa tài liệu thành công!');
-        } else {
-          // Delete from lessons array (default)
-          const lessonIndex = sourceIndex !== undefined ? sourceIndex : modules[moduleIndex].lessons.findIndex((l, index) =>
-            l.id === itemId || `lesson-${index}` === itemId
-          );
-          if (lessonIndex === -1) {
-            message.error('Không tìm thấy bài học');
-            return;
-          }
-          removeLesson(moduleIndex, lessonIndex);
-          message.success('Đã xóa nội dung thành công!');
-        }
-      }
-    });
-  }, [modules, removeLesson, updateModule]);
 
   // Handle content editing
   const handleEditContent = useCallback((moduleId: string, item: CourseContentItem, moduleIndex?: number, lessonIndex?: number) => {
@@ -658,7 +606,7 @@ const CourseContent: FC = () => {
     if (item.type === ContentType.FILE && item.url) {
       setUploadedMaterialUrl(item.url);
     }
-  }, [form]);
+  }, [form, modules]);
 
   // Render content type selector
   const renderContentTypeSelector = () => (
@@ -1275,7 +1223,6 @@ const CourseContent: FC = () => {
                     icon={<FaTimes />}
                     onClick={() => {
                       setUploadedMaterialUrl('');
-                      setMaterialFile(null);
                     }}
                   >
                     Xóa
@@ -1301,7 +1248,6 @@ const CourseContent: FC = () => {
                 showUploadList={false}
                 className="hover:border-blue-400 transition-colors duration-200"
                 beforeUpload={async (file) => {
-                  setMaterialFile(file);
                   setIsMaterialUploading(true);
                   setMaterialUploadProgress(0);
                   
@@ -1483,7 +1429,6 @@ const CourseContent: FC = () => {
             setIsUploading(false);
             setAutoDetectedDuration(null);
             // Reset material upload state
-            setMaterialFile(null);
             setUploadedMaterialUrl('');
             setMaterialUploadProgress(0);
             setIsMaterialUploading(false);
@@ -1517,7 +1462,6 @@ const CourseContent: FC = () => {
                   setIsUploading(false);
                   setAutoDetectedDuration(null);
                   // Reset material upload state
-                  setMaterialFile(null);
                   setUploadedMaterialUrl('');
                   setMaterialUploadProgress(0);
                   setIsMaterialUploading(false);

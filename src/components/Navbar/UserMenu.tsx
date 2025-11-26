@@ -13,12 +13,10 @@ import {
 } from "@ant-design/icons";
 import { ThemeSwitch } from "../Themes/Theme";
 import { useAuthStore } from "EduSmart/stores/Auth/AuthStore";
-import { useRouter } from "next/navigation";
 
 const UserMenu = () => {
   const [open, setOpen] = useState(false);
   const { logout } = useAuthStore();
-  const router = useRouter();
   const scrollYRef = useRef(0);
   const prevRef = useRef({
     bodyOverflow: "",

@@ -163,7 +163,7 @@ export const LecturerSidebar: React.FC<LecturerSidebarProps> = ({
 
   const handleMenuClick: MenuProps["onClick"] = async ({ key }) => {
     if (key === "logout") {
-      const { showLoading, hideLoading } = useLoadingStore.getState();
+      const { showLoading } = useLoadingStore.getState();
       showLoading();
       await useAuthStore.getState().logout();
       useAuthStore.persist.clearStorage();
