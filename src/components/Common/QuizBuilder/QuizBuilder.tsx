@@ -41,32 +41,16 @@ const QuizBuilder: FC<QuizBuilderProps> = ({
   onSave,
   onCancel
 }) => {
-  const [questions, setQuestions] = useState<QuizQuestion[]>(initialQuestions);
-  const [settings, setSettings] = useState<QuizSettings>({
+  const [questions, setQuestions] = useState<QuizQuestion[]>(() => initialQuestions);
+  const [settings, setSettings] = useState<QuizSettings>(() => ({
     timeLimit: 30,
     passingScore: 70,
     shuffleQuestions: false,
     showResults: true,
     allowRetake: true,
     ...initialSettings // Override with initial settings
-  });
+  }));
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
-
-  // Update state when props change
-  useEffect(() => {
-    setQuestions(initialQuestions);
-  }, [initialQuestions]);
-
-  useEffect(() => {
-    setSettings({
-      timeLimit: 30,
-      passingScore: 70,
-      shuffleQuestions: false,
-      showResults: true,
-      allowRetake: true,
-      ...initialSettings
-    });
-  }, [initialSettings]);
 
   // Add new question
   const addQuestion = useCallback(() => {
@@ -79,9 +63,11 @@ const QuizBuilder: FC<QuizBuilderProps> = ({
       points: 1
     };
     
-    setQuestions(prev => [...prev, newQuestion]);
-    setEditingIndex(questions.length);
-  }, [questions.length]);
+    setQuestions(prev => {
+      setEditingIndex(prev.length); // Set editing index based on current length
+      return [...prev, newQuestion];
+    });
+  }, []);
 
   // Remove question
   const removeQuestion = useCallback((index: number) => {

@@ -83,6 +83,16 @@ const nextConfig: NextConfig = {
         hostname: 'analyticsstepsfiles.s3.ap-south-1.amazonaws.com',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'topdev.vn',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'i.ytimg.com',
+        pathname: '/**',
+      },
     ],
   },
   compiler: {

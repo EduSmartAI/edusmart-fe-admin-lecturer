@@ -69,7 +69,16 @@ export abstract class HttpClient {
 
     const res = await this.customFetch(url, requestInit);
     if (!res.ok) {
-      throw new Error(`HTTP ${res.status} – ${res.statusText}`);
+      // Try to get error details from response body
+      let errorDetails = '';
+      try {
+        const errorBody = await res.clone().text();
+        console.error('❌ API Error Response:', errorBody);
+        errorDetails = errorBody;
+      } catch (e) {
+        // Ignore
+      }
+      throw new Error(`HTTP ${res.status} – ${res.statusText}${errorDetails ? ` - ${errorDetails}` : ''}`);
     }
     if (format === "text") {
       const text = await res.text();
@@ -462,7 +471,7 @@ export interface AnswerDto {
 
 // Request types
 export interface CreateCourseDto {
-  teacherId: string;
+  // teacherId is now extracted from JWT token by backend, no longer in payload
   subjectId: string;
   title?: string;
   shortDescription?: string;
@@ -1069,44 +1078,105 @@ export class ApiCourseModule extends HttpClient {
      * @request POST:/utility/api/v1/UploadVideos
      */
     uploadVideosUtility: async (file: File): Promise<string> => {
-      try {
-        // Get auth token
-        let accessToken: string | null = null;
+      // Helper function to get fresh access token
+      const getFreshAccessToken = async (): Promise<string | null> => {
+        if (typeof window === 'undefined') return null;
 
-        if (typeof window !== 'undefined') {
-          try {
-            const authStorage = localStorage.getItem('auth-storage');
-            if (authStorage) {
-              const parsedAuth = JSON.parse(authStorage);
-              accessToken = parsedAuth?.state?.accessToken;
-            }
-          } catch (error) {
-            // Silent error handling
-          }
-
-          if (!accessToken) {
+        // First, try to refresh token via server action to get a fresh one
+        try {
+          const { refreshAction } = await import('EduSmart/app/(auth)/action');
+          const refreshResult = await refreshAction();
+          if (refreshResult.ok && refreshResult.accessToken) {
+            // Update localStorage with new token
             try {
-              const { getAccessTokenAction } = await import('EduSmart/app/(auth)/action');
-              const result = await getAccessTokenAction();
-              if (result.ok && result.accessToken) {
-                accessToken = result.accessToken;
+              const authStorage = localStorage.getItem('auth-storage');
+              if (authStorage) {
+                const parsed = JSON.parse(authStorage);
+                parsed.state = parsed.state || {};
+                parsed.state.accessToken = refreshResult.accessToken;
+                localStorage.setItem('auth-storage', JSON.stringify(parsed));
               }
-            } catch (error) {
+            } catch {
               // Silent error handling
             }
+            return refreshResult.accessToken;
           }
+        } catch {
+          // Silent error handling
         }
 
+        // Fallback: try getAccessTokenAction
+        try {
+          const { getAccessTokenAction } = await import('EduSmart/app/(auth)/action');
+          const result = await getAccessTokenAction();
+          if (result.ok && result.accessToken) {
+            return result.accessToken;
+          }
+        } catch {
+          // Silent error handling
+        }
+
+        return null;
+      };
+
+      // Helper function to get current access token from storage
+      const getCurrentAccessToken = (): string | null => {
+        if (typeof window === 'undefined') return null;
+
+        try {
+          const authStorage = localStorage.getItem('auth-storage');
+          if (authStorage) {
+            const parsedAuth = JSON.parse(authStorage);
+            return parsedAuth?.state?.accessToken || null;
+          }
+        } catch {
+          // Silent error handling
+        }
+
+        // Fallback: try auth store
+        try {
+          const authState = useAuthStore.getState();
+          return authState.token || null;
+        } catch {
+          // Silent error handling
+        }
+
+        return null;
+      };
+
+      // Helper function to perform upload
+      const performUpload = async (token: string | null): Promise<Response> => {
         const formData = new FormData();
         formData.append('formFile', file);
-        const response = await fetch('https://api.edusmart.pro.vn/utility/api/v1/UploadVideos', {
+
+        return fetch('https://api.edusmart.pro.vn/utility/api/v1/UploadVideos', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${accessToken}`,
+            'Authorization': `Bearer ${token}`,
             'accept': 'text/plain'
           },
           body: formData
         });
+      };
+
+      try {
+        // Try with current token first
+        let accessToken = getCurrentAccessToken();
+        let response = await performUpload(accessToken);
+
+        // If 401, try to refresh token and retry once
+        if (response.status === 401) {
+          console.log('[uploadVideosUtility] Got 401, attempting token refresh...');
+          accessToken = await getFreshAccessToken();
+
+          if (accessToken) {
+            console.log('[uploadVideosUtility] Token refreshed, retrying upload...');
+            response = await performUpload(accessToken);
+          } else {
+            throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+          }
+        }
+
         if (!response.ok) {
           const errorText = await response.text();
           throw new Error(`Upload failed: ${response.status} - ${errorText}`);
@@ -1128,44 +1198,105 @@ export class ApiCourseModule extends HttpClient {
      * @request POST:/utility/api/UploadFiles
      */
     uploadDocuments: async (file: File): Promise<string> => {
-      try {
-        // Get auth token
-        let accessToken: string | null = null;
+      // Helper function to get fresh access token
+      const getFreshAccessToken = async (): Promise<string | null> => {
+        if (typeof window === 'undefined') return null;
 
-        if (typeof window !== 'undefined') {
-          try {
-            const authStorage = localStorage.getItem('auth-storage');
-            if (authStorage) {
-              const parsedAuth = JSON.parse(authStorage);
-              accessToken = parsedAuth?.state?.accessToken;
-            }
-          } catch (error) {
-            // Silent error handling
-          }
-
-          if (!accessToken) {
+        // First, try to refresh token via server action to get a fresh one
+        try {
+          const { refreshAction } = await import('EduSmart/app/(auth)/action');
+          const refreshResult = await refreshAction();
+          if (refreshResult.ok && refreshResult.accessToken) {
+            // Update localStorage with new token
             try {
-              const { getAccessTokenAction } = await import('EduSmart/app/(auth)/action');
-              const result = await getAccessTokenAction();
-              if (result.ok && result.accessToken) {
-                accessToken = result.accessToken;
+              const authStorage = localStorage.getItem('auth-storage');
+              if (authStorage) {
+                const parsed = JSON.parse(authStorage);
+                parsed.state = parsed.state || {};
+                parsed.state.accessToken = refreshResult.accessToken;
+                localStorage.setItem('auth-storage', JSON.stringify(parsed));
               }
-            } catch (error) {
+            } catch {
               // Silent error handling
             }
+            return refreshResult.accessToken;
           }
+        } catch {
+          // Silent error handling
         }
 
+        // Fallback: try getAccessTokenAction
+        try {
+          const { getAccessTokenAction } = await import('EduSmart/app/(auth)/action');
+          const result = await getAccessTokenAction();
+          if (result.ok && result.accessToken) {
+            return result.accessToken;
+          }
+        } catch {
+          // Silent error handling
+        }
+
+        return null;
+      };
+
+      // Helper function to get current access token from storage
+      const getCurrentAccessToken = (): string | null => {
+        if (typeof window === 'undefined') return null;
+
+        try {
+          const authStorage = localStorage.getItem('auth-storage');
+          if (authStorage) {
+            const parsedAuth = JSON.parse(authStorage);
+            return parsedAuth?.state?.accessToken || null;
+          }
+        } catch {
+          // Silent error handling
+        }
+
+        // Fallback: try auth store
+        try {
+          const authState = useAuthStore.getState();
+          return authState.token || null;
+        } catch {
+          // Silent error handling
+        }
+
+        return null;
+      };
+
+      // Helper function to perform upload
+      const performUpload = async (token: string | null): Promise<Response> => {
         const formData = new FormData();
         formData.append('formFile', file);
-        const response = await fetch('https://api.edusmart.pro.vn/utility/api/UploadFiles', {
+
+        return fetch('https://api.edusmart.pro.vn/utility/api/UploadFiles', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${accessToken}`,
+            'Authorization': `Bearer ${token}`,
             'accept': 'text/plain'
           },
           body: formData
         });
+      };
+
+      try {
+        // Try with current token first
+        let accessToken = getCurrentAccessToken();
+        let response = await performUpload(accessToken);
+
+        // If 401, try to refresh token and retry once
+        if (response.status === 401) {
+          console.log('[uploadDocuments] Got 401, attempting token refresh...');
+          accessToken = await getFreshAccessToken();
+
+          if (accessToken) {
+            console.log('[uploadDocuments] Token refreshed, retrying upload...');
+            response = await performUpload(accessToken);
+          } else {
+            throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+          }
+        }
+
         if (!response.ok) {
           const errorText = await response.text();
           throw new Error(`Document upload failed: ${response.status} - ${errorText}`);

@@ -174,7 +174,7 @@ const UserMenu = () => {
         try {
           await logout();           // gọi store logout
         } finally {
-          router.push("/Login"); // điều hướng
+          window.location.href = "/Login"; // force reload để xóa hết state
         }
       }
         },

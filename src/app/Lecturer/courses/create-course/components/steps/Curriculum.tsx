@@ -2,7 +2,7 @@
 import { FC, useState, useEffect } from 'react';
 import { useCreateCourseStore } from 'EduSmart/stores/CreateCourse/CreateCourseStore';
 import { useTheme } from 'EduSmart/Provider/ThemeProvider';
-import { ConfigProvider, Input, Button, theme, Modal, Form, Checkbox, App } from 'antd';
+import { ConfigProvider, Input, Button, theme, Modal, Form, Checkbox, App, Select } from 'antd';
 import { FaArrowLeft, FaArrowRight, FaPlus, FaTrash, FaBook } from 'react-icons/fa';
 import { FadeInUp } from 'EduSmart/components/Animation/FadeInUp';
 import { useAutoSave } from '../../hooks/useAutoSave';
@@ -234,8 +234,16 @@ const Curriculum: FC = () => {
                             />
                         </Form.Item>
 
-                        <Form.Item name="level" label="Mức độ">
-                            <Input placeholder="1-3 (1: Cơ bản, 2: Trung cấp, 3: Nâng cao)" />
+                        <Form.Item 
+                            name="level" 
+                            label="Mức độ"
+                            rules={[{ required: true, message: 'Vui lòng chọn mức độ' }]}
+                        >
+                            <Select placeholder="Chọn mức độ">
+                                <Select.Option value={1}>Dễ (Cơ bản)</Select.Option>
+                                <Select.Option value={2}>Trung bình</Select.Option>
+                                <Select.Option value={3}>Khó (Nâng cao)</Select.Option>
+                            </Select>
                         </Form.Item>
 
                         <Form.Item name="isCore" valuePropName="checked">

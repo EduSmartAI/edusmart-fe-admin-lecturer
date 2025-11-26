@@ -1,6 +1,6 @@
 'use client';
 import { FC, useState, useCallback, useMemo, useRef } from 'react';
-import { ConfigProvider, theme, message, Modal, Form, Input, Button, Upload, InputNumber, Progress } from 'antd';
+import { ConfigProvider, theme, message, Modal, Form, Input, Button, Upload, Progress, App } from 'antd';
 import { useTheme } from 'EduSmart/Provider/ThemeProvider';
 import { useCreateCourseStore, CourseContentItem } from 'EduSmart/stores/CreateCourse/CreateCourseStore';
 import { FadeInUp } from 'EduSmart/components/Animation/FadeInUp';
@@ -76,6 +76,9 @@ const CourseContent: FC = () => {
   const { isDarkMode } = useTheme();
   const { setCurrentStep, modules, updateModule, addLesson, updateLesson, removeLesson } = useCreateCourseStore();
 
+  // Use App hook for modal
+  const { modal } = App.useApp();
+
   // State management
   const [activeModuleId, setActiveModuleId] = useState<string | null>(null);
   
@@ -85,7 +88,35 @@ const CourseContent: FC = () => {
   const [uploadedVideoUrl, setUploadedVideoUrl] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [autoDetectedDuration, setAutoDetectedDuration] = useState<number | null>(null); // Duration in seconds
   const videoInputRef = useRef<HTMLInputElement>(null);
+
+  // Material file upload state
+  const [materialFile, setMaterialFile] = useState<File | null>(null);
+  const [uploadedMaterialUrl, setUploadedMaterialUrl] = useState<string>('');
+  const [isMaterialUploading, setIsMaterialUploading] = useState(false);
+  const [materialUploadProgress, setMaterialUploadProgress] = useState(0);
+
+  // Helper function to extract video duration from file
+  const extractVideoDuration = useCallback((file: File): Promise<number> => {
+    return new Promise((resolve, reject) => {
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      
+      video.onloadedmetadata = () => {
+        URL.revokeObjectURL(video.src);
+        const durationInSeconds = Math.ceil(video.duration);
+        resolve(durationInSeconds);
+      };
+      
+      video.onerror = () => {
+        URL.revokeObjectURL(video.src);
+        reject(new Error('Không thể đọc thông tin video'));
+      };
+      
+      video.src = URL.createObjectURL(file);
+    });
+  }, []);
 
   // Video upload constants
   const MAX_VIDEO_SIZE_MB = 300;
@@ -97,26 +128,98 @@ const CourseContent: FC = () => {
     const courseModule = modules[moduleIndex];
     if (!courseModule) return [];
 
-    // Convert lessons to CourseContentItem format for backward compatibility
-    return courseModule.lessons.map((lesson, index) => ({
-      id: lesson.id || `lesson-${index}`,
-      type: 'video', // Default type for lessons
-      title: lesson.title,
-      description: '',
-      duration: lesson.videoDurationSec ? Math.round(lesson.videoDurationSec / 60) : undefined,
-      url: lesson.videoUrl,
-      order: lesson.positionIndex,
-      metadata: {}
-    }));
+    const items: CourseContentItem[] = [];
+
+    // Convert lessons to CourseContentItem format
+    courseModule.lessons.forEach((lesson: any, index: number) => {
+      items.push({
+        id: lesson.id || `lesson-${index}`,
+        type: lesson.type || 'video', // Use lesson type or default to video
+        title: lesson.title,
+        description: lesson.description || '',
+        duration: lesson.videoDurationSec ? Math.round(lesson.videoDurationSec / 60) : undefined,
+        url: lesson.videoUrl || lesson.fileUrl,
+        order: lesson.positionIndex,
+        question: lesson.discussionQuestion || '',
+        metadata: {
+          lessonQuiz: lesson.lessonQuiz,
+          fileUrl: lesson.fileUrl,
+          sourceType: 'lesson',
+          sourceIndex: index
+        }
+      });
+    });
+
+    // Convert discussions to CourseContentItem format
+    if (courseModule.discussions && courseModule.discussions.length > 0) {
+      courseModule.discussions.forEach((discussion: any, index: number) => {
+        items.push({
+          id: discussion.id || `discussion-${index}`,
+          type: 'question', // Map to QUESTION type
+          title: discussion.title,
+          description: discussion.description || '',
+          question: discussion.discussionQuestion || '',
+          order: discussion.positionIndex ?? (courseModule.lessons.length + index),
+          metadata: {
+            sourceType: 'discussion',
+            sourceIndex: index
+          }
+        });
+      });
+    }
+
+    // Convert materials to CourseContentItem format
+    if (courseModule.materials && courseModule.materials.length > 0) {
+      courseModule.materials.forEach((material: any, index: number) => {
+        items.push({
+          id: material.id || `material-${index}`,
+          type: 'file', // Map to FILE type
+          title: material.title,
+          description: material.description || '',
+          url: material.fileUrl,
+          order: material.positionIndex ?? (courseModule.lessons.length + (courseModule.discussions?.length || 0) + index),
+          metadata: {
+            fileUrl: material.fileUrl,
+            sourceType: 'material',
+            sourceIndex: index
+          }
+        });
+      });
+    }
+
+    // Add moduleQuiz as an item if it exists
+    if (courseModule.moduleQuiz && courseModule.moduleQuiz.questions && courseModule.moduleQuiz.questions.length > 0) {
+      items.push({
+        id: courseModule.moduleQuiz.id || `module-quiz-${moduleIndex}`,
+        type: 'quiz', // Quiz type
+        title: 'Bài kiểm tra chương',
+        description: `${courseModule.moduleQuiz.questions.length} câu hỏi`,
+        duration: courseModule.moduleQuiz.quizSettings?.durationMinutes,
+        order: 9999, // Put at the end
+        metadata: {
+          sourceType: 'moduleQuiz',
+          moduleQuiz: courseModule.moduleQuiz
+        }
+      });
+    }
+
+    // Sort by order
+    items.sort((a, b) => (a.order || 0) - (b.order || 0));
+
+    return items;
   }, [modules]);
 
   const totalContentCount = useMemo(() =>
-    modules.reduce((acc, module) => acc + module.lessons.length, 0)
+    modules.reduce((acc, module) => 
+      acc + module.lessons.length + (module.discussions?.length || 0) + (module.materials?.length || 0) + (module.moduleQuiz ? 1 : 0)
+    , 0)
     , [modules]);
   const [selectedType, setSelectedType] = useState<ContentType | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isQuizBuilderOpen, setIsQuizBuilderOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<CourseContentItem | null>(null);
+  const [editingVideoQuiz, setEditingVideoQuiz] = useState<{moduleIndex: number; lessonIndex: number; lessonId: string} | null>(null);
+  const [editingModuleQuiz, setEditingModuleQuiz] = useState<{moduleIndex: number} | null>(null);
   const [form] = Form.useForm();
 
   // Drag and drop sensors
@@ -236,75 +339,232 @@ const CourseContent: FC = () => {
         return;
       }
 
-      const newLesson = {
-        id: editingItem?.id,
-        title: values.title,
-        videoUrl: values.url || '',
-        videoDurationSec: values.duration ? values.duration * 60 : undefined, // Convert minutes to seconds
-        positionIndex: editingItem?.order ?? modules[moduleIndex].lessons.length,
-        isActive: true
-      };
+      const courseModule = modules[moduleIndex];
 
-      if (editingItem) {
-        // Find lesson index and update
-        const lessonIndex = modules[moduleIndex].lessons.findIndex((l, index) =>
-          l.id === editingItem.id || `lesson-${index}` === editingItem.id
-        );
-        if (lessonIndex !== -1) {
-          updateLesson(moduleIndex, lessonIndex, newLesson);
+      // Handle different content types - save to appropriate arrays
+      if (selectedType === ContentType.QUESTION) {
+        // Discussion type - save to discussions array
+        const newDiscussion = {
+          id: editingItem?.id || `discussion-${Date.now()}`,
+          title: values.title,
+          description: values.description || '',
+          discussionQuestion: values.question || '',
+          isActive: true,
+        };
+
+        const discussions = [...(courseModule.discussions || [])];
+        
+        if (editingItem && editingItem.metadata?.sourceType === 'discussion') {
+          // Update existing discussion
+          const discussionIndex = editingItem.metadata.sourceIndex as number;
+          if (discussionIndex !== undefined && discussionIndex >= 0) {
+            discussions[discussionIndex] = { ...discussions[discussionIndex], ...newDiscussion };
+          }
+        } else {
+          // Add new discussion
+          discussions.push(newDiscussion);
         }
+
+        updateModule(moduleIndex, { discussions });
+        
+      } else if (selectedType === ContentType.FILE) {
+        // Material type - save to materials array
+        const newMaterial = {
+          id: editingItem?.id || `material-${Date.now()}`,
+          title: values.title,
+          description: values.description || '',
+          fileUrl: uploadedMaterialUrl || values.url || '',
+          isActive: true,
+        };
+
+        const materials = [...(courseModule.materials || [])];
+        
+        if (editingItem && editingItem.metadata?.sourceType === 'material') {
+          // Update existing material
+          const materialIndex = editingItem.metadata.sourceIndex as number;
+          if (materialIndex !== undefined && materialIndex >= 0) {
+            materials[materialIndex] = { ...materials[materialIndex], ...newMaterial };
+          }
+        } else {
+          // Add new material
+          materials.push(newMaterial);
+        }
+
+        updateModule(moduleIndex, { materials });
+
       } else {
-        // Add new lesson
-        addLesson(moduleIndex, newLesson);
+        // VIDEO type - save to lessons array
+        const newLesson: any = {
+          id: editingItem?.id || `lesson-${Date.now()}`,
+          title: values.title,
+          positionIndex: editingItem?.order ?? modules[moduleIndex].lessons.length,
+          isActive: true,
+          type: selectedType || 'video'
+        };
+
+        newLesson.videoUrl = uploadedVideoUrl || values.url || '';
+        newLesson.videoDurationSec = autoDetectedDuration || undefined;
+
+        if (editingItem && editingItem.metadata?.sourceType === 'lesson') {
+          // Find lesson index and update
+          const lessonIndex = editingItem.metadata.sourceIndex as number;
+          if (lessonIndex !== undefined && lessonIndex >= 0) {
+            updateLesson(moduleIndex, lessonIndex, newLesson);
+          }
+        } else if (editingItem) {
+          // Fallback: try to find by id
+          const lessonIndex = modules[moduleIndex].lessons.findIndex((l, index) =>
+            l.id === editingItem.id || `lesson-${index}` === editingItem.id
+          );
+          if (lessonIndex !== -1) {
+            updateLesson(moduleIndex, lessonIndex, newLesson);
+          }
+        } else {
+          // Add new lesson
+          addLesson(moduleIndex, newLesson);
+        }
       }
 
       setIsModalOpen(false);
       setEditingItem(null);
+      setAutoDetectedDuration(null); // Reset auto-detected duration
+      setUploadedVideoUrl(''); // Reset video URL
+      setVideoFile(null);
+      setVideoPreviewUrl('');
+      setUploadedMaterialUrl(''); // Reset material URL
+      setMaterialFile(null);
       form.resetFields();
-      message.success(`Bài học đã được ${editingItem ? 'cập nhật' : 'thêm'} thành công!`);
+      message.success(`Nội dung đã được ${editingItem ? 'cập nhật' : 'thêm'} thành công!`);
     } catch (error) {
       console.error('Validation failed:', error);
     }
-  }, [form, activeModuleId, modules, editingItem, updateLesson, addLesson]);
+  }, [form, activeModuleId, modules, editingItem, updateLesson, addLesson, updateModule, autoDetectedDuration, selectedType, uploadedVideoUrl, uploadedMaterialUrl]);
 
-  // Handle quiz creation from QuizBuilder
+  // Handle quiz creation from QuizBuilder - saves to lesson or module quiz
   const handleQuizSave = useCallback((questions: QuizQuestion[], settings: QuizSettings) => {
-    if (activeModuleId === null) {
-      message.warning('Vui lòng chọn chương để thêm nội dung');
+    // If editing quiz for a specific video (lessonQuiz)
+    if (editingVideoQuiz) {
+      const { moduleIndex, lessonIndex } = editingVideoQuiz;
+      const lesson = modules[moduleIndex]?.lessons[lessonIndex];
+      
+      if (!lesson) {
+        message.error('Không tìm thấy bài học');
+        return;
+      }
+
+      // Convert QuizBuilder format to store format for lessonQuiz
+      const lessonQuiz = {
+        id: lesson.lessonQuiz?.id || `quiz-${Date.now()}`,
+        quizSettings: {
+          id: lesson.lessonQuiz?.quizSettings?.id,
+          durationMinutes: settings.timeLimit,
+          passingScorePercentage: settings.passingScore,
+          shuffleQuestions: settings.shuffleQuestions,
+          showResultsImmediately: settings.showResults,
+          allowRetake: settings.allowRetake
+        },
+        questions: questions.map((q, idx) => ({
+          id: q.id || `question-${idx}`,
+          questionType: q.type === 'multiple-choice' ? 1 : q.type === 'true-false' ? 2 : 3,
+          questionText: q.question,
+          options: q.type === 'multiple-choice' ? q.options?.map((opt, optIdx) => ({
+            id: `option-${idx}-${optIdx}`,
+            text: opt,
+            isCorrect: optIdx === q.correctAnswer
+          })) : q.type === 'true-false' ? [
+            { id: `option-${idx}-0`, text: 'Đúng', isCorrect: q.correctAnswer === 'true' },
+            { id: `option-${idx}-1`, text: 'Sai', isCorrect: q.correctAnswer === 'false' }
+          ] : undefined,
+          explanation: q.explanation
+        })),
+        lastModified: Date.now()
+      };
+
+      // Update the lesson with quiz
+      updateLesson(moduleIndex, lessonIndex, {
+        ...lesson,
+        lessonQuiz
+      });
+
+      setIsQuizBuilderOpen(false);
+      setEditingVideoQuiz(null);
+      setEditingModuleQuiz(null);
+      message.success('Quiz đã được lưu vào video!');
       return;
     }
 
-    // Find the module index from activeModuleId
-    const moduleIndex = modules.findIndex((m, index) =>
-      m.id === activeModuleId || `module-${index}` === activeModuleId
-    );
-    if (moduleIndex === -1) {
-      message.error('Không tìm thấy chương');
-      return;
+    // Create or edit module quiz (chapter quiz) - save to module.moduleQuiz
+    // Use editingModuleQuiz if editing, otherwise use activeModuleId for new quiz
+    let moduleIndex: number;
+    
+    if (editingModuleQuiz) {
+      moduleIndex = editingModuleQuiz.moduleIndex;
+    } else {
+      if (activeModuleId === null) {
+        message.warning('Vui lòng chọn chương để thêm nội dung');
+        return;
+      }
+      
+      // Find the module index from activeModuleId
+      moduleIndex = modules.findIndex((m, index) =>
+        m.id === activeModuleId || `module-${index}` === activeModuleId
+      );
+      
+      if (moduleIndex === -1) {
+        message.error('Không tìm thấy chương');
+        return;
+      }
     }
 
-    const newQuizLesson = {
-      title: `Bài kiểm tra ${modules[moduleIndex].lessons.filter(l => l.title.includes('kiểm tra')).length + 1}`,
-      videoUrl: '', // Quiz doesn't have video
-      videoDurationSec: settings.timeLimit ? settings.timeLimit * 60 : undefined,
-      positionIndex: modules[moduleIndex].lessons.length,
-      isActive: true
+    const courseModule = modules[moduleIndex];
+
+    // Convert QuizBuilder format to store format for moduleQuiz
+    const moduleQuiz = {
+      id: courseModule.moduleQuiz?.id || `module-quiz-${Date.now()}`,
+      quizSettings: {
+        id: courseModule.moduleQuiz?.quizSettings?.id,
+        durationMinutes: settings.timeLimit,
+        passingScorePercentage: settings.passingScore,
+        shuffleQuestions: settings.shuffleQuestions,
+        showResultsImmediately: settings.showResults,
+        allowRetake: settings.allowRetake
+      },
+      questions: questions.map((q, idx) => ({
+        id: q.id || `question-${idx}`,
+        questionType: q.type === 'multiple-choice' ? 1 : q.type === 'true-false' ? 2 : 3,
+        questionText: q.question,
+        options: q.type === 'multiple-choice' ? q.options?.map((opt, optIdx) => ({
+          id: `option-${idx}-${optIdx}`,
+          text: opt,
+          isCorrect: optIdx === q.correctAnswer
+        })) : q.type === 'true-false' ? [
+          { id: `option-${idx}-0`, text: 'Đúng', isCorrect: q.correctAnswer === 'true' },
+          { id: `option-${idx}-1`, text: 'Sai', isCorrect: q.correctAnswer === 'false' }
+        ] : undefined,
+        explanation: q.explanation
+      })),
+      lastModified: Date.now()
     };
 
-    addLesson(moduleIndex, newQuizLesson);
+    // Save to module.moduleQuiz
+    updateModule(moduleIndex, { moduleQuiz });
+    
     setIsQuizBuilderOpen(false);
     setSelectedType(null);
-    message.success('Bài kiểm tra đã được tạo thành công!');
-  }, [activeModuleId, modules, addLesson]);
+    setEditingModuleQuiz(null);
+    message.success('Bài kiểm tra chương đã được lưu thành công!');
+  }, [activeModuleId, modules, addLesson, editingVideoQuiz, updateLesson, updateModule]);
 
   // Handle quiz builder cancel
   const handleQuizCancel = useCallback(() => {
     setIsQuizBuilderOpen(false);
     setSelectedType(null);
+    setEditingVideoQuiz(null);
+    setEditingModuleQuiz(null);
   }, []);
 
   // Handle content deletion
-  const handleDeleteContent = useCallback((moduleId: string, itemId: string) => {
+  const handleDeleteContent = useCallback((moduleId: string, itemId: string, item?: CourseContentItem) => {
     Modal.confirm({
       title: 'Xác nhận xóa',
       content: 'Bạn có chắc chắn muốn xóa nội dung này?',
@@ -318,28 +578,86 @@ const CourseContent: FC = () => {
           return;
         }
 
-        // Find the lesson index from itemId
-        const lessonIndex = modules[moduleIndex].lessons.findIndex((l, index) =>
-          l.id === itemId || `lesson-${index}` === itemId
-        );
-        if (lessonIndex === -1) {
-          message.error('Không tìm thấy bài học');
-          return;
-        }
+        const courseModule = modules[moduleIndex];
+        const sourceType = item?.metadata?.sourceType;
+        const sourceIndex = item?.metadata?.sourceIndex as number | undefined;
 
-        removeLesson(moduleIndex, lessonIndex);
-        message.success('Đã xóa nội dung thành công!');
+        if (sourceType === 'discussion' && sourceIndex !== undefined) {
+          // Delete from discussions array
+          const discussions = [...(courseModule.discussions || [])];
+          discussions.splice(sourceIndex, 1);
+          updateModule(moduleIndex, { discussions });
+          message.success('Đã xóa câu hỏi thảo luận thành công!');
+        } else if (sourceType === 'material' && sourceIndex !== undefined) {
+          // Delete from materials array
+          const materials = [...(courseModule.materials || [])];
+          materials.splice(sourceIndex, 1);
+          updateModule(moduleIndex, { materials });
+          message.success('Đã xóa tài liệu thành công!');
+        } else {
+          // Delete from lessons array (default)
+          const lessonIndex = sourceIndex !== undefined ? sourceIndex : modules[moduleIndex].lessons.findIndex((l, index) =>
+            l.id === itemId || `lesson-${index}` === itemId
+          );
+          if (lessonIndex === -1) {
+            message.error('Không tìm thấy bài học');
+            return;
+          }
+          removeLesson(moduleIndex, lessonIndex);
+          message.success('Đã xóa nội dung thành công!');
+        }
       }
     });
-  }, [modules, removeLesson]);
+  }, [modules, removeLesson, updateModule]);
 
   // Handle content editing
-  const handleEditContent = useCallback((moduleId: string, item: CourseContentItem) => {
+  const handleEditContent = useCallback((moduleId: string, item: CourseContentItem, moduleIndex?: number, lessonIndex?: number) => {
+    // If editing a Quiz type
+    if (item.type === ContentType.QUIZ) {
+      // Check if it's a module quiz or lesson quiz
+      if (item.metadata?.sourceType === 'moduleQuiz') {
+        // Editing module quiz - find module index from moduleId
+        const modIndex = modules.findIndex(m => m.id === moduleId);
+        if (modIndex !== -1) {
+          setEditingModuleQuiz({ moduleIndex: modIndex });
+          setEditingVideoQuiz(null);
+          setIsQuizBuilderOpen(true);
+        }
+      } else if (moduleIndex !== undefined && lessonIndex !== undefined) {
+        // Editing lesson quiz
+        setEditingVideoQuiz({ moduleIndex, lessonIndex, lessonId: item.id });
+        setEditingModuleQuiz(null);
+        setIsQuizBuilderOpen(true);
+      }
+      return;
+    }
+
     setEditingItem(item);
     setSelectedType(item.type as ContentType);
     setIsModalOpen(true);
     setActiveModuleId(moduleId);
-    form.setFieldsValue(item);
+    
+    // Set form values including description and question
+    form.setFieldsValue({
+      title: item.title,
+      description: item.description || '',
+      url: item.url || '',
+      question: item.question || '' // For discussion type
+    });
+    
+    // If editing a video, set the uploaded video URL to show the existing video
+    if (item.type === ContentType.VIDEO && item.url) {
+      setUploadedVideoUrl(item.url);
+      // Set duration if available
+      if (item.duration) {
+        setAutoDetectedDuration(item.duration * 60); // Convert minutes to seconds
+      }
+    }
+    
+    // If editing a file/material, set the uploaded file URL
+    if (item.type === ContentType.FILE && item.url) {
+      setUploadedMaterialUrl(item.url);
+    }
   }, [form]);
 
   // Render content type selector
@@ -415,7 +733,7 @@ const CourseContent: FC = () => {
   );
 
   // Sortable content item component
-  const SortableContentItem: FC<{ item: CourseContentItem; moduleId: string }> = ({ item, moduleId }) => {
+  const SortableContentItem: FC<{ item: CourseContentItem; moduleId: string; moduleIndex: number; lessonIndex: number }> = ({ item, moduleId, moduleIndex, lessonIndex }) => {
     const {
       attributes,
       listeners,
@@ -432,6 +750,57 @@ const CourseContent: FC = () => {
 
     const typeConfig = contentTypes.find(t => t.type === item.type);
     const IconComponent = typeConfig?.icon || FaFile;
+
+    // Check if this video has a quiz
+    const lesson = modules[moduleIndex]?.lessons[lessonIndex];
+    const hasQuiz = lesson?.lessonQuiz && lesson.lessonQuiz.questions && lesson.lessonQuiz.questions.length > 0;
+
+    // Handle opening quiz builder for this video
+    const handleOpenQuizBuilder = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setEditingVideoQuiz({ moduleIndex, lessonIndex, lessonId: item.id });
+      setIsQuizBuilderOpen(true);
+    };
+
+    // Handle delete with direct indices - supports lessons, discussions, materials, moduleQuiz
+    const handleDelete = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      const sourceType = item.metadata?.sourceType;
+      const sourceIndex = item.metadata?.sourceIndex as number | undefined;
+      
+      modal.confirm({
+        title: 'Xác nhận xóa',
+        content: 'Bạn có chắc chắn muốn xóa nội dung này?',
+        okText: 'Xóa',
+        cancelText: 'Hủy',
+        okButtonProps: { danger: true },
+        onOk: () => {
+          const courseModule = modules[moduleIndex];
+          
+          if (sourceType === 'discussion' && sourceIndex !== undefined) {
+            // Delete from discussions array
+            const discussions = [...(courseModule.discussions || [])];
+            discussions.splice(sourceIndex, 1);
+            updateModule(moduleIndex, { discussions });
+            message.success('Đã xóa câu hỏi thảo luận thành công!');
+          } else if (sourceType === 'material' && sourceIndex !== undefined) {
+            // Delete from materials array
+            const materials = [...(courseModule.materials || [])];
+            materials.splice(sourceIndex, 1);
+            updateModule(moduleIndex, { materials });
+            message.success('Đã xóa tài liệu thành công!');
+          } else if (sourceType === 'moduleQuiz') {
+            // Delete moduleQuiz
+            updateModule(moduleIndex, { moduleQuiz: undefined });
+            message.success('Đã xóa bài kiểm tra chương thành công!');
+          } else {
+            // Delete from lessons array (default for video/quiz)
+            removeLesson(moduleIndex, lessonIndex);
+            message.success('Đã xóa nội dung thành công!');
+          }
+        }
+      });
+    };
 
     return (
       <div
@@ -456,7 +825,7 @@ const CourseContent: FC = () => {
 
           {/* Content icon */}
           <div className={`
-            flex-shrink-0 w-12 h-12 rounded-lg bg-gradient-to-br ${typeConfig?.gradient}
+            flex-shrink-0 w-12 h-12 rounded-lg bg-gradient-to-br ${typeConfig?.gradient || 'from-gray-400 to-gray-600'}
             flex items-center justify-center text-white
           `}>
             <IconComponent className="text-lg" />
@@ -487,25 +856,46 @@ const CourseContent: FC = () => {
             <div className="flex items-center gap-2">
               <span className={`
                 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                ${typeConfig?.color} text-white
+                ${typeConfig?.color || 'bg-gray-500'} text-white
               `}>
-                {typeConfig?.title}
+                {typeConfig?.title || item.type}
               </span>
+              {/* Show quiz badge if video has quiz */}
+              {hasQuiz && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-500 text-white">
+                  <FaQuestionCircle className="mr-1 text-xs" />
+                  Có Quiz
+                </span>
+              )}
             </div>
           </div>
 
-          {/* Action buttons */}
-          <div className="flex-shrink-0 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+          {/* Action buttons - always visible */}
+          <div className="flex-shrink-0 flex items-center gap-1">
+            {/* Quiz button for video - shows different color if has quiz */}
+            {item.type === ContentType.VIDEO && (
+              <button
+                onClick={handleOpenQuizBuilder}
+                className={`p-2 rounded-lg transition-colors duration-200 ${
+                  hasQuiz 
+                    ? 'text-green-500 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30' 
+                    : 'text-gray-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/30'
+                }`}
+                title={hasQuiz ? "Xem/Sửa Quiz" : "Thêm Quiz"}
+              >
+                <FaQuestionCircle />
+              </button>
+            )}
             <button
-              onClick={() => handleEditContent(moduleId, item)}
+              onClick={(e) => { e.stopPropagation(); handleEditContent(moduleId, item, moduleIndex, lessonIndex); }}
               className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors duration-200"
               title="Chỉnh sửa"
             >
               <FaEdit />
             </button>
             <button
-              onClick={() => handleDeleteContent(moduleId, item.id)}
-              className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors duration-200"
+              onClick={handleDelete}
+              className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors duration-200"
               title="Xóa"
             >
               <FaTrash />
@@ -544,34 +934,35 @@ const CourseContent: FC = () => {
           <Input placeholder="Nhập tiêu đề nội dung..." size="large" />
         </Form.Item>
 
-        <Form.Item
-          name="description"
-          label="Mô tả"
-        >
-          <Input.TextArea
-            placeholder="Mô tả chi tiết về nội dung này..."
-            rows={3}
-            showCount
-            maxLength={500}
-          />
-        </Form.Item>
+        {/* Description - only show for non-video types */}
+        {selectedType !== ContentType.VIDEO && (
+          <Form.Item
+            name="description"
+            label="Mô tả"
+          >
+            <Input.TextArea
+              placeholder="Mô tả chi tiết về nội dung này..."
+              rows={3}
+              showCount
+              maxLength={500}
+            />
+          </Form.Item>
+        )}
 
         {/* Type-specific fields */}
         {selectedType === ContentType.VIDEO && (
           <>
-            <Form.Item
-              name="duration"
-              label="Thời lượng (phút)"
-              rules={[{ required: true, message: 'Vui lòng nhập thời lượng!' }]}
-            >
-              <InputNumber
-                placeholder="30"
-                min={1}
-                max={480}
-                style={{ width: '100%' }}
-                size="large"
-              />
-            </Form.Item>
+            {/* Auto-detected duration display */}
+            {autoDetectedDuration && (
+              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
+                  <FaClock className="text-sm" />
+                  <span className="font-medium">
+                    Thời lượng video: {Math.floor(autoDetectedDuration / 60)} phút {autoDetectedDuration % 60} giây
+                  </span>
+                </div>
+              </div>
+            )}
 
             <Form.Item label="Upload Video">
               {/* Hidden file input */}
@@ -602,6 +993,15 @@ const CourseContent: FC = () => {
                   setVideoPreviewUrl(previewUrl);
                   setUploadedVideoUrl('');
                   setUploadProgress(0);
+
+                  // Auto-extract video duration
+                  try {
+                    const duration = await extractVideoDuration(file);
+                    setAutoDetectedDuration(duration);
+                  } catch (error) {
+                    console.error('Failed to extract video duration:', error);
+                    setAutoDetectedDuration(null);
+                  }
                 }}
               />
 
@@ -613,7 +1013,7 @@ const CourseContent: FC = () => {
                     e.preventDefault();
                     e.stopPropagation();
                   }}
-                  onDrop={(e) => {
+                  onDrop={async (e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     const file = e.dataTransfer.files[0];
@@ -629,6 +1029,15 @@ const CourseContent: FC = () => {
                       const previewUrl = URL.createObjectURL(file);
                       setVideoFile(file);
                       setVideoPreviewUrl(previewUrl);
+
+                      // Auto-extract video duration
+                      try {
+                        const duration = await extractVideoDuration(file);
+                        setAutoDetectedDuration(duration);
+                      } catch (error) {
+                        console.error('Failed to extract video duration:', error);
+                        setAutoDetectedDuration(null);
+                      }
                     }
                   }}
                   className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-all duration-300"
@@ -698,6 +1107,7 @@ const CourseContent: FC = () => {
                         setVideoFile(null);
                         setVideoPreviewUrl('');
                         setUploadedVideoUrl('');
+                        setAutoDetectedDuration(null);
                         form.setFieldsValue({ url: '' });
                         if (videoInputRef.current) {
                           videoInputRef.current.value = '';
@@ -746,6 +1156,7 @@ const CourseContent: FC = () => {
                           }
                           setVideoFile(null);
                           setVideoPreviewUrl('');
+                          setAutoDetectedDuration(null);
                           if (videoInputRef.current) {
                             videoInputRef.current.value = '';
                           }
@@ -836,21 +1247,104 @@ const CourseContent: FC = () => {
 
         {selectedType === ContentType.FILE && (
           <Form.Item label="Upload File">
-            <Upload.Dragger
-              name="file"
-              multiple
-              className="hover:border-blue-400 transition-colors duration-200"
-            >
-              <p className="ant-upload-drag-icon">
-                <FaFile className="text-4xl text-purple-500" />
-              </p>
-              <p className="ant-upload-text text-lg font-medium">
-                Kéo thả file vào đây hoặc click để chọn
-              </p>
-              <p className="ant-upload-hint text-gray-500">
-                Hỗ trợ: PDF, DOC, PPT, XLS, TXT, ZIP
-              </p>
-            </Upload.Dragger>
+            {/* Show uploaded file if exists */}
+            {uploadedMaterialUrl ? (
+              <div className="border-2 border-solid border-green-300 dark:border-green-700 rounded-xl p-4 bg-green-50 dark:bg-green-900/20">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center">
+                      <FaCheckCircle className="text-white text-lg" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-green-800 dark:text-green-200">
+                        File đã được tải lên
+                      </p>
+                      <a 
+                        href={uploadedMaterialUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-xs text-green-600 dark:text-green-400 hover:underline truncate max-w-xs block"
+                      >
+                        {uploadedMaterialUrl.split('/').pop() || 'Xem file'}
+                      </a>
+                    </div>
+                  </div>
+                  <Button
+                    type="text"
+                    danger
+                    icon={<FaTimes />}
+                    onClick={() => {
+                      setUploadedMaterialUrl('');
+                      setMaterialFile(null);
+                    }}
+                  >
+                    Xóa
+                  </Button>
+                </div>
+              </div>
+            ) : isMaterialUploading ? (
+              <div className="border-2 border-solid border-blue-300 dark:border-blue-700 rounded-xl p-6 bg-blue-50 dark:bg-blue-900/20">
+                <div className="text-center">
+                  <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center mx-auto mb-3 animate-pulse">
+                    <FaFile className="text-xl text-white" />
+                  </div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                    Đang tải file lên...
+                  </p>
+                  <Progress percent={materialUploadProgress} status="active" />
+                </div>
+              </div>
+            ) : (
+              <Upload.Dragger
+                name="file"
+                multiple={false}
+                showUploadList={false}
+                className="hover:border-blue-400 transition-colors duration-200"
+                beforeUpload={async (file) => {
+                  setMaterialFile(file);
+                  setIsMaterialUploading(true);
+                  setMaterialUploadProgress(0);
+                  
+                  // Simulate progress
+                  const progressInterval = setInterval(() => {
+                    setMaterialUploadProgress(prev => {
+                      if (prev >= 90) {
+                        clearInterval(progressInterval);
+                        return prev;
+                      }
+                      return prev + Math.random() * 15;
+                    });
+                  }, 300);
+                  
+                  try {
+                    // Use uploadDocuments API
+                    const url = await courseServiceAPI.uploadDocuments(file);
+                    clearInterval(progressInterval);
+                    setMaterialUploadProgress(100);
+                    setUploadedMaterialUrl(url);
+                    message.success('Tải file thành công!');
+                  } catch (error) {
+                    clearInterval(progressInterval);
+                    console.error('File upload failed:', error);
+                    message.error('Tải file thất bại. Vui lòng thử lại.');
+                  } finally {
+                    setIsMaterialUploading(false);
+                  }
+                  
+                  return false; // Prevent default upload
+                }}
+              >
+                <p className="ant-upload-drag-icon">
+                  <FaFile className="text-4xl text-purple-500 mx-auto" />
+                </p>
+                <p className="ant-upload-text text-lg font-medium">
+                  Kéo thả file vào đây hoặc click để chọn
+                </p>
+                <p className="ant-upload-hint text-gray-500">
+                  Hỗ trợ: PDF, DOC, PPT, XLS, TXT, ZIP
+                </p>
+              </Upload.Dragger>
+            )}
           </Form.Item>
         )}
 
@@ -886,6 +1380,7 @@ const CourseContent: FC = () => {
         }
       }}
     >
+      <App>
       <FadeInUp>
         {/* Header */}
         <div className="flex justify-between items-start mb-8">
@@ -915,9 +1410,21 @@ const CourseContent: FC = () => {
                     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handleDragEnd(e, moduleIndex)}>
                       <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
                         <div className="space-y-2">
-                          {items.sort((a, b) => a.order - b.order).map((it) => (
-                            <SortableContentItem key={it.id} item={it} moduleId={module.id || `module-${moduleIndex}`} />
-                          ))}
+                          {items.sort((a, b) => a.order - b.order).map((it, idx) => {
+                            // Find actual lesson index in the module
+                            const lessonIdx = modules[moduleIndex].lessons.findIndex(l => 
+                              l.id === it.id || `lesson-${modules[moduleIndex].lessons.indexOf(l)}` === it.id
+                            );
+                            return (
+                              <SortableContentItem 
+                                key={it.id} 
+                                item={it} 
+                                moduleId={module.id || `module-${moduleIndex}`}
+                                moduleIndex={moduleIndex}
+                                lessonIndex={lessonIdx !== -1 ? lessonIdx : idx}
+                              />
+                            );
+                          })}
                         </div>
                       </SortableContext>
                     </DndContext>
@@ -974,6 +1481,12 @@ const CourseContent: FC = () => {
             setUploadedVideoUrl('');
             setUploadProgress(0);
             setIsUploading(false);
+            setAutoDetectedDuration(null);
+            // Reset material upload state
+            setMaterialFile(null);
+            setUploadedMaterialUrl('');
+            setMaterialUploadProgress(0);
+            setIsMaterialUploading(false);
           }}
           footer={null}
           width={selectedType ? 600 : 800}
@@ -1002,6 +1515,12 @@ const CourseContent: FC = () => {
                   setUploadedVideoUrl('');
                   setUploadProgress(0);
                   setIsUploading(false);
+                  setAutoDetectedDuration(null);
+                  // Reset material upload state
+                  setMaterialFile(null);
+                  setUploadedMaterialUrl('');
+                  setMaterialUploadProgress(0);
+                  setIsMaterialUploading(false);
                 }}>Hủy</Button>
                 <Button type="primary" htmlType="submit">{editingItem ? 'Cập nhật' : 'Thêm nội dung'}</Button>
               </div>
@@ -1011,16 +1530,71 @@ const CourseContent: FC = () => {
 
         {/* Quiz Builder Modal */}
         <Modal
-          title="Tạo Bài Kiểm Tra"
+          title={editingVideoQuiz ? "Quiz cho Video" : editingModuleQuiz ? "Bài Kiểm Tra Chương" : "Tạo Bài Kiểm Tra"}
           open={isQuizBuilderOpen}
           onCancel={handleQuizCancel}
           footer={null}
           width={900}
           destroyOnHidden
         >
-          <QuizBuilder onSave={handleQuizSave} onCancel={handleQuizCancel} />
+          <QuizBuilder 
+            key={editingVideoQuiz ? `quiz-${editingVideoQuiz.lessonId}` : editingModuleQuiz ? `module-quiz-${editingModuleQuiz.moduleIndex}` : 'new-quiz'}
+            initialQuestions={editingVideoQuiz ? (() => {
+              const lesson = modules[editingVideoQuiz.moduleIndex]?.lessons[editingVideoQuiz.lessonIndex];
+              if (!lesson?.lessonQuiz?.questions) return [];
+              return lesson.lessonQuiz.questions.map(q => ({
+                id: q.id || `q-${Date.now()}`,
+                question: q.questionText || '',
+                type: q.questionType === 1 ? 'multiple-choice' as const : q.questionType === 2 ? 'true-false' as const : 'short-answer' as const,
+                options: q.options?.map(o => o.text || '') || [],
+                correctAnswer: q.questionType === 2 
+                  ? (q.options?.find(o => o.isCorrect)?.text === 'Đúng' ? 'true' : 'false')
+                  : (q.options?.findIndex(o => o.isCorrect) ?? 0),
+                explanation: q.explanation,
+                points: 1
+              }));
+            })() : editingModuleQuiz ? (() => {
+              const courseModule = modules[editingModuleQuiz.moduleIndex];
+              if (!courseModule?.moduleQuiz?.questions) return [];
+              return courseModule.moduleQuiz.questions.map(q => ({
+                id: q.id || `q-${Date.now()}`,
+                question: q.questionText || '',
+                type: q.questionType === 1 ? 'multiple-choice' as const : q.questionType === 2 ? 'true-false' as const : 'short-answer' as const,
+                options: q.options?.map(o => o.text || '') || [],
+                correctAnswer: q.questionType === 2 
+                  ? (q.options?.find(o => o.isCorrect)?.text === 'Đúng' ? 'true' : 'false')
+                  : (q.options?.findIndex(o => o.isCorrect) ?? 0),
+                explanation: q.explanation,
+                points: 1
+              }));
+            })() : []}
+            initialSettings={editingVideoQuiz ? (() => {
+              const lesson = modules[editingVideoQuiz.moduleIndex]?.lessons[editingVideoQuiz.lessonIndex];
+              const settings = lesson?.lessonQuiz?.quizSettings;
+              return {
+                timeLimit: settings?.durationMinutes,
+                passingScore: settings?.passingScorePercentage,
+                shuffleQuestions: settings?.shuffleQuestions,
+                showResults: settings?.showResultsImmediately,
+                allowRetake: settings?.allowRetake
+              };
+            })() : editingModuleQuiz ? (() => {
+              const courseModule = modules[editingModuleQuiz.moduleIndex];
+              const settings = courseModule?.moduleQuiz?.quizSettings;
+              return {
+                timeLimit: settings?.durationMinutes,
+                passingScore: settings?.passingScorePercentage,
+                shuffleQuestions: settings?.shuffleQuestions,
+                showResults: settings?.showResultsImmediately,
+                allowRetake: settings?.allowRetake
+              };
+            })() : {}}
+            onSave={handleQuizSave} 
+            onCancel={handleQuizCancel} 
+          />
         </Modal>
       </FadeInUp>
+      </App>
     </ConfigProvider>
   );
 };

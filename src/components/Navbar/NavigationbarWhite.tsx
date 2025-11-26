@@ -479,7 +479,7 @@ export default function Navigationbar() {
                     onClick={async () => {
                       await logout();
                       closeMenu();
-                      // TODO: gọi logout() khi nối lại store
+                      window.location.href = "/Login";
                     }}
                     className="h-10 rounded-full px-4 text-sm font-semibold text-white
                          bg-rose-500 hover:bg-rose-600 shadow-sm transition"
