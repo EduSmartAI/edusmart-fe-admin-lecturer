@@ -402,12 +402,12 @@ class PracticeTestAdminApi {
 
   /**
    * Get available programming languages for code templates
-   * GET /quiz/api/v1/Admin/GetCodeLanguages
+   * GET /quiz/api/v1/PracticeTest/SelectCodeLanguages
    */
   async getCodeLanguages(): Promise<ApiResponse<Array<{ languageId: number; name: string }>>> {
     try {
       const response = await this.client.get<ApiResponse<Array<{ languageId: number; name: string }>>>(
-        '/api/v1/Admin/GetCodeLanguages'
+        '/api/v1/PracticeTest/SelectCodeLanguages'
       );
       
       return response.data;

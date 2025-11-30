@@ -15,7 +15,6 @@ async function resolveQuizAuthHeader(): Promise<AuthResolutionResult> {
   try {
     const { getAccessTokenAction } = await import('EduSmart/app/(auth)/action');
 
-    // Just use access token - quiz service should accept it
     const accessTokenResult = await getAccessTokenAction();
     if (accessTokenResult.ok && accessTokenResult.accessToken) {
       return {
@@ -29,10 +28,9 @@ async function resolveQuizAuthHeader(): Promise<AuthResolutionResult> {
 
     return {
       source: 'none',
-      reason: 'No access token found in cookies/session',
+      reason: 'No accessToken found in cookies/session',
     };
   } catch (error) {
-    console.warn('⚠️ Unable to resolve quiz auth header:', error);
     return {
       source: 'none',
       reason: error instanceof Error ? error.message : 'Unknown error',
@@ -71,10 +69,20 @@ export async function POST(request: NextRequest) {
 
     const auth = await resolveQuizAuthHeader();
 
+    if (!auth.headers) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: `Authentication failed: ${auth.reason || 'No token available'}`,
+        },
+        { status: 401 },
+      );
+    }
+
     const response = await quizServiceAPI.updateCourseQuiz(
       courseId,
       { quizzes: quizList },
-      auth.headers ? { headers: auth.headers } : undefined,
+      { headers: auth.headers },
     );
 
     if (!response.success) {

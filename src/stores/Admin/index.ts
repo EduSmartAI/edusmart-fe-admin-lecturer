@@ -27,6 +27,7 @@ export {
   type SurveyCreatePayload,
   type SurveyUpdatePayload,
   type SurveyQuestion,
+  type SurveyQuestionPayload,
   type SurveyAnswer,
   type SurveyState,
   type SurveyStatus,
@@ -51,3 +52,14 @@ export {
   useInitialTestStore,
   type InitialTestState,
 } from "./InitialTestStore";
+
+export {
+  useSyllabusStore,
+  type Major,
+  type MajorCreatePayload,
+  type MajorUpdatePayload,
+  type Subject,
+  type SubjectCreatePayload,
+  type SubjectUpdatePayload,
+  type SyllabusState,
+} from "./SyllabusStore";

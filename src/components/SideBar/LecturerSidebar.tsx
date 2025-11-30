@@ -1,28 +1,29 @@
 "use client";
 
-import React, { CSSProperties, useEffect, useMemo, useState } from "react";
+import React, { CSSProperties, useEffect, useState } from "react";
 import Image from "next/image";
-import { Knewave } from "next/font/google";
+import { Lobster } from "next/font/google";
 import {
-  PieChartOutlined,
+  DashboardOutlined,
   TeamOutlined,
-  FileTextOutlined,
-  CalendarOutlined,
   BarChartOutlined,
   BellOutlined,
   SettingOutlined,
   LogoutOutlined,
+  PlusCircleOutlined,
+  EyeOutlined,
+  CommentOutlined,
 } from "@ant-design/icons";
 import type { MenuProps } from "antd";
-import { Menu, Layout, theme, Avatar } from "antd";
-import imageEmoLogo from 'EduSmart/assets/emo.webp';
+import { Menu, Layout, theme } from "antd";
+import imageEmoLogo from 'EduSmart/assets/logo.png';
 import { useTheme } from 'EduSmart/Provider/ThemeProvider';
 import { ThemeSwitch } from '../Themes/Theme';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuthStore } from 'EduSmart/stores/Auth/AuthStore';
 import { useNotification } from 'EduSmart/Provider/NotificationProvider';
 import { useLoadingStore } from 'EduSmart/stores/Loading/LoadingStore';
-import { useUserProfileStore } from 'EduSmart/stores/User/UserProfileStore';
+import { UserTitle } from "./UserTitle";
 
 const { Sider } = Layout;
 type MenuItem = Required<MenuProps>["items"][number];
@@ -31,7 +32,7 @@ interface CSSVarProperties extends CSSProperties {
   "--ant-primary-color"?: string;
 }
 
-const knewave = Knewave({
+const lobster = Lobster({
   weight: "400",
   subsets: ["latin"],
 });
@@ -42,6 +43,7 @@ type NavMenuItem = {
   icon?: React.ReactNode;
   children?: NavMenuItem[];
   path?: string;
+  type?: "group" | "divider";
 };
 
 const getItem = (
@@ -50,26 +52,103 @@ const getItem = (
   icon?: React.ReactNode,
   children?: NavMenuItem[],
   path?: string,
-): NavMenuItem => ({ label, key, icon, children, path });
+  type?: "group" | "divider",
+): NavMenuItem => ({ label, key, icon, children, path, type });
 
+/**
+ * Navigation items organized by functional groups for Lecturer
+ */
 const navItems: NavMenuItem[] = [
-  getItem("Dashboard", "dashboard", <PieChartOutlined />, undefined, "/Lecturer/dashboard"),
-  getItem("Audience", "audience", <TeamOutlined />, undefined, "/Lecturer/audience"),
-  getItem("Posts", "posts", <FileTextOutlined />, undefined, "/Lecturer/posts"),
-  getItem("Schedules", "schedules", <CalendarOutlined />, undefined, "/Lecturer/schedules"),
-  getItem("Bình luận", "comments", <FileTextOutlined />, undefined, "/Lecturer/comments"),
-  getItem("Giáo trình", "syllabus", <FileTextOutlined />, [
-    getItem("Chuyên ngành", "major", undefined, undefined, "/Lecturer/syllabus/major"),
-    getItem("Môn học", "subject", undefined, undefined, "/Lecturer/syllabus/subject"),
-  ]),
-  getItem("Quản lý khóa học", "course-management", <BarChartOutlined />, [
-    getItem("Xem khóa học", "view-courses", undefined, undefined, "/Lecturer/courses"),
-    getItem("Tạo khóa học", "create-course", undefined, undefined, "/Lecturer/courses/create-course"),
-    getItem("Declines", "declines", undefined, undefined, "/Lecturer/courses/declines"),
-    getItem("Payouts", "payouts", undefined, undefined, "/Lecturer/courses/payouts"),
-  ]),
-  getItem("Notification", "notification", <BellOutlined />, undefined, "/Lecturer/notification"),
-  getItem("Settings", "settings", <SettingOutlined />, undefined, "/Lecturer/settings"),
+  // ========== DASHBOARD ==========
+  getItem(
+    "Tổng quan",
+    "dashboard-group",
+    null,
+    [
+      getItem(
+        "Dashboard",
+        "dashboard",
+        <DashboardOutlined />,
+        undefined,
+        "/Lecturer",
+      ),
+      getItem(
+        "Audience",
+        "audience",
+        <TeamOutlined />,
+        undefined,
+        "/Lecturer/audience",
+      ),
+      getItem(
+        "Bình luận",
+        "comments",
+        <CommentOutlined />,
+        undefined,
+        "/Lecturer/comments",
+      ),
+    ],
+    undefined,
+    "group",
+  ),
+
+  // ========== COURSE MANAGEMENT ==========
+  getItem(
+    "Quản lý Khóa học",
+    "course-group",
+    null,
+    [
+      getItem(
+        "Xem khóa học",
+        "view-courses",
+        <EyeOutlined />,
+        undefined,
+        "/Lecturer/courses",
+      ),
+      getItem(
+        "Tạo khóa học",
+        "create-course",
+        <PlusCircleOutlined />,
+        undefined,
+        "/Lecturer/courses/create-course",
+      ),
+      getItem(
+        "Thống kê & Phân tích",
+        "analytics",
+        <BarChartOutlined />,
+        undefined,
+        "/Lecturer/courses/analytics",
+      ),
+    ],
+    undefined,
+    "group",
+  ),
+
+  // ========== SYSTEM ==========
+  getItem(
+    "Hệ thống",
+    "system-group",
+    null,
+    [
+      getItem(
+        "Notification",
+        "notification",
+        <BellOutlined />,
+        undefined,
+        "/Lecturer/notification",
+      ),
+      getItem(
+        "Settings",
+        "settings",
+        <SettingOutlined />,
+        undefined,
+        "/Lecturer/settings",
+      ),
+    ],
+    undefined,
+    "group",
+  ),
+
+  // ========== LOGOUT ==========
   getItem("Đăng xuất", "logout", <LogoutOutlined />),
 ];
 
@@ -88,34 +167,37 @@ const pathKeyMap = Object.entries(keyPathMap).reduce<Record<string, string>>(
   {},
 );
 
-
-
-const parentMap = (() => {
-  const m: Record<string, string> = {};
-  function build(items: NavMenuItem[], parent?: NavMenuItem) {
-    for (const it of items) {
-      if (parent) m[it.key] = parent.key;
-      if (it.children) build(it.children, it);
+function getSelectedKeys(pathname: string): string[] {
+  if (pathKeyMap[pathname]) return [pathKeyMap[pathname]];
+  // fallback: find longest prefix match
+  let matchKey = "";
+  let matchLen = -1;
+  for (const [k, p] of Object.entries(keyPathMap)) {
+    if (pathname.startsWith(p) && p.length > matchLen) {
+      matchKey = k;
+      matchLen = p.length;
     }
   }
-  build(navItems);
-  return m;
-})();
-
-
-
-function getSelectedKeys(pathname: string): string[] {
-  const key = pathKeyMap[pathname];
-  return key ? [key] : [];
+  return matchKey ? [matchKey] : [];
 }
 
 const toAntdItems = (items: NavMenuItem[]): MenuItem[] =>
-  items.map((it) => ({
-    key: it.key,
-    icon: it.icon,
-    label: it.label,
-    children: it.children ? toAntdItems(it.children) : undefined,
-  })) as MenuItem[];
+  items.map((it) => {
+    if (it.type === "group") {
+      return {
+        key: it.key,
+        label: it.label,
+        type: "group",
+        children: it.children ? toAntdItems(it.children) : undefined,
+      };
+    }
+    return {
+      key: it.key,
+      icon: it.icon,
+      label: it.label,
+      children: it.children ? toAntdItems(it.children) : undefined,
+    };
+  }) as MenuItem[];
 
 /* ---------- COMPONENT ---------- */
 interface LecturerSidebarProps {
@@ -132,124 +214,126 @@ export const LecturerSidebar: React.FC<LecturerSidebarProps> = ({
   defaultSelectedKeys,
 }) => {
   const [mounted, setMounted] = useState(false);
+  const [openKeys, setOpenKeys] = useState<string[]>([]);
   const { isDarkMode } = useTheme();
-  const { token: { colorPrimary } } = theme.useToken();
+  const {
+    token: { colorPrimary, colorBorderSecondary },
+  } = theme.useToken();
   const messageApi = useNotification();
   const pathname = usePathname();
   const router = useRouter();
-  const { profile } = useUserProfileStore();
-  const selectedKeys = defaultSelectedKeys ?? getSelectedKeys(pathname);
-  const defaultOpenKeys = useMemo(() => {
-    const cur = selectedKeys[0];
-    if (!cur) return [];
-    const p = parentMap[cur];
-    return p ? [p] : [];
-  }, [selectedKeys]);
+  const { logout } = useAuthStore();
 
   useEffect(() => setMounted(true), []);
 
   if (!mounted) return <div style={{ width: collapsed ? 80 : 240 }} />;
 
   const siderStyle: CSSVarProperties = {
-    backgroundColor: isDarkMode ? "#030a14" : "#ffffff",
+    backgroundColor: isDarkMode ? "#021526" : "#ffffff",
     color: isDarkMode ? "#ffffff" : "#000000",
     "--ant-primary-color": colorPrimary,
-    position: 'sticky',
-    top: 0,
-    left: 0,
   };
 
   const antItems = toAntdItems(menuItems);
+  const selectedKeys = defaultSelectedKeys ?? getSelectedKeys(pathname);
 
   const handleMenuClick: MenuProps["onClick"] = async ({ key }) => {
     if (key === "logout") {
       const { showLoading } = useLoadingStore.getState();
       showLoading();
-      await useAuthStore.getState().logout();
-      useAuthStore.persist.clearStorage();
+      await logout();
       messageApi.success("Đăng xuất thành công!");
-      // Use window.location to force full page reload and clear all states
+      useAuthStore.persist.clearStorage();
+      // Force full page reload to clear all states
       window.location.href = "/Login";
       return;
     }
-
     const path = keyPathMap[key];
     if (path) {
-      // Use router.push for navigation
       router.push(path);
     }
+  };
+
+  const handleLogoClick = () => {
+    router.push("/Lecturer");
   };
 
   return (
     <Sider
       style={siderStyle}
+      className="!flex !flex-col !h-screen !sticky !top-0 !left-0"
       breakpoint="md"
       collapsedWidth={80}
       collapsible
       collapsed={collapsed}
       onCollapse={onCollapse}
-
       width={240}
       trigger={null}
-      className="flex flex-col h-screen"
     >
-      {/* Logo */}
-      <div
-        style={{
-          height: 48,
-          margin: "8px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: collapsed ? "center" : "flex-start",
-          overflow: "hidden",
-        }}
-      >
-        {collapsed ? (
-          <Image
-            src={imageEmoLogo}
-            alt="EmoEase Logo"
-            width={32}
-            height={32}
-            priority
-            placeholder="empty"
-            className="object-cover"
-          />
-        ) : (
-          <div
-            className={`${knewave.className} text-[#4a2580] text-3xl font-light tracking-widest ml-9`}
-          >
-            Edusmart
-          </div>
-        )}
-      </div>
-
-      {/* Menu */}
-      <Menu
-        theme={isDarkMode ? "dark" : "light"}
-        mode="inline"
-        items={antItems}
-        selectedKeys={selectedKeys}
-        defaultOpenKeys={defaultOpenKeys}
-        onClick={handleMenuClick}
-        className="flex-grow"
-        style={{
-          border: "none",
-          background: "transparent",
-        }}
-      />
-
-      {/* User Profile & Theme Switch */}
-      <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-        {!collapsed && (
-          <div className="flex items-center mb-4">
-            <Avatar src="https://i.pravatar.cc/150?u=a042581f4e29026024d" />
-            <div className="ml-3">
-              <p className="font-semibold text-sm">{profile?.name}</p>
-              <p className="text-xs text-gray-500">{profile?.email}</p>
+      <div className="flex h-full min-h-0 flex-col overflow-hidden">
+        {/* Logo - Clickable */}
+        <div
+          style={{
+            height: 48,
+            margin: "8px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: collapsed ? "center" : "flex-start",
+            overflow: "hidden",
+            flexShrink: 0,
+            cursor: "pointer",
+          }}
+          onClick={handleLogoClick}
+        >
+          {collapsed ? (
+            <Image
+              src={imageEmoLogo}
+              alt="EduSmart Logo"
+              width={32}
+              height={32}
+              priority
+              placeholder="empty"
+              className="object-cover"
+            />
+          ) : (
+            <div
+              className={`${lobster.className} text-black dark:text-white text-3xl font-light tracking-widest ml-9`}
+            >
+              EduSmart
             </div>
-          </div>
-        )}
-        <ThemeSwitch />
+          )}
+        </div>
+
+        {/* Menu - scrollable */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden">
+          <Menu
+            theme={isDarkMode ? "dark" : "light"}
+            mode="inline"
+            items={antItems}
+            selectedKeys={selectedKeys}
+            openKeys={openKeys}
+            onOpenChange={setOpenKeys}
+            onClick={handleMenuClick}
+            style={{
+              border: "none",
+              background: "transparent",
+              marginTop: 16,
+            }}
+          />
+        </div>
+
+        {/* Theme Switch - centered */}
+        <div className="flex justify-center py-3 flex-shrink-0">
+          <ThemeSwitch />
+        </div>
+
+        {/* User Title - fixed at bottom */}
+        <div
+          className={`mt-auto px-3 py-3 border-t border-dashed flex-shrink-0 ${isDarkMode ? "border-white/10" : ""}`}
+          style={{ borderColor: isDarkMode ? "" : colorBorderSecondary }}
+        >
+          <UserTitle collapsed={collapsed} />
+        </div>
       </div>
     </Sider>
   );

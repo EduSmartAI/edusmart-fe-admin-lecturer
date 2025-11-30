@@ -114,6 +114,12 @@ export interface PracticeExample {
   explanation: string;
 }
 
+// Solution for practice test
+export interface PracticeSolution {
+  languageId: number;
+  solutionCode: string;
+}
+
 // API Response Example (includes exampleId)
 export interface ApiPracticeExample {
   exampleId?: string;
@@ -164,9 +170,10 @@ export interface UpdatePracticeProblem {
 // API Payloads
 export interface CreatePracticeTestDto {
   problem: PracticeProblem;
-  testcases: TestCases[]; // API expects array with single TestCases object
+  testcases: TestCases; // API expects single TestCases object, not array
   templates: CodeTemplate[];
   examples: PracticeExample[];
+  solutions: PracticeSolution[];
 }
 
 export interface UpdatePracticeTestDto {

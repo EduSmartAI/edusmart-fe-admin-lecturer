@@ -5,8 +5,6 @@ import {
   Button,
   Table,
   Space,
-  Modal,
-  Form,
   Input,
   Spin,
   Alert,
@@ -18,7 +16,6 @@ import {
   Badge,
   Popconfirm,
   message,
-  Select,
 } from "antd";
 import {
   PlusOutlined,
@@ -29,20 +26,73 @@ import {
   FileTextOutlined,
   CheckOutlined,
   StopOutlined,
+  EyeOutlined,
+  ArrowLeftOutlined,
+  SaveOutlined,
+  SendOutlined,
 } from "@ant-design/icons";
 import { useSurveyStore } from "EduSmart/stores/Admin";
-import type { Survey, SurveyQuestion } from "EduSmart/stores/Admin";
+import type { Survey, SurveyQuestion as ApiSurveyQuestion } from "EduSmart/stores/Admin";
 import { formatErrorMessage } from "EduSmart/utils/adminErrorHandling";
 import { useDebouncedSearch } from "EduSmart/hooks/useDebounce";
+import SurveyFormBuilder, {
+  SurveyQuestion as FormQuestion,
+} from "EduSmart/components/Admin/Survey/SurveyFormBuilder";
 
-type ModalMode = "create" | "edit" | null;
+type ViewMode = "list" | "create" | "edit";
+
+// API payload interfaces matching the curl format
+interface ApiAnswerPayload {
+  answerText: string;
+  isCorrect: boolean;
+}
+
+interface ApiQuestionPayload {
+  questionText: string;
+  questionType: number; // 1 = Multiple Choice
+  answers: ApiAnswerPayload[];
+}
+
+// Convert form questions to API format (following curl format)
+const convertToApiFormat = (questions: FormQuestion[]): ApiQuestionPayload[] => {
+  return questions.map((q) => ({
+    questionText: q.questionText,
+    questionType: 1, // Always Multiple Choice = 1
+    answers: q.options.map((opt, i) => ({
+      answerText: opt.text,
+      isCorrect: i === 0, // First option as default correct
+    })),
+  }));
+};
+
+// Convert API questions to form format  
+const convertToFormFormat = (questions: ApiSurveyQuestion[]): FormQuestion[] => {
+  return questions.map((q) => ({
+    id: Math.random().toString(36).substring(2, 11),
+    questionText: q.questionText,
+    required: false,
+    options: q.answers?.map((a) => ({
+      id: Math.random().toString(36).substring(2, 11),
+      text: a.answerText,
+    })) || [
+      { id: Math.random().toString(36).substring(2, 11), text: "Lựa chọn 1" },
+      { id: Math.random().toString(36).substring(2, 11), text: "Lựa chọn 2" },
+    ],
+  }));
+};
 
 export default function SurveysClient() {
-  const [form] = Form.useForm();
   const [searchValue, setSearchValue, debouncedSearch] = useDebouncedSearch("", 500);
   const [currentPage, setCurrentPage] = useState(1);
-  const [modalMode, setModalMode] = useState<ModalMode>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [selectedSurvey, setSelectedSurvey] = useState<Survey | null>(null);
+  
+  // Form builder state
+  const [surveyTitle, setSurveyTitle] = useState("");
+  const [surveyDescription, setSurveyDescription] = useState("");
+  const [surveyCode, setSurveyCode] = useState("");
+  const [questions, setQuestions] = useState<FormQuestion[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
 
   const {
     surveys,
@@ -61,63 +111,117 @@ export default function SurveysClient() {
   // Load surveys on mount and when search/page changes
   useEffect(() => {
     fetchSurveys(currentPage, 20, debouncedSearch);
-  }, [currentPage, debouncedSearch, fetchSurveys]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, debouncedSearch]);
 
-  const handleSubmit = async (values: {
-    surveyCode: string;
-    title: string;
-    description?: string;
-    questions?: Array<{
-      questionText: string;
-      questionType: number;
-      answers: Array<{
-        answerText: string;
-        isCorrect: boolean;
-      }>;
-    }>;
-  }) => {
+  // Reset form state
+  const resetFormState = () => {
+    setSurveyTitle("");
+    setSurveyDescription("");
+    setSurveyCode("");
+    setQuestions([]);
+    setSelectedSurvey(null);
+  };
+
+  // Generate survey code
+  const generateSurveyCode = () => {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    let code = "SV-";
+    for (let i = 0; i < 6; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+  };
+
+  const handleCreate = () => {
+    resetFormState();
+    setSurveyCode(generateSurveyCode());
+    setViewMode("create");
+  };
+
+  const handleEdit = (survey: Survey) => {
+    setSelectedSurvey(survey);
+    setSurveyTitle(survey.title);
+    setSurveyDescription(survey.description || "");
+    setSurveyCode(survey.code);
+    setQuestions(convertToFormFormat(survey.questions || []));
+    setViewMode("edit");
+  };
+
+  const handleBackToList = () => {
+    resetFormState();
+    setViewMode("list");
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const handleSave = async (publish: boolean = false) => {
+    if (!surveyTitle.trim()) {
+      message.error("Vui lòng nhập tiêu đề khảo sát");
+      return;
+    }
+    if (!surveyCode.trim()) {
+      message.error("Vui lòng nhập mã khảo sát");
+      return;
+    }
+    if (questions.length === 0) {
+      message.error("Vui lòng thêm ít nhất một câu hỏi");
+      return;
+    }
+
+    setIsSaving(true);
     try {
-      if (modalMode === "create") {
-        // Match the exact API structure from curl
+      const apiQuestions = convertToApiFormat(questions);
+      
+      if (viewMode === "create") {
         const payload = {
-          title: values.title.trim(),
-          description: values.description?.trim() || "",
-          surveyCode: values.surveyCode.trim().toUpperCase(),
-          questions: values.questions || [],
+          title: surveyTitle.trim(),
+          description: surveyDescription.trim(),
+          surveyCode: surveyCode.trim().toUpperCase(),
+          questions: apiQuestions,
         };
 
-        const result = await createSurvey(payload);
+        console.log("[SurveysClient] Creating survey with payload:", JSON.stringify(payload, null, 2));
 
+        const result = await createSurvey(payload);
         if (result) {
           message.success("Tạo khảo sát thành công!");
-          form.resetFields();
-          setModalMode(null);
-        } else {
-          message.error("Không thể tạo khảo sát");
+          
+          // TODO: Enable publish when API endpoint is confirmed
+          // if (publish && result.id) {
+          //   try {
+          //     await publishSurvey(result.id);
+          //     message.success("Đã xuất bản khảo sát!");
+          //   } catch (publishError) {
+          //     console.error("Publish error:", publishError);
+          //     message.warning("Khảo sát đã được tạo nhưng không thể xuất bản. Vui lòng xuất bản sau.");
+          //   }
+          // }
+          
+          handleBackToList();
         }
-      } else if (modalMode === "edit" && selectedSurvey) {
+      } else if (viewMode === "edit" && selectedSurvey) {
         const result = await updateSurvey({
           id: selectedSurvey.id,
-          code: values.surveyCode.trim().toUpperCase(),
-          title: values.title.trim(),
-          description: values.description?.trim() || "",
+          code: surveyCode.trim().toUpperCase(),
+          title: surveyTitle.trim(),
+          description: surveyDescription.trim(),
           status: selectedSurvey.status,
-          questions: (values.questions || selectedSurvey.questions) as SurveyQuestion[],
+          questions: apiQuestions as unknown as ApiSurveyQuestion[],
         });
 
         if (result) {
           message.success("Cập nhật khảo sát thành công!");
-          form.resetFields();
-          setModalMode(null);
-          setSelectedSurvey(null);
-        } else {
-          message.error("Không thể cập nhật khảo sát");
+          handleBackToList();
         }
       }
     } catch (err) {
       message.error(formatErrorMessage(err));
+    } finally {
+      setIsSaving(false);
     }
   };
+
+
 
   const handlePublish = async (surveyId: string) => {
     try {
@@ -144,29 +248,6 @@ export default function SurveysClient() {
     } catch (err) {
       message.error(formatErrorMessage(err));
     }
-  };
-
-  const handleEdit = (survey: Survey) => {
-    setSelectedSurvey(survey);
-    setModalMode("edit");
-    form.setFieldsValue({
-      surveyCode: survey.code,
-      title: survey.title,
-      description: survey.description || "",
-      questions: survey.questions || [],
-    });
-  };
-
-  const handleCreate = () => {
-    form.resetFields();
-    setSelectedSurvey(null);
-    setModalMode("create");
-  };
-
-  const handleModalClose = () => {
-    setModalMode(null);
-    setSelectedSurvey(null);
-    form.resetFields();
   };
 
   const getStatusColor = (
@@ -267,6 +348,15 @@ export default function SurveysClient() {
               />
             </Tooltip>
           )}
+          <Tooltip title="Xem chi tiết">
+            <Button
+              type="text"
+              icon={<EyeOutlined />}
+              size="small"
+              onClick={() => handleEdit(record)}
+              className="text-blue-600"
+            />
+          </Tooltip>
           <Tooltip title="Chỉnh sửa">
             <Button
               type="text"
@@ -300,6 +390,98 @@ export default function SurveysClient() {
     },
   ];
 
+  // Render Create/Edit View (Google Form Style)
+  if (viewMode === "create" || viewMode === "edit") {
+    return (
+      <div className="min-h-screen bg-purple-50">
+        {/* Top Header Bar */}
+        <div className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50">
+          <div className="max-w-5xl mx-auto px-4 py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <Button
+                  type="text"
+                  icon={<ArrowLeftOutlined />}
+                  onClick={handleBackToList}
+                  className="text-gray-600 hover:text-gray-800"
+                >
+                  Quay lại
+                </Button>
+                <div className="h-6 w-px bg-gray-300" />
+                <div className="flex items-center gap-2">
+                  <FileTextOutlined className="text-purple-600 text-xl" />
+                  <span className="font-semibold text-gray-800">
+                    {viewMode === "create" ? "Tạo khảo sát mới" : "Chỉnh sửa khảo sát"}
+                  </span>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-3">
+                {/* Survey Code Input */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-500">Mã:</span>
+                  <Input
+                    value={surveyCode}
+                    onChange={(e) => setSurveyCode(e.target.value.toUpperCase())}
+                    placeholder="SV-XXXXXX"
+                    className="w-32 font-mono text-center"
+                    maxLength={12}
+                  />
+                </div>
+                
+                <Button
+                  icon={<SaveOutlined />}
+                  onClick={() => handleSave(false)}
+                  loading={isSaving}
+                  disabled={isSaving}
+                >
+                  Lưu nháp
+                </Button>
+                
+                {viewMode === "create" && (
+                  <Button
+                    type="primary"
+                    icon={<SendOutlined />}
+                    onClick={() => handleSave(true)}
+                    loading={isSaving}
+                    disabled={isSaving}
+                    className="bg-purple-600 hover:bg-purple-700 border-0"
+                  >
+                    Lưu & Xuất bản
+                  </Button>
+                )}
+                
+                {viewMode === "edit" && (
+                  <Button
+                    type="primary"
+                    icon={<SaveOutlined />}
+                    onClick={() => handleSave(false)}
+                    loading={isSaving}
+                    disabled={isSaving}
+                    className="bg-purple-600 hover:bg-purple-700 border-0"
+                  >
+                    Cập nhật
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Survey Form Builder */}
+        <SurveyFormBuilder
+          questions={questions}
+          onChange={setQuestions}
+          surveyTitle={surveyTitle}
+          onTitleChange={setSurveyTitle}
+          surveyDescription={surveyDescription}
+          onDescriptionChange={setSurveyDescription}
+        />
+      </div>
+    );
+  }
+
+  // Render List View
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
@@ -307,27 +489,27 @@ export default function SurveysClient() {
         <div className="mb-6">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-3">
-              <FileTextOutlined className="text-2xl text-blue-600" />
+              <FileTextOutlined className="text-2xl text-purple-600" />
               <h1 className="text-3xl font-bold text-gray-900">Khảo Sát</h1>
             </div>
           </div>
           <p className="text-gray-600">
-            Tạo và quản lý khảo sát phản hồi khóa học
+            Tạo và quản lý khảo sát phản hồi khóa học theo phong cách Google Form
           </p>
         </div>
 
         {/* Stats Cards */}
         <Row gutter={16} className="mb-6">
           <Col xs={24} sm={12} lg={6}>
-            <Card className="shadow-sm hover:shadow-md transition-shadow">
+            <Card className="shadow-sm hover:shadow-md transition-shadow border-l-4 border-l-purple-500">
               <div className="text-center">
-                <div className="text-3xl font-bold text-blue-600">{total}</div>
+                <div className="text-3xl font-bold text-purple-600">{total}</div>
                 <div className="text-gray-600 text-sm mt-1">Tổng số</div>
               </div>
             </Card>
           </Col>
           <Col xs={24} sm={12} lg={6}>
-            <Card className="shadow-sm hover:shadow-md transition-shadow">
+            <Card className="shadow-sm hover:shadow-md transition-shadow border-l-4 border-l-gray-400">
               <div className="text-center">
                 <div className="text-3xl font-bold text-gray-600">
                   {(surveys || []).filter((s) => s.status === "DRAFT").length}
@@ -337,7 +519,7 @@ export default function SurveysClient() {
             </Card>
           </Col>
           <Col xs={24} sm={12} lg={6}>
-            <Card className="shadow-sm hover:shadow-md transition-shadow">
+            <Card className="shadow-sm hover:shadow-md transition-shadow border-l-4 border-l-green-500">
               <div className="text-center">
                 <div className="text-3xl font-bold text-green-600">
                   {(surveys || []).filter((s) => s.status === "PUBLISHED").length}
@@ -347,7 +529,7 @@ export default function SurveysClient() {
             </Card>
           </Col>
           <Col xs={24} sm={12} lg={6}>
-            <Card className="shadow-sm hover:shadow-md transition-shadow">
+            <Card className="shadow-sm hover:shadow-md transition-shadow border-l-4 border-l-red-500">
               <div className="text-center">
                 <div className="text-3xl font-bold text-red-600">
                   {(surveys || []).filter((s) => s.status === "CLOSED").length}
@@ -382,7 +564,7 @@ export default function SurveysClient() {
                 setCurrentPage(1);
               }}
               allowClear
-              className="w-full md:w-64"
+              className="w-full md:w-80"
             />
             <Space>
               <Tooltip title="Làm mới">
@@ -397,7 +579,7 @@ export default function SurveysClient() {
                 icon={<PlusOutlined />}
                 onClick={handleCreate}
                 size="large"
-                className="bg-blue-600 hover:bg-blue-700"
+                className="bg-purple-600 hover:bg-purple-700 border-0"
               >
                 Tạo khảo sát
               </Button>
@@ -422,6 +604,7 @@ export default function SurveysClient() {
                 type="primary"
                 onClick={handleCreate}
                 icon={<PlusOutlined />}
+                className="bg-purple-600 hover:bg-purple-700 border-0"
               >
                 Tạo khảo sát đầu tiên
               </Button>
@@ -446,288 +629,6 @@ export default function SurveysClient() {
           )}
         </Card>
       </div>
-
-      {/* Create/Edit Modal */}
-      <Modal
-        title={null}
-        open={modalMode !== null}
-        onCancel={handleModalClose}
-        footer={null}
-        width={700}
-        destroyOnClose
-        centered
-        styles={{
-          body: {
-            padding: 0,
-          },
-        }}
-      >
-        <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white m-0">
-            {modalMode === "create" ? "Tạo khảo sát mới" : "Chỉnh sửa khảo sát"}
-          </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 mb-0">
-            {modalMode === "create" 
-              ? "Tạo khảo sát phản hồi nội dung học viên về khóa học" 
-              : "Chỉnh sửa thông tin khảo sát"}
-          </p>
-        </div>
-
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleSubmit}
-          autoComplete="off"
-          initialValues={{
-            questions: [],
-            description: "1", // Default points value
-          }}
-        >
-          <div className="px-6 py-4 max-h-[calc(100vh-250px)] overflow-y-auto">
-            {/* Basic Information - Compact inline layout */}
-            <Form.Item
-              label={<span className="text-sm">Nhập câu hỏi</span>}
-              name="title"
-              rules={[
-                { required: true, message: "Vui lòng nhập tiêu đề" },
-                { min: 3, message: "Tiêu đề phải có ít nhất 3 ký tự" },
-              ]}
-              className="mb-4"
-            >
-              <Input.TextArea
-                placeholder="Nhập câu hỏi..."
-                rows={3}
-                className="resize-none"
-              />
-            </Form.Item>
-
-            {/* Question Type - Full width, no points field */}
-            <Form.Item
-              label={<span className="text-sm flex items-center gap-1">
-                <span className="text-red-500">*</span> Loại câu hỏi
-              </span>}
-              name="surveyCode"
-              rules={[
-                { required: true, message: "Chọn loại câu hỏi" },
-              ]}
-              className="mb-4"
-            >
-              <Select placeholder="Trắc nghiệm">
-                <Select.Option value="MULTIPLE_CHOICE">
-                  Trắc nghiệm
-                </Select.Option>
-                <Select.Option value="TEXT">
-                  Văn bản
-                </Select.Option>
-                <Select.Option value="NUMBER">
-                  Số
-                </Select.Option>
-                <Select.Option value="RATING">
-                  Đánh giá
-                </Select.Option>
-              </Select>
-            </Form.Item>
-
-            {/* Questions Section */}
-            <Form.List name="questions">
-              {(fields, { add, remove }) => (
-                <>
-                  {fields.map(({ key, name, ...restField }, index) => (
-                    <div key={key} className="mb-6">
-                      {/* Question Header */}
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <div className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 text-white text-sm font-semibold">
-                            {index + 1}
-                          </div>
-                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                            Câu hỏi {index + 1}
-                          </span>
-                        </div>
-                        <Button
-                          type="text"
-                          danger
-                          size="small"
-                          onClick={() => remove(name)}
-                          icon={<DeleteOutlined />}
-                        />
-                      </div>
-
-                      {/* Question Text */}
-                      <Form.Item
-                        {...restField}
-                        label={<span className="text-sm">Nội dung câu hỏi</span>}
-                        name={[name, "questionText"]}
-                        rules={[
-                          { required: true, message: "Vui lòng nhập câu hỏi" },
-                        ]}
-                        className="mb-3"
-                      >
-                        <Input.TextArea
-                          placeholder="Nhập câu hỏi..."
-                          rows={2}
-                          className="resize-none"
-                        />
-                      </Form.Item>
-
-                      {/* Answers Section */}
-                      <div className="mb-3">
-                        <div className="flex items-center justify-between mb-2">
-                          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                            Các lựa chọn
-                          </label>
-                          <Form.Item noStyle shouldUpdate>
-                            {({ getFieldValue }) => {
-                              const answers = getFieldValue(["questions", name, "answers"]) || [];
-                              return (
-                                <span className="text-xs text-gray-500">
-                                  {answers.length} lựa chọn
-                                </span>
-                              );
-                            }}
-                          </Form.Item>
-                        </div>
-                        
-                        <Form.List name={[name, "answers"]}>
-                          {(
-                            answerFields,
-                            { add: addAnswer, remove: removeAnswer }
-                          ) => (
-                            <>
-                              {answerFields.map(
-                                (
-                                  { key: answerKey, name: answerName, ...answerRest },
-                                  answerIndex
-                                ) => (
-                                  <div
-                                    key={answerKey}
-                                    className="flex items-start gap-3 mb-2"
-                                  >
-                                    {/* Radio button for correct answer */}
-                                    <Form.Item
-                                      {...answerRest}
-                                      name={[answerName, "isCorrect"]}
-                                      valuePropName="checked"
-                                      className="mb-0 pt-2"
-                                    >
-                                      <input
-                                        type="radio"
-                                        name={`question-${name}-correct`}
-                                        className="w-4 h-4 text-blue-600 cursor-pointer"
-                                      />
-                                    </Form.Item>
-                                    
-                                    <Form.Item
-                                      {...answerRest}
-                                      name={[answerName, "answerText"]}
-                                      rules={[
-                                        {
-                                          required: true,
-                                          message: "Nhập nội dung",
-                                        },
-                                      ]}
-                                      className="mb-0 flex-1"
-                                    >
-                                      <Input 
-                                        placeholder={`Lựa chọn ${answerIndex + 1}`}
-                                      />
-                                    </Form.Item>
-
-                                    <Button
-                                      type="text"
-                                      danger
-                                      size="small"
-                                      icon={<DeleteOutlined />}
-                                      onClick={() => removeAnswer(answerName)}
-                                      className="mt-1"
-                                    />
-                                  </div>
-                                )
-                              )}
-
-                              <Button
-                                type="dashed"
-                                onClick={() =>
-                                  addAnswer({
-                                    answerText: "",
-                                    isCorrect: false,
-                                  })
-                                }
-                                block
-                                icon={<PlusOutlined />}
-                                size="small"
-                                className="mt-2"
-                              >
-                                Thêm lựa chọn
-                              </Button>
-                            </>
-                          )}
-                        </Form.List>
-                      </div>
-
-                      {/* Explanation */}
-                      <Form.Item
-                        {...restField}
-                        label={<span className="text-sm">Giải thích (tùy chọn)</span>}
-                        name={[name, "explanation"]}
-                        className="mb-0"
-                      >
-                        <Input.TextArea
-                          placeholder="Giải thích đáp án..."
-                          rows={2}
-                          className="resize-none"
-                        />
-                      </Form.Item>
-                    </div>
-                  ))}
-
-                  {/* Add Question Button */}
-                  <Button
-                    type="dashed"
-                    onClick={() =>
-                      add({
-                        questionText: "",
-                        questionType: 1,
-                        answers: [
-                          { answerText: "", isCorrect: false },
-                          { answerText: "", isCorrect: false },
-                          { answerText: "", isCorrect: false },
-                          { answerText: "", isCorrect: false },
-                        ],
-                      })
-                    }
-                    block
-                    icon={<PlusOutlined />}
-                    className="mb-4"
-                  >
-                    Thêm câu hỏi
-                  </Button>
-                </>
-              )}
-            </Form.List>
-          </div>
-
-          {/* Footer */}
-          <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-            <Button
-              onClick={handleModalClose}
-              size="large"
-            >
-              Hủy
-            </Button>
-            <Button
-              type="primary"
-              htmlType="submit"
-              loading={isLoading}
-              icon={<PlusOutlined />}
-              size="large"
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              {modalMode === "create" ? "Tạo khảo sát" : "Cập nhật"}
-            </Button>
-          </div>
-        </Form>
-      </Modal>
     </div>
   );
 }

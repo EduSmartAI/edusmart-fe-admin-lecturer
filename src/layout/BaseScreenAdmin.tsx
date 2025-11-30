@@ -1,8 +1,8 @@
 "use client";
 
 import React, { ReactNode, useState, useEffect } from "react";
-import { Layout, Breadcrumb, theme, Spin } from "antd";
-import { MenuFoldOutlined, MenuUnfoldOutlined } from "@ant-design/icons";
+import { Layout, Breadcrumb, theme, Spin, Typography, Button, Tooltip } from "antd";
+import { MenuFoldOutlined, MenuUnfoldOutlined, BellOutlined, QuestionCircleOutlined } from "@ant-design/icons";
 import { AdminSidebar } from "EduSmart/components/SideBar/SideBar";
 import Loading from "EduSmart/components/Loading/Loading";
 import { FadeInUp } from "EduSmart/components/Animation/FadeInUp";
@@ -11,6 +11,7 @@ import NotFound from "EduSmart/app/404/page";
 import { useSidebarStore } from "EduSmart/stores/SideBar/SideBarStore";
 
 const { Header, Content, Footer } = Layout;
+const { Text } = Typography;
 
 interface BaseScreenAdminProps {
   children: ReactNode;
@@ -72,48 +73,68 @@ const BaseScreenAdmin: React.FC<BaseScreenAdminProps> = ({
       />
 
       <Layout>
-        {/* 3️⃣ Nút thu/vô nằm trong Header */}
+        {/* 3️⃣ Modern Header with better styling */}
         <Header
           style={{
             background: colorBgContainer,
-            padding: "0 16px",
+            padding: "0 24px",
             display: "flex",
             alignItems: "center",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+            justifyContent: "space-between",
+            boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+            position: "sticky",
+            top: 0,
+            zIndex: 10,
+            height: 64,
           }}
         >
-          {collapsed ? (
-            <MenuUnfoldOutlined
-              onClick={() => setCollapsed(false)}
-              style={{ fontSize: 20, cursor: "pointer", marginRight: 16 }}
+          <div className="flex items-center gap-4">
+            <Button
+              type="text"
+              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+              onClick={() => setCollapsed(!collapsed)}
+              style={{ fontSize: 18, width: 40, height: 40 }}
             />
-          ) : (
-            <MenuFoldOutlined
-              onClick={() => setCollapsed(true)}
-              style={{ fontSize: 20, cursor: "pointer", marginRight: 16 }}
-            />
-          )}
-          {breadcrumbItems.length === 0 ? (
-            <h3 style={{ margin: 0 }}>EduSmart Admin</h3>
-          ) : (
-            <Breadcrumb
-              items={breadcrumbItems.map((item) => ({
-                title: item.title,
-              }))}
-              style={{
-                margin: 0,
-                fontSize: "18px",
-                fontWeight: 700,
-              }}
-            />
-          )}
+            {breadcrumbItems.length === 0 ? (
+              <div className="flex items-center gap-2">
+                <Text strong style={{ fontSize: 18 }}>
+                  EduSmart Admin
+                </Text>
+              </div>
+            ) : (
+              <Breadcrumb
+                items={breadcrumbItems.map((item) => ({
+                  title: item.title,
+                }))}
+                style={{
+                  margin: 0,
+                  fontSize: "16px",
+                }}
+              />
+            )}
+          </div>
+
+          {/* Header Right Actions */}
+          <div className="flex items-center gap-2">
+            <Tooltip title="Trợ giúp">
+              <Button type="text" icon={<QuestionCircleOutlined />} style={{ width: 40, height: 40 }} />
+            </Tooltip>
+            <Tooltip title="Thông báo">
+              <Button type="text" icon={<BellOutlined />} style={{ width: 40, height: 40 }} />
+            </Tooltip>
+          </div>
         </Header>
 
         <Loading />
         <FadeInUp>
-          <Content style={{ margin: "16px 24px" }}>
+          <Content 
+            style={{ 
+              margin: "24px", 
+              minHeight: "calc(100vh - 64px - 70px - 48px)",
+            }}
+          >
             <div
-              className="p-6 min-h-[360px] h-full rounded-lg"
+              className="p-6 min-h-full rounded-xl"
               style={{
                 background: colorBgContainer,
                 borderRadius: borderRadiusLG,
@@ -124,8 +145,16 @@ const BaseScreenAdmin: React.FC<BaseScreenAdminProps> = ({
           </Content>
         </FadeInUp>
 
-        <Footer style={{ textAlign: "center" }}>
-          EmoEasse ©{new Date().getFullYear()} Created by SOLTECH
+        <Footer 
+          style={{ 
+            textAlign: "center",
+            padding: "16px 24px",
+            background: "transparent",
+          }}
+        >
+          <Text type="secondary" className="text-sm">
+            EduSmart © {new Date().getFullYear()} • Phát triển bởi SOLTECH
+          </Text>
         </Footer>
       </Layout>
     </Layout>

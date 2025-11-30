@@ -5,6 +5,9 @@ import { useTheme } from 'EduSmart/Provider/ThemeProvider';
 import { useCreateCourseStore, CourseContentItem, Lesson, Discussion, Material } from 'EduSmart/stores/CreateCourse/CreateCourseStore';
 import { FadeInUp } from 'EduSmart/components/Animation/FadeInUp';
 
+// Import markQuizAsEdited for tracking quiz edits
+const { markQuizAsEdited } = useCreateCourseStore.getState();
+
 import { QuizBuilder } from 'EduSmart/components/Common/QuizBuilder';
 import {
   FaVideo,
@@ -448,10 +451,16 @@ const CourseContent: FC = () => {
       }
 
       // Convert QuizBuilder format to store format for lessonQuiz
+      // IMPORTANT: Preserve quizId from server for update API to work
+      const existingQuiz = lesson.lessonQuiz as { id?: string; quizId?: string; lessonQuizId?: string; quizSettings?: { id?: string } } | undefined;
+      const quizId = existingQuiz?.quizId || existingQuiz?.lessonQuizId || existingQuiz?.id;
+      
       const lessonQuiz = {
-        id: lesson.lessonQuiz?.id || `quiz-${Date.now()}`,
+        id: quizId || `quiz-${Date.now()}`,
+        quizId: quizId, // Preserve the real UUID from server
+        lessonQuizId: existingQuiz?.lessonQuizId,
         quizSettings: {
-          id: lesson.lessonQuiz?.quizSettings?.id,
+          id: existingQuiz?.quizSettings?.id,
           durationMinutes: settings.timeLimit,
           passingScorePercentage: settings.passingScore,
           shuffleQuestions: settings.shuffleQuestions,
@@ -480,6 +489,13 @@ const CourseContent: FC = () => {
         ...lesson,
         lessonQuiz
       });
+
+      // Mark quiz as edited so it will be sent in update API
+      // Use quizId (the real UUID) for tracking
+      const trackingId = lessonQuiz.quizId || lessonQuiz.id;
+      if (trackingId) {
+        markQuizAsEdited(trackingId);
+      }
 
       setIsQuizBuilderOpen(false);
       setEditingVideoQuiz(null);
@@ -514,10 +530,16 @@ const CourseContent: FC = () => {
     const courseModule = modules[moduleIndex];
 
     // Convert QuizBuilder format to store format for moduleQuiz
+    // IMPORTANT: Preserve quizId from server for update API to work
+    const existingModuleQuiz = courseModule.moduleQuiz as { id?: string; quizId?: string; moduleQuizId?: string; quizSettings?: { id?: string } } | undefined;
+    const moduleQuizId = existingModuleQuiz?.quizId || existingModuleQuiz?.moduleQuizId || existingModuleQuiz?.id;
+    
     const moduleQuiz = {
-      id: courseModule.moduleQuiz?.id || `module-quiz-${Date.now()}`,
+      id: moduleQuizId || `module-quiz-${Date.now()}`,
+      quizId: moduleQuizId, // Preserve the real UUID from server
+      moduleQuizId: existingModuleQuiz?.moduleQuizId,
       quizSettings: {
-        id: courseModule.moduleQuiz?.quizSettings?.id,
+        id: existingModuleQuiz?.quizSettings?.id,
         durationMinutes: settings.timeLimit,
         passingScorePercentage: settings.passingScore,
         shuffleQuestions: settings.shuffleQuestions,
@@ -543,6 +565,13 @@ const CourseContent: FC = () => {
 
     // Save to module.moduleQuiz
     updateModule(moduleIndex, { moduleQuiz });
+    
+    // Mark quiz as edited so it will be sent in update API
+    // Use quizId (the real UUID) for tracking
+    const trackingModuleQuizId = moduleQuiz.quizId || moduleQuiz.id;
+    if (trackingModuleQuizId) {
+      markQuizAsEdited(trackingModuleQuizId);
+    }
     
     setIsQuizBuilderOpen(false);
     setSelectedType(null);

@@ -1,15 +1,25 @@
 "use client";
 
 import { useState } from "react";
-import { Steps, Card, App } from "antd";
+import { Steps, App, Button, Progress } from "antd";
 import { useRouter } from "next/navigation";
-import { CodeOutlined } from "@ant-design/icons";
+import {
+  CodeOutlined,
+  FileTextOutlined,
+  BulbOutlined,
+  ExperimentOutlined,
+  CheckCircleOutlined,
+  ArrowLeftOutlined,
+  CloseOutlined,
+  TrophyOutlined,
+} from "@ant-design/icons";
 import { usePracticeTestStore } from "EduSmart/stores/Admin";
-import type { CreatePracticeTestDto } from "EduSmart/types/practice-test";
+import type { CreatePracticeTestDto, PracticeSolution } from "EduSmart/types/practice-test";
 import ProblemInfoStep from "EduSmart/components/Admin/PracticeTest/ProblemInfoStep";
 import ExamplesStep from "EduSmart/components/Admin/PracticeTest/ExamplesStep";
 import TestCasesStep from "EduSmart/components/Admin/PracticeTest/TestCasesStep";
 import TemplatesStep from "EduSmart/components/Admin/PracticeTest/TemplatesStepNew";
+import SolutionsStep from "EduSmart/components/Admin/PracticeTest/SolutionsStep";
 import ReviewStep from "EduSmart/components/Admin/PracticeTest/ReviewStep";
 
 export default function CreatePracticeTestClient() {
@@ -19,58 +29,106 @@ export default function CreatePracticeTestClient() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<Partial<CreatePracticeTestDto>>({
     problem: {
-      title: '',
-      description: '',
+      title: "",
+      description: "",
       difficulty: 1, // 1 = Easy, 2 = Medium, 3 = Hard
     },
     examples: [],
-    testcases: [],
+    testcases: {
+      publicTestcases: [],
+      privateTestcases: [],
+    },
     templates: [],
+    solutions: [],
   });
   const { createPracticeTest } = usePracticeTestStore();
 
   const steps = [
     {
+      key: "info",
       title: "Thông tin",
-      description: "Tiêu đề & Độ khó",
-      icon: <CodeOutlined />,
+      shortTitle: "Info",
+      icon: <FileTextOutlined />,
+      description: "Tiêu đề, mô tả, độ khó",
     },
     {
+      key: "examples",
       title: "Ví dụ",
-      description: "Input/Output",
+      shortTitle: "Examples",
+      icon: <BulbOutlined />,
+      description: "Input/Output mẫu",
     },
     {
+      key: "testcases",
       title: "Test Cases",
+      shortTitle: "Tests",
+      icon: <ExperimentOutlined />,
       description: "Public & Private",
     },
     {
+      key: "templates",
       title: "Templates",
-      description: "Code mẫu",
+      shortTitle: "Code",
+      icon: <CodeOutlined />,
+      description: "Code mẫu cho mỗi ngôn ngữ",
     },
     {
-      title: "Xác nhận",
-      description: "Kiểm tra lại",
+      key: "solutions",
+      title: "Solutions",
+      shortTitle: "Solutions",
+      icon: <TrophyOutlined />,
+      description: "Lời giải mẫu",
+    },
+    {
+      key: "review",
+      title: "Review",
+      shortTitle: "Review",
+      icon: <CheckCircleOutlined />,
+      description: "Kiểm tra và tạo",
     },
   ];
 
-  const handleProblemInfoComplete = (data: CreatePracticeTestDto['problem']) => {
+  // Calculate completion status for each step
+  const getStepStatus = (stepIndex: number): "wait" | "process" | "finish" | "error" => {
+    if (stepIndex < currentStep) return "finish";
+    if (stepIndex === currentStep) return "process";
+    return "wait";
+  };
+
+  // Calculate overall progress
+  const calculateProgress = () => {
+    let completed = 0;
+    if (formData.problem?.title && formData.problem?.description) completed++;
+    if (formData.examples && formData.examples.length > 0) completed++;
+    if (formData.testcases && (formData.testcases.publicTestcases?.length > 0 || formData.testcases.privateTestcases?.length > 0)) completed++;
+    if (formData.templates && formData.templates.length > 0) completed++;
+    if (formData.solutions && formData.solutions.length > 0) completed++;
+    return Math.round((completed / 5) * 100);
+  };
+
+  const handleProblemInfoComplete = (data: CreatePracticeTestDto["problem"]) => {
     setFormData((prev) => ({ ...prev, problem: data }));
     setCurrentStep(1);
   };
 
-  const handleExamplesComplete = (examples: CreatePracticeTestDto['examples']) => {
+  const handleExamplesComplete = (examples: CreatePracticeTestDto["examples"]) => {
     setFormData((prev) => ({ ...prev, examples }));
     setCurrentStep(2);
   };
 
-  const handleTestCasesComplete = (testcases: CreatePracticeTestDto['testcases']) => {
+  const handleTestCasesComplete = (testcases: CreatePracticeTestDto["testcases"]) => {
     setFormData((prev) => ({ ...prev, testcases }));
     setCurrentStep(3);
   };
 
-  const handleTemplatesComplete = (templates: CreatePracticeTestDto['templates']) => {
+  const handleTemplatesComplete = (templates: CreatePracticeTestDto["templates"]) => {
     setFormData((prev) => ({ ...prev, templates }));
     setCurrentStep(4);
+  };
+
+  const handleSolutionsComplete = (solutions: PracticeSolution[]) => {
+    setFormData((prev) => ({ ...prev, solutions }));
+    setCurrentStep(5);
   };
 
   const handleSubmit = async () => {
@@ -80,86 +138,25 @@ export default function CreatePracticeTestClient() {
       return;
     }
 
-    console.log('🟢 [Client] Starting practice test submission...');
-    console.log('🟢 [Client] Form data:', JSON.stringify(formData, null, 2));
-    
-    // Detailed payload validation
-    const payloadValidation = {
-      problem: {
-        title: formData.problem.title,
-        description: formData.problem.description,
-        difficulty: formData.problem.difficulty,
-        difficultyType: typeof formData.problem.difficulty,
-        isValid: typeof formData.problem.difficulty === 'number' && [1, 2, 3].includes(formData.problem.difficulty),
-      },
-      examples: {
-        count: formData.examples.length,
-        structure: formData.examples.map((ex, i) => ({
-          index: i,
-          exampleOrder: ex.exampleOrder,
-          hasInput: !!ex.inputData,
-          hasOutput: !!ex.outputData,
-          hasExplanation: !!ex.explanation,
-        })),
-      },
-      testcases: {
-        count: formData.testcases.length,
-        isArray: Array.isArray(formData.testcases),
-        structure: formData.testcases[0] ? {
-          hasPublicTestcases: !!formData.testcases[0].publicTestcases,
-          publicCount: formData.testcases[0].publicTestcases?.length || 0,
-          hasPrivateTestcases: !!formData.testcases[0].privateTestcases,
-          privateCount: formData.testcases[0].privateTestcases?.length || 0,
-          publicSample: formData.testcases[0].publicTestcases?.[0],
-          privateSample: formData.testcases[0].privateTestcases?.[0],
-        } : 'EMPTY - This is the problem!',
-      },
-      templates: {
-        count: formData.templates.length,
-        structure: formData.templates.map((t, i) => ({
-          index: i,
-          languageId: t.languageId,
-          languageIdType: typeof t.languageId,
-          hasPrefix: !!t.userTemplatePrefix,
-          hasSuffix: !!t.userTemplateSuffix,
-          hasStubCode: !!t.userStubCode,
-        })),
-      },
-    };
-    
-    console.log('🔍 [Client] Payload Validation:', JSON.stringify(payloadValidation, null, 2));
-    
     // Check for common issues
-    if (formData.testcases.length === 0) {
-      console.error('❌ [Client] ERROR: testcases array is EMPTY!');
-      message.error('Testcases không được để trống. Vui lòng thêm test cases.');
+    if (!formData.testcases.publicTestcases || formData.testcases.publicTestcases.length === 0) {
+      message.error("Vui lòng thêm ít nhất 1 public test case.");
       return;
     }
-    
-    if (!formData.testcases[0]?.publicTestcases || formData.testcases[0].publicTestcases.length === 0) {
-      console.error('❌ [Client] ERROR: No public testcases found!');
-      message.error('Vui lòng thêm ít nhất 1 public test case.');
-      return;
-    }
-    
+
     if (formData.templates.length === 0) {
-      console.error('❌ [Client] ERROR: No templates found!');
-      message.error('Vui lòng thêm ít nhất 1 code template.');
+      message.error("Vui lòng thêm ít nhất 1 code template.");
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const result = await createPracticeTest(formData as CreatePracticeTestDto);
-      
-      console.log('✅ [Client] createPracticeTest completed, result:', result);
-      
-      // Success even if result is null (API might not return data)
+      await createPracticeTest(formData as CreatePracticeTestDto);
       message.success("Tạo Practice Test thành công!");
       router.push("/Admin/content-management/practice-tests");
     } catch (error: unknown) {
-      console.error('❌ [Client] Error during submission:', error);
-      const errorMessage = error instanceof Error ? error.message : "Có lỗi xảy ra khi tạo Practice Test";
+      const errorMessage =
+        error instanceof Error ? error.message : "Có lỗi xảy ra khi tạo Practice Test";
       message.error(errorMessage);
     } finally {
       setIsSubmitting(false);
@@ -176,43 +173,114 @@ export default function CreatePracticeTestClient() {
     }
   };
 
+  const handleCancel = () => {
+    router.push("/Admin/content-management/practice-tests");
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="mb-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-              <CodeOutlined className="text-2xl text-white" />
+    <div className="min-h-screen bg-gray-50">
+      {/* Top Navigation Bar */}
+      <div className="bg-white border-b border-gray-200 px-6 py-3 sticky top-0 z-50 shadow-sm">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button
+              type="text"
+              icon={<ArrowLeftOutlined />}
+              onClick={handleCancel}
+              className="text-gray-600 hover:text-gray-900"
+            >
+              Danh sách
+            </Button>
+            <div className="h-6 w-px bg-gray-200" />
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
+                <CodeOutlined className="text-white" />
+              </div>
+              <span className="text-gray-900 font-semibold">Tạo Practice Test Mới</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 text-gray-600 text-sm">
+              <span>Hoàn thành:</span>
+              <Progress
+                percent={calculateProgress()}
+                size="small"
+                strokeColor="#10b981"
+                trailColor="#e5e7eb"
+                style={{ width: 100 }}
+                showInfo={false}
+              />
+              <span className="text-emerald-600 font-medium">{calculateProgress()}%</span>
+            </div>
+            <Button
+              type="text"
+              icon={<CloseOutlined />}
+              onClick={handleCancel}
+              className="text-gray-400 hover:text-red-500"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto p-6">
+        {/* Progress Steps */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6 shadow-sm">
+          <Steps
+            current={currentStep}
+            size="small"
+            className="admin-steps"
+            items={steps.map((step, index) => ({
+              title: (
+                <span className={`${index <= currentStep ? "text-gray-900" : "text-gray-400"}`}>
+                  {step.title}
+                </span>
+              ),
+              description: (
+                <span className={`text-xs ${index <= currentStep ? "text-gray-600" : "text-gray-400"}`}>
+                  {step.description}
+                </span>
+              ),
+              icon: (
+                <div
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
+                    index < currentStep
+                      ? "bg-emerald-500 text-white"
+                      : index === currentStep
+                      ? "bg-emerald-50 text-emerald-600 border border-emerald-500"
+                      : "bg-gray-100 text-gray-400"
+                  }`}
+                >
+                  {index < currentStep ? <CheckCircleOutlined /> : step.icon}
+                </div>
+              ),
+              status: getStepStatus(index),
+            }))}
+          />
+        </div>
+
+        {/* Current Step Info Card */}
+        <div className="bg-gradient-to-r from-emerald-50 to-white rounded-xl border border-emerald-200 p-4 mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600">
+              {steps[currentStep].icon}
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                Tạo Bài Thực Hành Mới
-              </h1>
-              <p className="text-gray-600 dark:text-gray-400">
-                Tạo bài tập lập trình với test cases và code templates
-              </p>
+              <div className="text-gray-900 font-semibold">
+                Bước {currentStep + 1}: {steps[currentStep].title}
+              </div>
+              <div className="text-gray-500 text-sm">{steps[currentStep].description}</div>
             </div>
           </div>
         </div>
 
-        {/* Progress Steps */}
-        <Card className="mb-6 shadow-sm border-0">
-          <Steps
-            current={currentStep}
-            items={steps}
-            responsive
-            className="mb-6"
-          />
-        </Card>
-
         {/* Step Content */}
-        <div className="mb-6">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           {currentStep === 0 && (
             <ProblemInfoStep
               initialData={formData.problem}
               onNext={handleProblemInfoComplete}
-              onCancel={() => router.push("/Admin/content-management/practice-tests")}
+              onCancel={handleCancel}
             />
           )}
 
@@ -226,8 +294,8 @@ export default function CreatePracticeTestClient() {
 
           {currentStep === 2 && (
             <TestCasesStep
-              initialData={formData.testcases || []}
-              onNext={handleTestCasesComplete}
+              initialData={formData.testcases ? [formData.testcases] : []}
+              onNext={(testcases) => handleTestCasesComplete(testcases[0])}
               onBack={handleBack}
             />
           )}
@@ -241,6 +309,14 @@ export default function CreatePracticeTestClient() {
           )}
 
           {currentStep === 4 && (
+            <SolutionsStep
+              initialData={formData.solutions || []}
+              onNext={handleSolutionsComplete}
+              onBack={handleBack}
+            />
+          )}
+
+          {currentStep === 5 && (
             <ReviewStep
               formData={formData as CreatePracticeTestDto}
               onBack={handleBack}
@@ -251,6 +327,22 @@ export default function CreatePracticeTestClient() {
           )}
         </div>
       </div>
+
+      {/* Custom styles for admin theme steps */}
+      <style jsx global>{`
+        .admin-steps .ant-steps-item-tail::after {
+          background-color: #e5e7eb !important;
+        }
+        .admin-steps .ant-steps-item-finish .ant-steps-item-tail::after {
+          background-color: #10b981 !important;
+        }
+        .admin-steps .ant-steps-item-title {
+          font-weight: 500 !important;
+        }
+        .admin-steps .ant-steps-item-description {
+          font-size: 12px !important;
+        }
+      `}</style>
     </div>
   );
 }

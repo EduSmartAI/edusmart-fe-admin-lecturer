@@ -1,7 +1,11 @@
 "use client";
 
-import { Form, Input, Select, Button, Card } from "antd";
-import { DIFFICULTY_LABELS } from "EduSmart/types/practice-test";
+import { Form, Input, Select, Button } from "antd";
+import {
+  FileTextOutlined,
+  ArrowRightOutlined,
+  CloseOutlined,
+} from "@ant-design/icons";
 import type { PracticeProblem } from "EduSmart/types/practice-test";
 
 interface ProblemInfoStepProps {
@@ -18,13 +22,15 @@ export default function ProblemInfoStep({ initialData, onNext, onCancel }: Probl
   };
 
   return (
-    <Card className="shadow-sm border-0">
+    <div className="p-6">
+      {/* Header */}
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+        <h2 className="text-xl font-bold text-gray-800 mb-2 flex items-center gap-2">
+          <FileTextOutlined className="text-emerald-500" />
           Thông tin bài toán
         </h2>
-        <p className="text-gray-600 dark:text-gray-400">
-          Nhập tiêu đề, mô tả và chọn độ khó cho bài thực hành
+        <p className="text-gray-500">
+          Nhập tiêu đề, mô tả chi tiết và chọn độ khó cho bài thực hành
         </p>
       </div>
 
@@ -34,13 +40,10 @@ export default function ProblemInfoStep({ initialData, onNext, onCancel }: Probl
         onFinish={handleSubmit}
         initialValues={initialData || { difficulty: 1 }}
         autoComplete="off"
+        requiredMark={false}
       >
         <Form.Item
-          label={
-            <span className="text-base font-semibold text-gray-700 dark:text-gray-300">
-              Tiêu đề bài toán
-            </span>
-          }
+          label={<span className="text-gray-700 font-medium">Tiêu đề bài toán</span>}
           name="title"
           rules={[
             { required: true, message: "Vui lòng nhập tiêu đề" },
@@ -51,16 +54,12 @@ export default function ProblemInfoStep({ initialData, onNext, onCancel }: Probl
           <Input
             placeholder="VD: Two Sum, Reverse String, Binary Search..."
             size="large"
-            className="rounded-lg"
+            className="border-gray-300 hover:border-emerald-500 focus:border-emerald-500"
           />
         </Form.Item>
 
         <Form.Item
-          label={
-            <span className="text-base font-semibold text-gray-700 dark:text-gray-300">
-              Mô tả bài toán
-            </span>
-          }
+          label={<span className="text-gray-700 font-medium">Mô tả bài toán</span>}
           name="description"
           rules={[
             { required: true, message: "Vui lòng nhập mô tả" },
@@ -69,45 +68,48 @@ export default function ProblemInfoStep({ initialData, onNext, onCancel }: Probl
         >
           <Input.TextArea
             placeholder="Mô tả chi tiết bài toán, yêu cầu, ràng buộc..."
-            rows={10}
+            rows={12}
             showCount
-            className="rounded-lg"
+            className="border-gray-300 hover:border-emerald-500 focus:border-emerald-500"
           />
         </Form.Item>
 
         <Form.Item
-          label={
-            <span className="text-base font-semibold text-gray-700 dark:text-gray-300">
-              Độ khó
-            </span>
-          }
+          label={<span className="text-gray-700 font-medium">Độ khó</span>}
           name="difficulty"
           rules={[{ required: true, message: "Vui lòng chọn độ khó" }]}
         >
-          <Select size="large" className="rounded-lg">
+          <Select
+            size="large"
+            className="admin-difficulty-select"
+          >
             <Select.Option value={1}>
               <span className="flex items-center gap-2">
-                🟢 {DIFFICULTY_LABELS['Easy']}
+                <span className="w-3 h-3 rounded-full bg-[#00b8a3]" />
+                <span style={{ color: "#00b8a3" }}>Easy</span>
               </span>
             </Select.Option>
             <Select.Option value={2}>
               <span className="flex items-center gap-2">
-                🟡 {DIFFICULTY_LABELS['Medium']}
+                <span className="w-3 h-3 rounded-full bg-[#ffc01e]" />
+                <span style={{ color: "#ffc01e" }}>Medium</span>
               </span>
             </Select.Option>
             <Select.Option value={3}>
               <span className="flex items-center gap-2">
-                🔴 {DIFFICULTY_LABELS['Hard']}
+                <span className="w-3 h-3 rounded-full bg-[#ff375f]" />
+                <span style={{ color: "#ff375f" }}>Hard</span>
               </span>
             </Select.Option>
           </Select>
         </Form.Item>
 
-        <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex justify-between gap-3 pt-6 border-t border-gray-200">
           <Button
             onClick={onCancel}
             size="large"
-            className="px-6"
+            icon={<CloseOutlined />}
+            className="px-6 border-gray-300 text-gray-600 hover:text-red-500 hover:border-red-400"
           >
             Hủy bỏ
           </Button>
@@ -115,12 +117,23 @@ export default function ProblemInfoStep({ initialData, onNext, onCancel }: Probl
             type="primary"
             htmlType="submit"
             size="large"
-            className="bg-gradient-to-r from-indigo-600 to-purple-600 border-0 px-8 shadow-lg"
+            icon={<ArrowRightOutlined />}
+            className="px-8 bg-emerald-500 border-0 hover:bg-emerald-600"
           >
             Tiếp theo
           </Button>
         </div>
       </Form>
-    </Card>
+
+      {/* Custom styles */}
+      <style jsx global>{`
+        .admin-difficulty-select .ant-select-selector {
+          border-color: #d1d5db !important;
+        }
+        .admin-difficulty-select:hover .ant-select-selector {
+          border-color: #10b981 !important;
+        }
+      `}</style>
+    </div>
   );
 }

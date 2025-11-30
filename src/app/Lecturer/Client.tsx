@@ -398,7 +398,6 @@ const LecturerDashboard: React.FC = () => {
                       <div className="flex items-center justify-between w-full">
                         <div>
                           <div className="font-semibold text-base">Quản lý khóa học</div>
-                          <div className="text-xs text-blue-50">Xem & chỉnh sửa khóa học</div>
                         </div>
                         <BookOutlined className="text-xl" />
                       </div>
@@ -414,7 +413,6 @@ const LecturerDashboard: React.FC = () => {
                       <div className="flex items-center justify-between w-full">
                         <div>
                           <div className="font-semibold text-base">Thống kê & Phân tích</div>
-                          <div className="text-xs text-purple-50">Xem báo cáo chi tiết</div>
                         </div>
                         <BarChartOutlined className="text-xl" />
                       </div>

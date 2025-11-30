@@ -54,7 +54,8 @@ export default function InitialTestsClient() {
   // Load tests on mount and when filters change
   useEffect(() => {
     fetchTests(currentPage, pageSize, debouncedSearch);
-  }, [currentPage, debouncedSearch, fetchTests, pageSize]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, debouncedSearch, pageSize]);
 
   const handleDelete = async (testId: string) => {
     try {

@@ -4,18 +4,19 @@ import React, { CSSProperties, useEffect, useState } from "react";
 import Image from "next/image";
 import { Lobster } from "next/font/google";
 import {
-  PieChartOutlined,
-  DesktopOutlined,
+  DashboardOutlined,
   LogoutOutlined,
-  SolutionOutlined,
-  FileTextOutlined,
-  ExperimentOutlined,
-  BulbOutlined,
+  BankOutlined,
+  BookOutlined,
   FormOutlined,
-  UserOutlined,
+  ExperimentOutlined,
   CheckSquareOutlined,
   BarChartOutlined,
+  BulbOutlined,
   CodeOutlined,
+  UserOutlined,
+  FileSearchOutlined,
+  TeamOutlined,
 } from "@ant-design/icons";
 import type { MenuProps } from "antd";
 import { Menu, Layout, theme } from "antd";
@@ -46,6 +47,7 @@ type NavMenuItem = {
   icon?: React.ReactNode;
   children?: NavMenuItem[];
   path?: string;
+  type?: "group" | "divider";
 };
 
 const getItem = (
@@ -54,34 +56,73 @@ const getItem = (
   icon?: React.ReactNode,
   children?: NavMenuItem[],
   path?: string,
-): NavMenuItem => ({ label, key, icon, children, path });
+  type?: "group" | "divider",
+): NavMenuItem => ({ label, key, icon, children, path, type });
 
+/**
+ * Navigation items organized by functional groups:
+ * 1. Dashboard - Overview & Analytics
+ * 2. Academic Management - Majors & Subjects (Syllabus)
+ * 3. Assessment - Tests & Surveys
+ * 4. Content - Learning Goals & Technologies
+ * 5. User Management - Users & Subscriptions
+ */
 const navItems: NavMenuItem[] = [
+  // ========== DASHBOARD ==========
   getItem(
-    "Dashboard Doanh Thu",
-    "dashboard",
-    <PieChartOutlined />,
+    "Dashboard",
+    "dashboard-group",
+    null,
+    [
+      getItem(
+        "Tổng quan",
+        "dashboard",
+        <DashboardOutlined />,
+        undefined,
+        "/Admin",
+      ),
+      getItem(
+        "Người dùng",
+        "dashboard-user",
+        <TeamOutlined />,
+        undefined,
+        "/Admin/profiles",
+      ),
+    ],
     undefined,
-    "/Admin",
+    "group",
   ),
+  
+  // ========== ACADEMIC MANAGEMENT ==========
   getItem(
-    "Dashboard Người dùng",
-    "dashboard-user",
-    <DesktopOutlined />,
+    "Quản lý Học thuật",
+    "academic-group",
+    null,
+    [
+      getItem(
+        "Chuyên Ngành",
+        "majors",
+        <BankOutlined />,
+        undefined,
+        "/Admin/content-management/majors",
+      ),
+      getItem(
+        "Môn Học",
+        "subjects",
+        <BookOutlined />,
+        undefined,
+        "/Admin/content-management/subjects",
+      ),
+    ],
     undefined,
-    "/Admin/profiles",
+    "group",
   ),
+
+  // ========== ASSESSMENT ==========
   getItem(
-    "Đăng ký",
-    "subscriptions",
-    <SolutionOutlined />,
-    undefined,
-    "/Admin/subscriptions",
-  ),
-  getItem(
-    "Quản lý Nội dung",
-    "content-management",
-    <FileTextOutlined />,
+    "Kiểm tra & Đánh giá",
+    "assessment-group",
+    null,
     [
       getItem(
         "Bài Kiểm Tra Đầu Vào",
@@ -98,32 +139,54 @@ const navItems: NavMenuItem[] = [
         "/Admin/content-management/practice-tests",
       ),
       getItem(
-        "Mục Tiêu Học Tập",
-        "learning-goals",
-        <BulbOutlined />,
+        "Kết Quả Sinh Viên",
+        "student-tests",
+        <FileSearchOutlined />,
         undefined,
-        "/Admin/content-management/learning-goals",
+        "/Admin/content-management/student-tests",
       ),
+    ],
+    undefined,
+    "group",
+  ),
+
+  // ========== SURVEYS ==========
+  getItem(
+    "Khảo sát",
+    "survey-group",
+    null,
+    [
       getItem(
-        "Khảo Sát",
+        "Quản lý Khảo Sát",
         "surveys",
         <FormOutlined />,
         undefined,
         "/Admin/content-management/surveys",
       ),
       getItem(
-        "Khảo Sát Sinh Viên",
+        "Kết Quả Khảo Sát",
         "student-surveys",
         <BarChartOutlined />,
         undefined,
         "/Admin/content-management/student-surveys",
       ),
+    ],
+    undefined,
+    "group",
+  ),
+
+  // ========== CONTENT ==========
+  getItem(
+    "Nội dung Học tập",
+    "content-group",
+    null,
+    [
       getItem(
-        "Bài Test Sinh Viên",
-        "student-tests",
-        <UserOutlined />,
+        "Mục Tiêu Học Tập",
+        "learning-goals",
+        <BulbOutlined />,
         undefined,
-        "/Admin/content-management/student-tests",
+        "/Admin/content-management/learning-goals",
       ),
       getItem(
         "Công Nghệ",
@@ -133,9 +196,30 @@ const navItems: NavMenuItem[] = [
         "/Admin/content-management/technologies",
       ),
     ],
+    undefined,
+    "group",
   ),
+
+  // ========== USER & SYSTEM ==========
+  getItem(
+    "Hệ thống",
+    "system-group",
+    null,
+    [
+      getItem(
+        "Đăng ký gói",
+        "subscriptions",
+        <UserOutlined />,
+        undefined,
+        "/Admin/subscriptions",
+      ),
+    ],
+    undefined,
+    "group",
+  ),
+
+  // ========== LOGOUT ==========
   getItem("Đăng xuất", "logout", <LogoutOutlined />),
-  getItem("", "", <ThemeSwitch />),
 ];
 
 /* ---------- HELPERS ---------- */
@@ -167,21 +251,28 @@ function getSelectedKeys(pathname: string): string[] {
   return matchKey ? [matchKey] : [];
 }
 
-function getOpenKeys(pathname: string): string[] {
-  // Auto-open Content Management submenu if viewing any of its pages
-  if (pathname.startsWith('/Admin/content-management')) {
-    return ['content-management'];
-  }
+function getOpenKeys(): string[] {
+  // No submenu groups to expand with the new flat structure
   return [];
 }
 
 const toAntdItems = (items: NavMenuItem[]): MenuItem[] =>
-  items.map((it) => ({
-    key: it.key,
-    icon: it.icon,
-    label: it.label,
-    children: it.children ? toAntdItems(it.children) : undefined,
-  })) as MenuItem[];
+  items.map((it) => {
+    if (it.type === "group") {
+      return {
+        key: it.key,
+        label: it.label,
+        type: "group",
+        children: it.children ? toAntdItems(it.children) : undefined,
+      };
+    }
+    return {
+      key: it.key,
+      icon: it.icon,
+      label: it.label,
+      children: it.children ? toAntdItems(it.children) : undefined,
+    };
+  }) as MenuItem[];
 
 /* ---------- COMPONENT ---------- */
 interface AdminSidebarProps {
@@ -213,10 +304,10 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   // Set initial open keys based on current path
   useEffect(() => {
     if (mounted) {
-      const initialOpenKeys = getOpenKeys(pathname);
+      const initialOpenKeys = getOpenKeys();
       setOpenKeys(initialOpenKeys);
     }
-  }, [pathname, mounted]);
+  }, [mounted]);
   
   if (!mounted) return <div style={{ width: collapsed ? 80 : 240 }} />;
 
@@ -306,6 +397,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
               marginTop: 16,
             }}
           />
+        </div>
+
+        {/* Theme Switch - centered */}
+        <div className="flex justify-center py-3 flex-shrink-0">
+          <ThemeSwitch />
         </div>
         
         {/* User Title - fixed at bottom */}
