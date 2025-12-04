@@ -47,7 +47,8 @@ export default function StudentTestsClient() {
   // Load student tests on mount and when filters change
   useEffect(() => {
     fetchTests(currentPage - 1, pageSize);
-  }, [currentPage, fetchTests, pageSize]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, pageSize]);
 
   const getScoreColor = (correct: number, total: number) => {
     const percentage = (correct / total) * 100;

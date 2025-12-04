@@ -114,6 +114,12 @@ export interface PracticeExample {
   explanation: string;
 }
 
+// Solution for practice test
+export interface PracticeSolution {
+  languageId: number;
+  solutionCode: string;
+}
+
 // API Response Example (includes exampleId)
 export interface ApiPracticeExample {
   exampleId?: string;
@@ -164,9 +170,17 @@ export interface UpdatePracticeProblem {
 // API Payloads
 export interface CreatePracticeTestDto {
   problem: PracticeProblem;
-  testcases: TestCases[]; // API expects array with single TestCases object
+  testcases: TestCases; // API expects single TestCases object, not array
   templates: CodeTemplate[];
   examples: PracticeExample[];
+  solutions: PracticeSolution[];
+}
+
+// Update Solution type with optional solutionId
+export interface UpdatePracticeSolution {
+  solutionId?: string; // Optional: only for existing solutions
+  languageId: number;
+  solutionCode: string;
 }
 
 export interface UpdatePracticeTestDto {
@@ -175,6 +189,7 @@ export interface UpdatePracticeTestDto {
   testcases: UpdateTestCase[]; // Flat array, not nested
   templates: UpdateCodeTemplate[];
   examples: UpdatePracticeExample[];
+  solutions?: UpdatePracticeSolution[]; // Optional for backward compatibility
 }
 
 export interface AddExamplesDto {
@@ -194,6 +209,12 @@ export interface AddTestCasesDto {
 }
 
 // Response Types (API structure)
+export interface ApiPracticeSolution {
+  solutionId?: string;
+  languageId: number;
+  solutionCode: string;
+}
+
 export interface PracticeTest {
   problemId: string; // API uses problemId, not id
   title: string;
@@ -208,6 +229,7 @@ export interface PracticeTest {
   examples?: ApiPracticeExample[]; // API response includes exampleId
   testCases?: ApiTestCase[]; // API uses testCases (capital C) as flat array with isPublic
   templates?: ApiCodeTemplate[]; // API response uses templatePrefix/templateSuffix
+  solutions?: ApiPracticeSolution[]; // API response includes solutions
   // Legacy support for nested testcases structure
   testcases?: TestCases;
 }

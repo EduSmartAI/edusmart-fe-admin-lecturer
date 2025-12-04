@@ -237,6 +237,8 @@ export const useSurveyStore = create<SurveyState>((set, get) => ({
     try {
       // API: POST /quiz/api/v1/Admin/InsertSurvey
       // Match exact curl structure
+      console.log("[SurveyStore] Creating survey with payload:", JSON.stringify(payload, null, 2));
+      
       const response = await axios.post(
         `${API_BASE_URL}/quiz/api/v1/Admin/InsertSurvey`,
         {
@@ -248,15 +250,23 @@ export const useSurveyStore = create<SurveyState>((set, get) => ({
         { headers: getHeaders() }
       );
 
+      console.log("[SurveyStore] Create survey response:", JSON.stringify(response.data, null, 2));
+
+      // Extract ID from response - check different possible structures
+      const responseData = response.data?.response || response.data?.data || response.data;
+      const surveyId = responseData?.id || responseData?.surveyId || responseData?.surveyID;
+      
       const newSurvey: Survey = {
-        id: response.data?.response?.id || response.data?.id || Date.now().toString(),
-        code: response.data?.response?.surveyCode || payload.surveyCode,
-        title: response.data?.response?.title || payload.title,
-        description: response.data?.response?.description || payload.description,
+        id: surveyId || Date.now().toString(),
+        code: responseData?.surveyCode || payload.surveyCode,
+        title: responseData?.title || payload.title,
+        description: responseData?.description || payload.description,
         status: "DRAFT",
         questions: payload.questions as unknown as SurveyQuestion[],
-        createdDate: response.data?.response?.createdDate || new Date().toISOString(),
+        createdDate: responseData?.createdDate || new Date().toISOString(),
       };
+
+      console.log("[SurveyStore] New survey created with ID:", newSurvey.id);
 
       const currentSurveys = get().surveys;
       set({
@@ -323,12 +333,20 @@ export const useSurveyStore = create<SurveyState>((set, get) => ({
   publishSurvey: async (id: string) => {
     set({ isLoading: true, error: null });
     try {
-      // API: POST /quiz/api/v1/Survey/Publish/{id}
-      await axios.post(
-        `${API_BASE_URL}/quiz/api/v1/Survey/Publish/${id}`,
+      console.log("[SurveyStore] Publishing survey with ID:", id);
+      
+      // Try different possible API endpoints for publish
+      // Option 1: POST /quiz/api/v1/Admin/PublishSurvey/{id}
+      // Option 2: PUT /quiz/api/v1/Survey/Publish/{id}
+      // Option 3: PUT /quiz/api/v1/Admin/Survey/{id}/publish
+      
+      const response = await axios.put(
+        `${API_BASE_URL}/quiz/api/v1/Admin/PublishSurvey/${id}`,
         {},
         { headers: getHeaders() }
       );
+
+      console.log("[SurveyStore] Publish response:", response.data);
 
       const survey = get().surveys.find((s) => s.id === id);
       if (survey) {
@@ -344,6 +362,7 @@ export const useSurveyStore = create<SurveyState>((set, get) => ({
         });
         return true;
       }
+      set({ isLoading: false });
       return false;
     } catch (error) {
       const errorMessage =

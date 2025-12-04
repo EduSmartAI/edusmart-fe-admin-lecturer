@@ -51,7 +51,8 @@ export default function StudentTestDetailClient() {
     return () => {
       clearDetail();
     };
-  }, [studentTestId, fetchTestDetail, clearDetail]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [studentTestId]);
 
   if (isLoadingDetail) {
     return (

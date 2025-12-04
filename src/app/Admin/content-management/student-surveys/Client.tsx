@@ -38,7 +38,8 @@ export default function StudentSurveysClient() {
   // Load surveys on mount and when page changes
   useEffect(() => {
     fetchSurveys(currentPage - 1, 20);
-  }, [currentPage, fetchSurveys]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage]);
 
   // Get survey code color
   const getSurveyCodeColor = (code: string) => {

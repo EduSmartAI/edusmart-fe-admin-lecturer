@@ -61,11 +61,11 @@ export const useRealTimeValidation = () => {
       };
     }
 
-    if (title.length > 100) {
+    if (title.length > 200) {
       return {
         isValid: false,
         level: 'error',
-        message: 'Tiêu đề quá dài (tối đa 100 ký tự)',
+        message: 'Tiêu đề quá dài (tối đa 200 ký tự)',
         suggestions: ['Rút gọn tiêu đề nhưng giữ thông tin quan trọng']
       };
     }
@@ -99,8 +99,8 @@ export const useRealTimeValidation = () => {
   // Description validation
   const validateDescription = useCallback((description: string, type: 'short' | 'detailed' = 'short'): ValidationResult => {
     const minLength = type === 'short' ? 30 : 100;
-    const maxLength = type === 'short' ? 200 : 2000;
-    const recommendedLength = type === 'short' ? 80 : 300;
+    const maxLength = type === 'short' ? 500 : 2000;
+    const recommendedLength = type === 'short' ? 150 : 300;
 
     if (!description?.trim()) {
       return {

@@ -2,101 +2,15 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   images: {
+    // Allow all remote image hostnames - useful when users can input any image URL
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'images.unsplash.com',
-        pathname: '/**',
+        hostname: '**', // Wildcard to match any hostname
       },
       {
-        protocol: 'https',
-        hostname: 'tailwindcss.com',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'static-cse.canva.com',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'rubicmarketing.com',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'www.yarooms.com',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'randomuser.me',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'via.placeholder.com',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'cdnphoto.dantri.com.vn',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'cdn.shopaccino.com',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'gratisography.com',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'media.istockphoto.com',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'res.cloudinary.com',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'i.pravatar.cc',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'example.com',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'cdn.example.com',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'analyticsstepsfiles.s3.ap-south-1.amazonaws.com',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'topdev.vn',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'i.ytimg.com',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'static.tildacdn.one',
-        pathname: '/**',
+        protocol: 'http',
+        hostname: '**', // Also allow http for development
       },
     ],
   },

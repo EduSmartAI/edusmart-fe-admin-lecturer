@@ -72,7 +72,8 @@ export default function TechnologiesClient() {
   // Load technologies on mount and when search/page/filter changes
   useEffect(() => {
     fetchTechnologies(currentPage, 10, debouncedSearch, filterType);
-  }, [currentPage, debouncedSearch, filterType, fetchTechnologies]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, debouncedSearch, filterType]);
 
   const handleSubmit = async (values: {
     technologyName: string;

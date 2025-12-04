@@ -17,7 +17,7 @@ const BasicInfoSection: FC = () => {
           placeholder="VD: Lập trình ReactJS từ cơ bản đến nâng cao"
           validationType="title"
           required
-          maxLength={60}
+          maxLength={200}
           showCount
         />
 
@@ -27,7 +27,7 @@ const BasicInfoSection: FC = () => {
           placeholder="VD: Xây dựng ứng dụng web hiện đại với React, Redux và TypeScript"
           validationType="subtitle"
           required
-          maxLength={120}
+          maxLength={500}
           showCount
         />
 

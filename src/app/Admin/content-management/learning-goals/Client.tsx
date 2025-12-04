@@ -79,7 +79,8 @@ export default function LearningGoalsClient() {
   // Load goals on mount and when search/page/filter changes
   useEffect(() => {
     fetchGoals(currentPage, 10, debouncedSearch, filterType);
-  }, [currentPage, debouncedSearch, filterType, fetchGoals]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, debouncedSearch, filterType]);
 
   const handleSubmit = async (values: {
     goalName: string;

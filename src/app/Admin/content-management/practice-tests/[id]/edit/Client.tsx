@@ -1,15 +1,25 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Steps, Card, App, Spin, Alert } from "antd";
+import { Steps, App, Spin, Alert, Button, Progress } from "antd";
 import { useRouter } from "next/navigation";
-import { CodeOutlined } from "@ant-design/icons";
+import {
+  CodeOutlined,
+  ArrowLeftOutlined,
+  CloseOutlined,
+  FileTextOutlined,
+  BulbOutlined,
+  ExperimentOutlined,
+  CheckCircleOutlined,
+  TrophyOutlined,
+} from "@ant-design/icons";
 import { usePracticeTestStore } from "EduSmart/stores/Admin";
-import type { UpdatePracticeTestDto, UpdatePracticeProblem, UpdateTestCase, UpdateCodeTemplate, UpdatePracticeExample } from "EduSmart/types/practice-test";
+import type { UpdatePracticeTestDto, UpdatePracticeProblem, UpdateTestCase, UpdateCodeTemplate, UpdatePracticeExample, UpdatePracticeSolution } from "EduSmart/types/practice-test";
 import ProblemInfoStep from "EduSmart/components/Admin/PracticeTest/ProblemInfoStep";
 import ExamplesStep from "EduSmart/components/Admin/PracticeTest/ExamplesStep";
 import TestCasesStep from "EduSmart/components/Admin/PracticeTest/TestCasesStep";
-import TemplatesStep from "EduSmart/components/Admin/PracticeTest/TemplatesStep";
+import TemplatesStepNew from "EduSmart/components/Admin/PracticeTest/TemplatesStepNew";
+import SolutionsStep from "EduSmart/components/Admin/PracticeTest/SolutionsStep";
 import ReviewStep from "EduSmart/components/Admin/PracticeTest/ReviewStep";
 
 interface EditPracticeTestClientProps {
@@ -34,6 +44,7 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
     examples: [],
     testcases: [],
     templates: [],
+    solutions: [],
   });
 
   // Load existing practice test data
@@ -55,6 +66,7 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
          * - exampleId for examples
          * - testcaseId for test cases
          * - templateId for templates
+         * - solutionId for solutions
          * 
          * By including these IDs, we preserve existing items when updating.
          */
@@ -87,6 +99,12 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
             userTemplateSuffix: t.templateSuffix, // API uses templateSuffix
             userStubCode: t.userStubCode,
           })),
+          // Load existing solutions if available
+          solutions: (test.solutions || []).map(s => ({
+            solutionId: s.solutionId, // Include ID to update existing solution
+            languageId: s.languageId,
+            solutionCode: s.solutionCode,
+          })),
         };
         
         setFormData(updateData);
@@ -102,25 +120,53 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
     {
       title: "Thông tin",
       description: "Tiêu đề & Độ khó",
-      icon: <CodeOutlined />,
+      icon: <FileTextOutlined />,
     },
     {
       title: "Ví dụ",
       description: "Input/Output",
+      icon: <BulbOutlined />,
     },
     {
       title: "Test Cases",
       description: "Public & Private",
+      icon: <ExperimentOutlined />,
     },
     {
       title: "Templates",
       description: "Code mẫu",
+      icon: <CodeOutlined />,
+    },
+    {
+      title: "Solutions",
+      description: "Lời giải mẫu",
+      icon: <TrophyOutlined />,
     },
     {
       title: "Xác nhận",
       description: "Kiểm tra lại",
+      icon: <CheckCircleOutlined />,
     },
   ];
+
+  // Calculate progress percentage
+  const calculateProgress = () => {
+    let progress = 0;
+    if (formData.problem?.title) progress += 16.67;
+    if (formData.examples && formData.examples.length > 0) progress += 16.67;
+    if (formData.testcases && formData.testcases.length > 0) progress += 16.67;
+    if (formData.templates && formData.templates.length > 0) progress += 16.67;
+    if (formData.solutions && formData.solutions.length > 0) progress += 16.67;
+    if (currentStep === 5) progress += 16.67;
+    return Math.round(progress);
+  };
+
+  // Get step status for Steps component
+  const getStepStatus = (stepIndex: number): "wait" | "process" | "finish" | "error" => {
+    if (stepIndex < currentStep) return "finish";
+    if (stepIndex === currentStep) return "process";
+    return "wait";
+  };
 
   const handleProblemInfoComplete = (data: UpdatePracticeProblem) => {
     setFormData((prev) => ({ ...prev, problem: data }));
@@ -140,6 +186,11 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
   const handleTemplatesComplete = (templates: UpdateCodeTemplate[]) => {
     setFormData((prev) => ({ ...prev, templates }));
     setCurrentStep(4);
+  };
+
+  const handleSolutionsComplete = (solutions: UpdatePracticeSolution[]) => {
+    setFormData((prev) => ({ ...prev, solutions }));
+    setCurrentStep(5);
   };
 
   const handleSubmit = async () => {
@@ -179,7 +230,7 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
 
   if (isInitializing || isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <Spin size="large" tip="Đang tải dữ liệu...">
           <div className="p-12" />
         </Spin>
@@ -189,14 +240,14 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
+      <div className="min-h-screen bg-gray-50 p-6">
         <Alert
           message="Lỗi"
           description={error}
           type="error"
           showIcon
           action={
-            <button onClick={() => router.back()}>Quay lại</button>
+            <Button onClick={() => router.back()}>Quay lại</Button>
           }
         />
       </div>
@@ -204,37 +255,104 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="mb-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-              <CodeOutlined className="text-2xl text-white" />
+    <div className="min-h-screen bg-gray-50">
+      {/* Top Navigation Bar */}
+      <div className="bg-white border-b border-gray-200 px-6 py-3 sticky top-0 z-50 shadow-sm">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button
+              type="text"
+              icon={<ArrowLeftOutlined />}
+              onClick={() => router.push(`/Admin/content-management/practice-tests/${problemId}`)}
+              className="text-gray-600 hover:text-gray-900"
+            >
+              Chi tiết
+            </Button>
+            <div className="h-6 w-px bg-gray-200" />
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                <CodeOutlined className="text-white" />
+              </div>
+              <span className="text-gray-900 font-semibold">Chỉnh Sửa Practice Test</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 text-gray-600 text-sm">
+              <span>Hoàn thành:</span>
+              <Progress
+                percent={calculateProgress()}
+                size="small"
+                strokeColor="#10b981"
+                trailColor="#e5e7eb"
+                style={{ width: 100 }}
+                showInfo={false}
+              />
+              <span className="text-emerald-600 font-medium">{calculateProgress()}%</span>
+            </div>
+            <Button
+              type="text"
+              icon={<CloseOutlined />}
+              onClick={() => router.push(`/Admin/content-management/practice-tests/${problemId}`)}
+              className="text-gray-400 hover:text-red-500"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto p-6">
+        {/* Progress Steps */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6 shadow-sm">
+          <Steps
+            current={currentStep}
+            size="small"
+            className="admin-steps"
+            items={steps.map((step, index) => ({
+              title: (
+                <span className={`${index <= currentStep ? "text-gray-900" : "text-gray-400"}`}>
+                  {step.title}
+                </span>
+              ),
+              description: (
+                <span className={`text-xs ${index <= currentStep ? "text-gray-600" : "text-gray-400"}`}>
+                  {step.description}
+                </span>
+              ),
+              icon: (
+                <div
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
+                    index < currentStep
+                      ? "bg-emerald-500 text-white"
+                      : index === currentStep
+                      ? "bg-emerald-50 text-emerald-600 border border-emerald-500"
+                      : "bg-gray-100 text-gray-400"
+                  }`}
+                >
+                  {index < currentStep ? <CheckCircleOutlined /> : step.icon}
+                </div>
+              ),
+              status: getStepStatus(index),
+            }))}
+          />
+        </div>
+
+        {/* Current Step Info Card */}
+        <div className="bg-gradient-to-r from-indigo-50 to-white rounded-xl border border-indigo-200 p-4 mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600">
+              {steps[currentStep].icon}
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                Chỉnh Sửa Bài Thực Hành
-              </h1>
-              <p className="text-gray-600 dark:text-gray-400">
-                Cập nhật thông tin bài tập lập trình
-              </p>
+              <div className="text-gray-900 font-semibold">
+                Bước {currentStep + 1}: {steps[currentStep].title}
+              </div>
+              <div className="text-gray-500 text-sm">{steps[currentStep].description}</div>
             </div>
           </div>
         </div>
 
-        {/* Progress Steps */}
-        <Card className="mb-6 shadow-sm border-0">
-          <Steps
-            current={currentStep}
-            items={steps}
-            responsive
-            className="mb-6"
-          />
-        </Card>
-
         {/* Step Content */}
-        <div className="mb-6">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           {currentStep === 0 && (
             <ProblemInfoStep
               initialData={formData.problem as unknown as Parameters<typeof ProblemInfoStep>[0]['initialData']}
@@ -285,14 +403,28 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
           )}
 
           {currentStep === 3 && (
-            <TemplatesStep
-              initialData={formData.templates as unknown as Parameters<typeof TemplatesStep>[0]['initialData'] || []}
-              onNext={handleTemplatesComplete as unknown as Parameters<typeof TemplatesStep>[0]['onNext']}
+            <TemplatesStepNew
+              initialData={formData.templates as unknown as Parameters<typeof TemplatesStepNew>[0]['initialData'] || []}
+              onNext={handleTemplatesComplete as unknown as Parameters<typeof TemplatesStepNew>[0]['onNext']}
               onBack={handleBack}
             />
           )}
 
           {currentStep === 4 && (
+            <SolutionsStep
+              initialData={(formData.solutions || []).map(s => ({
+                languageId: s.languageId,
+                solutionCode: s.solutionCode,
+              }))}
+              onNext={(solutions) => handleSolutionsComplete(solutions.map(s => ({
+                languageId: s.languageId,
+                solutionCode: s.solutionCode,
+              })))}
+              onBack={handleBack}
+            />
+          )}
+
+          {currentStep === 5 && (
             <ReviewStep
               formData={{
                 problem: {
@@ -301,7 +433,7 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
                   difficulty: formData.problem?.difficulty === 'Easy' ? 1 : formData.problem?.difficulty === 'Medium' ? 2 : 3,
                 },
                 examples: formData.examples || [],
-                testcases: [{
+                testcases: {
                   publicTestcases: formData.testcases?.filter(tc => tc.isPublic).map(tc => ({
                     inputData: tc.inputData,
                     expectedOutput: tc.expectedOutput,
@@ -310,8 +442,9 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
                     inputData: tc.inputData,
                     expectedOutput: tc.expectedOutput,
                   })) || [],
-                }],
+                },
                 templates: formData.templates || [],
+                solutions: formData.solutions || [],
               }}
               onBack={handleBack}
               onEdit={handleEdit}
@@ -321,6 +454,22 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
           )}
         </div>
       </div>
+
+      {/* Custom styles for admin theme steps */}
+      <style jsx global>{`
+        .admin-steps .ant-steps-item-tail::after {
+          background-color: #e5e7eb !important;
+        }
+        .admin-steps .ant-steps-item-finish .ant-steps-item-tail::after {
+          background-color: #10b981 !important;
+        }
+        .admin-steps .ant-steps-item-title {
+          font-weight: 500 !important;
+        }
+        .admin-steps .ant-steps-item-description {
+          font-size: 12px !important;
+        }
+      `}</style>
     </div>
   );
 }

@@ -339,7 +339,12 @@ export interface CourseDetailDto extends CourseDto {
   requirements?: CourseRequirementDto[];
   audiences?: CourseAudienceDto[]; // Đối tượng học viên
   courseTags?: CourseTagDto[];
+  tags?: CourseTagDto[]; // Alternative field name from API
   modules?: ModuleDetailDto[];
+  comments?: CommentDto[]; // Comments from API response
+  ratings?: RatingDto[]; // Ratings from API response
+  ratingsCount?: number; // Total ratings count
+  ratingsAverage?: number; // Average rating (1-5)
 }
 
 export interface CourseObjectiveDto {
@@ -352,6 +357,18 @@ export interface CourseObjectiveDto {
 export interface CourseTagDto {
   tagId: number;
   tagName?: string;
+}
+
+// Rating DTO for course ratings
+export interface RatingDto {
+  ratingId: string;
+  courseId: string;
+  userId: string;
+  userDisplayName?: string;
+  userAvatar?: string;
+  score: number; // 1-5 star rating
+  comment?: string;
+  createdAt: string;
 }
 
 export interface CourseRequirementDto {
@@ -834,6 +851,21 @@ export interface GetDiscussionThreadQuery {
   moduleId: string;
   page?: number;
   size?: number;
+}
+
+// Enrolled User DTOs
+export interface EnrolledUserDto {
+  userId: string;
+  displayName: string;
+  avatarUrl?: string;
+}
+
+export type GetEnrolledUsersResponse = ApiResponse<PaginatedResult<EnrolledUserDto>>;
+
+export interface GetEnrolledUsersQuery {
+  courseId: string;
+  pageIndex?: number;
+  pageSize?: number;
 }
 
 export class ApiCourseModule extends HttpClient {
@@ -1418,6 +1450,31 @@ export class ApiCourseModule extends HttpClient {
     },
   };
 
+  enrolledUsers = {
+    /**
+     * @description Lấy danh sách học viên đã đăng ký khóa học
+     * @request GET:/api/v1/Courses/GetEnrolledUsers
+     */
+    get: (query: GetEnrolledUsersQuery, params?: RequestParams) => {
+      const queryParams = {
+        'Pagination.PageIndex': query.pageIndex ?? 1,
+        'Pagination.PageSize': query.pageSize ?? 10,
+        'CourseId': query.courseId,
+      };
+
+      const queryString = new URLSearchParams(
+        Object.entries(queryParams).map(([key, value]) => [key, String(value)])
+      ).toString();
+
+      return this.request<GetEnrolledUsersResponse>(
+        `/api/v1/Courses/GetEnrolledUsers?${queryString}`,
+        "GET",
+        undefined,
+        params
+      );
+    },
+  };
+
   syllabus = {
     /**
      * @description Tạo chuyên ngành (Major)
@@ -1475,5 +1532,6 @@ export const courseServiceAPI = {
   media: courseService.media,
   comments: courseService.comments,
   moduleDiscussions: courseService.moduleDiscussions,
+  enrolledUsers: courseService.enrolledUsers,
   syllabus: courseService.syllabus,
 };

@@ -13,7 +13,11 @@ export type {
   UpdateCourseDto,
   GetCoursesQuery,
   PaginatedResult,
-  ApiResponse
+  ApiResponse,
+  EnrolledUserDto,
+  GetEnrolledUsersQuery,
+  GetEnrolledUsersResponse,
+  RatingDto
 } from 'EduSmart/api/api-course-service';
 export { CourseSortBy } from 'EduSmart/api/api-course-service';
 

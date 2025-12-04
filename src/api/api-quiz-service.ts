@@ -149,9 +149,12 @@ export const axiosFetchQuiz = async (
     ...(headers as Record<string, string>),
   };
 
-  const accessToken = await getAccessToken();
-  if (accessToken) {
-    requestHeaders["Authorization"] = `Bearer ${accessToken}`;
+  // Only add accessToken if Authorization header is not already provided
+  if (!requestHeaders["Authorization"]) {
+    const accessToken = await getAccessToken();
+    if (accessToken) {
+      requestHeaders["Authorization"] = `Bearer ${accessToken}`;
+    }
   }
 
   const baseURL = resolveQuizBaseUrl();
