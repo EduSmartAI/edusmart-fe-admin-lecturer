@@ -176,12 +176,20 @@ export interface CreatePracticeTestDto {
   solutions: PracticeSolution[];
 }
 
+// Update Solution type with optional solutionId
+export interface UpdatePracticeSolution {
+  solutionId?: string; // Optional: only for existing solutions
+  languageId: number;
+  solutionCode: string;
+}
+
 export interface UpdatePracticeTestDto {
   problemId: string;
   problem: UpdatePracticeProblem;
   testcases: UpdateTestCase[]; // Flat array, not nested
   templates: UpdateCodeTemplate[];
   examples: UpdatePracticeExample[];
+  solutions?: UpdatePracticeSolution[]; // Optional for backward compatibility
 }
 
 export interface AddExamplesDto {
@@ -201,6 +209,12 @@ export interface AddTestCasesDto {
 }
 
 // Response Types (API structure)
+export interface ApiPracticeSolution {
+  solutionId?: string;
+  languageId: number;
+  solutionCode: string;
+}
+
 export interface PracticeTest {
   problemId: string; // API uses problemId, not id
   title: string;
@@ -215,6 +229,7 @@ export interface PracticeTest {
   examples?: ApiPracticeExample[]; // API response includes exampleId
   testCases?: ApiTestCase[]; // API uses testCases (capital C) as flat array with isPublic
   templates?: ApiCodeTemplate[]; // API response uses templatePrefix/templateSuffix
+  solutions?: ApiPracticeSolution[]; // API response includes solutions
   // Legacy support for nested testcases structure
   testcases?: TestCases;
 }

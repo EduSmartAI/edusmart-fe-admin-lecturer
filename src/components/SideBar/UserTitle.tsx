@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { Tooltip, Avatar, theme } from "antd";
 import { useRouter } from "next/navigation";
 import { useTheme } from "EduSmart/Provider/ThemeProvider";
@@ -22,21 +22,36 @@ const initialsFrom = (name: string) =>
 export const UserTitle: React.FC<UserTitleProps> = ({ collapsed }) => {
   const router = useRouter();
   const { isDarkMode } = useTheme();
-  const { profile, loadProfile } = useUserProfileStore();
+  const profile = useUserProfileStore((state) => state.profile);
+  const loadProfile = useUserProfileStore((state) => state.loadProfile);
+  const hasLoadedRef = useRef(false);
   const {
     token: { colorBorderSecondary },
   } = theme.useToken();
 
-  // Load user profile on mount
+  // Load user profile on mount - only once
   useEffect(() => {
-    if (!profile) {
+    if (!hasLoadedRef.current && !profile) {
+      hasLoadedRef.current = true;
       loadProfile();
     }
   }, [profile, loadProfile]);
 
-  const displayName = profile?.name || "User";
+  const displayName = profile?.displayName || profile?.name || "User";
   const email = profile?.email || "user@example.com";
-  const avatarUrl = null;
+  const avatarUrl = profile?.profilePictureUrl || null;
+
+  // Navigate to profile page based on user role
+  const handleNavigateToProfile = () => {
+    const role = profile?.role?.toLowerCase();
+    if (role === "lecturer" || role === "teacher") {
+      router.push("/Lecturer/profile");
+    } else if (role === "admin") {
+      router.push("/Admin/profile");
+    } else {
+      router.push("/profile");
+    }
+  };
 
   return (
     <Tooltip
@@ -51,7 +66,7 @@ export const UserTitle: React.FC<UserTitleProps> = ({ collapsed }) => {
       placement="right"
     >
       <div
-        onClick={() => router.push("/Admin/profile")}
+        onClick={handleNavigateToProfile}
         role="button"
         className={`
           m-0 cursor-pointer select-none

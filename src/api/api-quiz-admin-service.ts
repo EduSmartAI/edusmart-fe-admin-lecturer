@@ -34,6 +34,23 @@ export interface AdminSurvey {
   updatedAt?: string;
 }
 
+// Quiz item from API response
+export interface AdminQuizItem {
+  quizId: string;
+  quizType: number;
+  quizTypeName: string;
+  title: string | null;
+  description: string | null;
+  subjectCode: string | null;
+  subjectCodeName: string | null;
+  surveyCode: string | null;
+  totalQuestions: number;
+  totalStudentsTaken: number;
+  isActive: boolean;
+  createdAt: string;
+}
+
+// Legacy interface for compatibility
 export interface AdminQuiz {
   id: string;
   title: string;
@@ -48,6 +65,47 @@ export interface PaginationParams {
   pageNumber: number;
   pageSize: number;
   search?: string;
+}
+
+// API response wrapper
+export interface QuizApiResponseWrapper<T> {
+  response: T;
+  success: boolean;
+  messageId: string;
+  message: string;
+  detailErrors: string[] | null;
+}
+
+// Paginated quiz response from API
+export interface QuizPaginatedData {
+  quizzes: AdminQuizItem[];
+  totalCount: number;
+  pageNumber: number;
+  pageSize: number;
+}
+
+// Survey item from API response
+export interface AdminSurveyItem {
+  quizId: string;
+  quizType: number;
+  quizTypeName: string;
+  title: string | null;
+  description: string | null;
+  subjectCode: string | null;
+  subjectCodeName: string | null;
+  surveyCode: string | null;
+  totalQuestions: number;
+  totalStudentsTaken: number;
+  isActive: boolean;
+  createdAt: string;
+}
+
+// Paginated survey response from API
+export interface SurveyPaginatedData {
+  quizzes: AdminSurveyItem[]; // API returns "quizzes" array for surveys too
+  totalCount: number;
+  pageNumber: number;
+  pageSize: number;
 }
 
 export interface PaginatedResponse<T> {
@@ -433,7 +491,7 @@ class QuizAdminServiceApi {
    */
   async getSurveys(params: PaginationParams): Promise<ApiResponse<PaginatedResponse<AdminSurvey>>> {
     try {
-      const response = await this.client.get('/api/v1/Admin/SelectSurveys', {
+      const response = await this.client.get<QuizApiResponseWrapper<SurveyPaginatedData>>('/api/v1/Admin/SelectSurveys', {
         params: {
           pageNumber: params.pageNumber,
           pageSize: params.pageSize,
@@ -441,9 +499,33 @@ class QuizAdminServiceApi {
         },
       });
       
+      const apiData = response.data;
+      
+      if (apiData.success && apiData.response) {
+        // Map API response to expected format
+        const mappedData: PaginatedResponse<AdminSurvey> = {
+          data: apiData.response.quizzes.map(survey => ({
+            id: survey.quizId,
+            title: survey.title || survey.surveyCode || `Survey ${survey.quizTypeName}`,
+            description: survey.description || undefined,
+            isActive: survey.isActive,
+            createdAt: survey.createdAt,
+          })),
+          pageNumber: apiData.response.pageNumber,
+          pageSize: apiData.response.pageSize,
+          totalCount: apiData.response.totalCount,
+          totalPages: Math.ceil(apiData.response.totalCount / apiData.response.pageSize),
+        };
+        
+        return {
+          success: true,
+          data: mappedData,
+        };
+      }
+      
       return {
-        success: true,
-        data: response.data,
+        success: false,
+        message: apiData.message || 'Failed to fetch surveys',
       };
     } catch (error: unknown) {
       const axiosError = error as { response?: { data?: { message?: string; errors?: string[] } } };
@@ -535,7 +617,7 @@ class QuizAdminServiceApi {
    */
   async getQuizzes(params: PaginationParams): Promise<ApiResponse<PaginatedResponse<AdminQuiz>>> {
     try {
-      const response = await this.client.get('/api/v1/Admin/SelectQuizzes', {
+      const response = await this.client.get<QuizApiResponseWrapper<QuizPaginatedData>>('/api/v1/Admin/SelectQuizzes', {
         params: {
           pageNumber: params.pageNumber,
           pageSize: params.pageSize,
@@ -543,9 +625,34 @@ class QuizAdminServiceApi {
         },
       });
       
+      const apiData = response.data;
+      
+      if (apiData.success && apiData.response) {
+        // Map API response to expected format
+        const mappedData: PaginatedResponse<AdminQuiz> = {
+          data: apiData.response.quizzes.map(quiz => ({
+            id: quiz.quizId,
+            title: quiz.title || `Quiz ${quiz.quizTypeName}`,
+            description: quiz.description || undefined,
+            totalQuestions: quiz.totalQuestions,
+            isActive: quiz.isActive,
+            createdAt: quiz.createdAt,
+          })),
+          pageNumber: apiData.response.pageNumber,
+          pageSize: apiData.response.pageSize,
+          totalCount: apiData.response.totalCount,
+          totalPages: Math.ceil(apiData.response.totalCount / apiData.response.pageSize),
+        };
+        
+        return {
+          success: true,
+          data: mappedData,
+        };
+      }
+      
       return {
-        success: true,
-        data: response.data,
+        success: false,
+        message: apiData.message || 'Failed to fetch quizzes',
       };
     } catch (error: unknown) {
       const axiosError = error as { response?: { data?: { message?: string; errors?: string[] } } };

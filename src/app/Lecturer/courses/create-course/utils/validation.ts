@@ -8,16 +8,16 @@ export const validateCourseInformation = (data: Partial<CourseFormData>): string
         errors.push('Tên khóa học là bắt buộc');
     }
 
-    if (data.title && data.title.length > 100) {
-        errors.push('Tên khóa học không được vượt quá 100 ký tự');
+    if (data.title && data.title.length > 200) {
+        errors.push('Tên khóa học không được vượt quá 200 ký tự');
     }
 
     if (!data.description || data.description.trim().length === 0) {
         errors.push('Mô tả ngắn là bắt buộc');
     }
 
-    if (data.description && data.description.length > 200) {
-        errors.push('Mô tả ngắn không được vượt quá 200 ký tự');
+    if (data.description && data.description.length > 500) {
+        errors.push('Mô tả ngắn không được vượt quá 500 ký tự');
     }
 
     // Helper function to get plain text from HTML

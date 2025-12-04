@@ -11,13 +11,15 @@ import {
   BulbOutlined,
   ExperimentOutlined,
   CheckCircleOutlined,
+  TrophyOutlined,
 } from "@ant-design/icons";
 import { usePracticeTestStore } from "EduSmart/stores/Admin";
-import type { UpdatePracticeTestDto, UpdatePracticeProblem, UpdateTestCase, UpdateCodeTemplate, UpdatePracticeExample } from "EduSmart/types/practice-test";
+import type { UpdatePracticeTestDto, UpdatePracticeProblem, UpdateTestCase, UpdateCodeTemplate, UpdatePracticeExample, UpdatePracticeSolution } from "EduSmart/types/practice-test";
 import ProblemInfoStep from "EduSmart/components/Admin/PracticeTest/ProblemInfoStep";
 import ExamplesStep from "EduSmart/components/Admin/PracticeTest/ExamplesStep";
 import TestCasesStep from "EduSmart/components/Admin/PracticeTest/TestCasesStep";
 import TemplatesStepNew from "EduSmart/components/Admin/PracticeTest/TemplatesStepNew";
+import SolutionsStep from "EduSmart/components/Admin/PracticeTest/SolutionsStep";
 import ReviewStep from "EduSmart/components/Admin/PracticeTest/ReviewStep";
 
 interface EditPracticeTestClientProps {
@@ -42,6 +44,7 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
     examples: [],
     testcases: [],
     templates: [],
+    solutions: [],
   });
 
   // Load existing practice test data
@@ -63,6 +66,7 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
          * - exampleId for examples
          * - testcaseId for test cases
          * - templateId for templates
+         * - solutionId for solutions
          * 
          * By including these IDs, we preserve existing items when updating.
          */
@@ -94,6 +98,12 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
             userTemplatePrefix: t.templatePrefix, // API uses templatePrefix
             userTemplateSuffix: t.templateSuffix, // API uses templateSuffix
             userStubCode: t.userStubCode,
+          })),
+          // Load existing solutions if available
+          solutions: (test.solutions || []).map(s => ({
+            solutionId: s.solutionId, // Include ID to update existing solution
+            languageId: s.languageId,
+            solutionCode: s.solutionCode,
           })),
         };
         
@@ -128,6 +138,11 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
       icon: <CodeOutlined />,
     },
     {
+      title: "Solutions",
+      description: "Lời giải mẫu",
+      icon: <TrophyOutlined />,
+    },
+    {
       title: "Xác nhận",
       description: "Kiểm tra lại",
       icon: <CheckCircleOutlined />,
@@ -137,12 +152,13 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
   // Calculate progress percentage
   const calculateProgress = () => {
     let progress = 0;
-    if (formData.problem?.title) progress += 20;
-    if (formData.examples && formData.examples.length > 0) progress += 20;
-    if (formData.testcases && formData.testcases.length > 0) progress += 20;
-    if (formData.templates && formData.templates.length > 0) progress += 20;
-    if (currentStep === 4) progress += 20;
-    return progress;
+    if (formData.problem?.title) progress += 16.67;
+    if (formData.examples && formData.examples.length > 0) progress += 16.67;
+    if (formData.testcases && formData.testcases.length > 0) progress += 16.67;
+    if (formData.templates && formData.templates.length > 0) progress += 16.67;
+    if (formData.solutions && formData.solutions.length > 0) progress += 16.67;
+    if (currentStep === 5) progress += 16.67;
+    return Math.round(progress);
   };
 
   // Get step status for Steps component
@@ -170,6 +186,11 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
   const handleTemplatesComplete = (templates: UpdateCodeTemplate[]) => {
     setFormData((prev) => ({ ...prev, templates }));
     setCurrentStep(4);
+  };
+
+  const handleSolutionsComplete = (solutions: UpdatePracticeSolution[]) => {
+    setFormData((prev) => ({ ...prev, solutions }));
+    setCurrentStep(5);
   };
 
   const handleSubmit = async () => {
@@ -390,6 +411,20 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
           )}
 
           {currentStep === 4 && (
+            <SolutionsStep
+              initialData={(formData.solutions || []).map(s => ({
+                languageId: s.languageId,
+                solutionCode: s.solutionCode,
+              }))}
+              onNext={(solutions) => handleSolutionsComplete(solutions.map(s => ({
+                languageId: s.languageId,
+                solutionCode: s.solutionCode,
+              })))}
+              onBack={handleBack}
+            />
+          )}
+
+          {currentStep === 5 && (
             <ReviewStep
               formData={{
                 problem: {
@@ -409,7 +444,7 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
                   })) || [],
                 },
                 templates: formData.templates || [],
-                solutions: [],
+                solutions: formData.solutions || [],
               }}
               onBack={handleBack}
               onEdit={handleEdit}

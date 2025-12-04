@@ -17,6 +17,7 @@ import {
   UserOutlined,
   FileSearchOutlined,
   TeamOutlined,
+  ScheduleOutlined,
 } from "@ant-design/icons";
 import type { MenuProps } from "antd";
 import { Menu, Layout, theme } from "antd";
@@ -99,6 +100,13 @@ const navItems: NavMenuItem[] = [
     "academic-group",
     null,
     [
+      getItem(
+        "Chương trình Đào tạo",
+        "syllabus-management",
+        <ScheduleOutlined />,
+        undefined,
+        "/Admin/syllabus-management",
+      ),
       getItem(
         "Chuyên Ngành",
         "majors",

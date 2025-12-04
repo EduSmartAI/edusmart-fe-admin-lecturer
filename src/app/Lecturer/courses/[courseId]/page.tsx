@@ -54,13 +54,19 @@ import {
 import { FadeInUp } from 'EduSmart/components/Animation/FadeInUp';
 import { useCourseManagementStore } from 'EduSmart/stores/CourseManagement/CourseManagementStore';
 import { useNotification } from 'EduSmart/Provider/NotificationProvider';
-import { CourseDto, ModuleDetailDto, courseServiceAPI, CommentDto } from 'EduSmart/api/api-course-service';
+import { CourseDto, ModuleDetailDto, courseServiceAPI, CommentDto, EnrolledUserDto } from 'EduSmart/api/api-course-service';
 import { useUserProfileStore } from 'EduSmart/stores/User/UserProfileStore';
 
 const { Title, Text, Paragraph } = Typography;
 
+// Extended CourseDto type with rating fields from API response
+type CourseWithRatings = CourseDto & {
+  ratingsAverage?: number;
+  ratingsCount?: number;
+};
+
 // Helper function to map API course data to UI format
-const mapCourseForUI = (course: CourseDto, lecturerName?: string) => {
+const mapCourseForUI = (course: CourseWithRatings, lecturerName?: string) => {
   return {
     ...course,
     // Add backward compatibility fields
@@ -70,8 +76,8 @@ const mapCourseForUI = (course: CourseDto, lecturerName?: string) => {
     duration: course.durationHours,
     lecturerName: lecturerName || 'Giảng viên',
     status: course.isActive ? 'published' : 'draft' as const,
-    rating: 0,
-    reviewCount: 0,
+    rating: course.ratingsAverage ?? 0, // Use API ratingsAverage
+    reviewCount: course.ratingsCount ?? 0, // Use API ratingsCount
     coverImage: course.courseImageUrl, // Map courseImageUrl to coverImage
     category: course.subjectCode || 'General', // Use subjectCode as category
   };
@@ -97,6 +103,18 @@ const CourseDetailPage: React.FC = () => {
   const [loadingReviews, setLoadingReviews] = useState(false);
   const [activeReplyId, setActiveReplyId] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState("");
+  
+  // Enrolled users state
+  const [enrolledUsers, setEnrolledUsers] = useState<EnrolledUserDto[]>([]);
+  const [loadingEnrolledUsers, setLoadingEnrolledUsers] = useState(false);
+  const [enrolledUsersPagination, setEnrolledUsersPagination] = useState({
+    pageIndex: 1,
+    pageSize: 10,
+    totalCount: 0,
+    totalPages: 0,
+    hasPreviousPage: false,
+    hasNextPage: false,
+  });
 
   // Utility function to build comment tree from flat list
   const buildCommentTree = (flatComments: CommentDto[]): CommentDto[] => {
@@ -153,11 +171,47 @@ const CourseDetailPage: React.FC = () => {
     }
   }, [courseId]);
 
+  // Fetch enrolled users
+  const fetchEnrolledUsers = useCallback(async (pageIndex = 1, pageSize = 10) => {
+    if (!courseId) return;
+    setLoadingEnrolledUsers(true);
+    try {
+      const res = await courseServiceAPI.enrolledUsers.get({
+        courseId: courseId,
+        pageIndex: pageIndex,
+        pageSize: pageSize
+      });
+      if (res.success && res.response) {
+        const users = res.response.items || res.response.data || [];
+        setEnrolledUsers(users);
+        setEnrolledUsersPagination({
+          pageIndex: res.response.pageIndex || pageIndex,
+          pageSize: res.response.pageSize || pageSize,
+          totalCount: res.response.totalCount || 0,
+          totalPages: res.response.totalPages || 0,
+          hasPreviousPage: res.response.hasPreviousPage || false,
+          hasNextPage: res.response.hasNextPage || false,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to fetch enrolled users:", error);
+      messageApi.error("Không thể tải danh sách học viên");
+    } finally {
+      setLoadingEnrolledUsers(false);
+    }
+  }, [courseId, messageApi]);
+
   useEffect(() => {
     if (activeTab === 'reviews') {
       fetchReviews();
     }
   }, [activeTab, fetchReviews]);
+
+  useEffect(() => {
+    if (activeTab === 'students') {
+      fetchEnrolledUsers();
+    }
+  }, [activeTab, fetchEnrolledUsers]);
 
   const handleReplyClick = (commentId: string) => {
     if (activeReplyId === commentId) {
@@ -350,10 +404,12 @@ const CourseDetailPage: React.FC = () => {
         duration: selectedCourse.durationHours,
         lecturerName: lecturerName, // Use name from token
         status: selectedCourse.isActive ? 'published' : 'draft' as const,
-        rating: 4.5, // TODO: Get from reviews API
-        reviewCount: 0, // TODO: Get from reviews API
+        rating: selectedCourse.ratingsAverage ?? 0, // Use API ratingsAverage
+        reviewCount: selectedCourse.ratingsCount ?? 0, // Use API ratingsCount
         coverImage: selectedCourse.courseImageUrl,
         category: selectedCourse.subjectCode || 'General',
+        // Map tags - API returns 'tags' field
+        courseTags: selectedCourse.tags || selectedCourse.courseTags || [],
       };
       setCourse(uiCourse);
     } else if (!selectedCourse) {
@@ -656,19 +712,30 @@ const CourseDetailPage: React.FC = () => {
                   <Statistic
                     title="Đánh giá"
                     value={course.rating || 0}
-                    suffix={`(${course.reviewCount || 0})`}
+                    suffix={`/ 5 (${course.reviewCount || 0} đánh giá)`}
                     prefix={<StarOutlined />}
+                    precision={1}
                   />
+                  <div>
+                    <Statistic
+                      title="Giá gốc"
+                      value={course.price}
+                      suffix={course.currency}
+                      prefix={<DollarOutlined />}
+                      formatter={(value) => `${Number(value).toLocaleString()}`}
+                    />
+                    {selectedCourse?.dealPrice && selectedCourse.dealPrice < (course.price || 0) && (
+                      <div className="mt-2 p-2 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                        <div className="text-xs text-green-600 dark:text-green-400">Giá khuyến mãi</div>
+                        <div className="text-lg font-bold text-green-700 dark:text-green-300">
+                          {selectedCourse.dealPrice.toLocaleString()} {course.currency}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   <Statistic
-                    title="Giá"
-                    value={course.price}
-                    suffix={course.currency}
-                    prefix={<DollarOutlined />}
-                    formatter={(value) => `${Number(value).toLocaleString()}`}
-                  />
-                  <Statistic
-                    title="Doanh thu"
-                    value={course.price * course.studentCount}
+                    title="Doanh thu ước tính"
+                    value={(selectedCourse?.dealPrice || course.price) * course.studentCount}
                     suffix={course.currency}
                     prefix={<DollarOutlined />}
                     formatter={(value) => `${Number(value).toLocaleString()}`}
@@ -699,6 +766,57 @@ const CourseDetailPage: React.FC = () => {
                     label: 'Tổng quan',
                     children: (
                       <div className="space-y-6">
+                        {/* Short Description */}
+                        {selectedCourse?.shortDescription && (
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">Mô tả ngắn</h3>
+                            <p className="text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+                              {selectedCourse.shortDescription}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Course Intro Video */}
+                        {selectedCourse?.courseIntroVideoUrl && (
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">Video giới thiệu</h3>
+                            <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-black">
+                              <video
+                                src={selectedCourse.courseIntroVideoUrl}
+                                controls
+                                className="w-full h-full object-contain"
+                                poster={course.coverImage}
+                              >
+                                Trình duyệt không hỗ trợ video
+                              </video>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Price Information */}
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">Thông tin giá</h3>
+                          <div className="flex flex-wrap gap-4">
+                            <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+                              <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Giá gốc</div>
+                              <div className="text-xl font-bold text-gray-800 dark:text-gray-200">
+                                {course.price?.toLocaleString('vi-VN')} VND
+                              </div>
+                            </div>
+                            {selectedCourse?.dealPrice && selectedCourse.dealPrice < (course.price || 0) && (
+                              <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border border-green-200 dark:border-green-700">
+                                <div className="text-sm text-green-600 dark:text-green-400 mb-1">Giá khuyến mãi</div>
+                                <div className="text-xl font-bold text-green-700 dark:text-green-300">
+                                  {selectedCourse.dealPrice?.toLocaleString('vi-VN')} VND
+                                </div>
+                                <div className="text-xs text-green-600 dark:text-green-400 mt-1">
+                                  Tiết kiệm {((course.price || 0) - selectedCourse.dealPrice).toLocaleString('vi-VN')} VND
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
                         {/* Basic Information */}
                         <div>
                           <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">Thông tin cơ bản</h3>
@@ -723,8 +841,82 @@ const CourseDetailPage: React.FC = () => {
                             <Descriptions.Item label="Cấp độ">
                               {levelTexts[course.level || 1]}
                             </Descriptions.Item>
+                            <Descriptions.Item label="Thời lượng">
+                              {selectedCourse?.durationMinutes ? `${selectedCourse.durationMinutes} phút (${selectedCourse.durationHours?.toFixed(2)} giờ)` : 'Chưa xác định'}
+                            </Descriptions.Item>
+                            <Descriptions.Item label="Số học viên">
+                              {selectedCourse?.learnerCount || 0} học viên
+                            </Descriptions.Item>
                           </Descriptions>
                         </div>
+
+                        {/* Course Tags */}
+                        {((selectedCourse?.tags && selectedCourse.tags.length > 0) || (selectedCourse?.courseTags && selectedCourse.courseTags.length > 0)) && (
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">Tags</h3>
+                            <div className="flex flex-wrap gap-2">
+                              {(selectedCourse.tags || selectedCourse.courseTags || []).map((tag) => (
+                                <Tag key={tag.tagId} color="blue" className="text-sm px-3 py-1">
+                                  {tag.tagName}
+                                </Tag>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Course Objectives */}
+                        {selectedCourse?.objectives && selectedCourse.objectives.length > 0 && (
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">Mục tiêu khóa học</h3>
+                            <div className="space-y-2">
+                              {selectedCourse.objectives
+                                .filter(obj => obj.isActive)
+                                .sort((a, b) => a.positionIndex - b.positionIndex)
+                                .map((objective) => (
+                                  <div key={objective.objectiveId} className="flex items-start gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                                    <CheckCircleOutlined className="text-green-600 dark:text-green-400 mt-0.5" />
+                                    <span className="text-gray-700 dark:text-gray-300">{objective.content}</span>
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Course Requirements */}
+                        {selectedCourse?.requirements && selectedCourse.requirements.length > 0 && (
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">Yêu cầu đầu vào</h3>
+                            <div className="space-y-2">
+                              {selectedCourse.requirements
+                                .filter(req => req.isActive)
+                                .sort((a, b) => a.positionIndex - b.positionIndex)
+                                .map((requirement) => (
+                                  <div key={requirement.requirementId} className="flex items-start gap-3 p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
+                                    <BookOutlined className="text-orange-600 dark:text-orange-400 mt-0.5" />
+                                    <span className="text-gray-700 dark:text-gray-300">{requirement.content}</span>
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Target Audiences */}
+                        {selectedCourse?.audiences && selectedCourse.audiences.length > 0 && (
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">Đối tượng học viên</h3>
+                            <div className="space-y-2">
+                              {selectedCourse.audiences
+                                .filter(aud => aud.isActive)
+                                .sort((a, b) => a.positionIndex - b.positionIndex)
+                                .map((audience) => (
+                                  <div key={audience.audienceId} className="flex items-start gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                                    <UserOutlined className="text-blue-600 dark:text-blue-400 mt-0.5" />
+                                    <span className="text-gray-700 dark:text-gray-300">{audience.content}</span>
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        )}
 
                         {/* Quick Actions */}
                         <div>
@@ -1187,11 +1379,95 @@ const CourseDetailPage: React.FC = () => {
                     label: 'Học viên',
                     children: (
                       <div className="space-y-4">
-                        <Title level={4}>Tiến độ học viên</Title>
-                        <Empty
-                          description="Chưa có học viên đăng ký"
-                          image={Empty.PRESENTED_IMAGE_SIMPLE}
-                        />
+                        <div className="flex justify-between items-center">
+                          <Title level={4}>Danh sách học viên đã đăng ký</Title>
+                          <div className="text-right">
+                            <div className="text-lg font-bold text-emerald-600">
+                              {enrolledUsersPagination.totalCount} học viên
+                            </div>
+                          </div>
+                        </div>
+
+                        {loadingEnrolledUsers ? (
+                          <div className="text-center py-8">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600 mx-auto"></div>
+                            <p className="mt-2 text-gray-500">Đang tải danh sách học viên...</p>
+                          </div>
+                        ) : enrolledUsers.length > 0 ? (
+                          <div className="space-y-3">
+                            {/* Students Grid */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                              {enrolledUsers.map((user) => (
+                                <div 
+                                  key={user.userId} 
+                                  className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow duration-200"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    {/* Avatar */}
+                                    <div className="flex-shrink-0">
+                                      {user.avatarUrl ? (
+                                        <Image 
+                                          src={user.avatarUrl} 
+                                          alt={user.displayName || 'Avatar'} 
+                                          width={48} 
+                                          height={48} 
+                                          className="w-12 h-12 rounded-full object-cover border-2 border-emerald-200 dark:border-emerald-800" 
+                                        />
+                                      ) : (
+                                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white font-bold text-lg shadow-sm">
+                                          {(user.displayName || 'U')[0].toUpperCase()}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* User Info */}
+                                    <div className="flex-1 min-w-0">
+                                      <h4 className="font-semibold text-gray-900 dark:text-gray-100 truncate">
+                                        {user.displayName || 'Học viên'}
+                                      </h4>
+                                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                        ID: {user.userId.slice(0, 8)}...
+                                      </p>
+                                    </div>
+
+                                    {/* Status Badge */}
+                                    <div className="flex-shrink-0">
+                                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
+                                        Đang học
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Pagination */}
+                            {enrolledUsersPagination.totalPages > 1 && (
+                              <div className="flex justify-center items-center gap-4 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+                                <Button
+                                  disabled={!enrolledUsersPagination.hasPreviousPage}
+                                  onClick={() => fetchEnrolledUsers(enrolledUsersPagination.pageIndex - 1)}
+                                >
+                                  Trang trước
+                                </Button>
+                                <span className="text-sm text-gray-600 dark:text-gray-400">
+                                  Trang {enrolledUsersPagination.pageIndex} / {enrolledUsersPagination.totalPages}
+                                </span>
+                                <Button
+                                  disabled={!enrolledUsersPagination.hasNextPage}
+                                  onClick={() => fetchEnrolledUsers(enrolledUsersPagination.pageIndex + 1)}
+                                >
+                                  Trang sau
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <Empty
+                            description="Chưa có học viên đăng ký khóa học này"
+                            image={Empty.PRESENTED_IMAGE_SIMPLE}
+                          />
+                        )}
                       </div>
                     )
                   },
