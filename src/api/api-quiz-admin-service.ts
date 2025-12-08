@@ -27,11 +27,53 @@ export interface AdminTest {
 
 export interface AdminSurvey {
   id: string;
+  code: string; // surveyCode from API (HABIT, INTEREST, etc.)
   title: string;
   description?: string;
+  totalQuestions: number;
+  totalStudentsTaken: number;
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;
+}
+
+// Survey with full nested content (questions, answers)
+export interface SurveyQuizSetting {
+  surveyTypeId: number;
+  surveyTypeName: string;
+  surveyCode: string;
+  title: string | null;
+  description: string | null;
+}
+
+export interface SurveyAnswer {
+  answerId: string;
+  answerText: string;
+  isCorrect: boolean;
+}
+
+export interface SurveyQuestion {
+  questionId: string;
+  questionText: string;
+  explanation: string | null;
+  questionType: number;
+  createdAt: string;
+  updatedAt: string;
+  answers: SurveyAnswer[];
+}
+
+export interface AdminSurveyDetail {
+  surveyId: string;
+  surveyType: number;
+  surveyQuizSetting: SurveyQuizSetting;
+  questions: SurveyQuestion[];
+  totalQuestions: number;
+  totalStudentsTaken: number;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string;
+  updatedBy: string;
+  isActive?: boolean;
 }
 
 // Quiz item from API response
@@ -102,7 +144,15 @@ export interface AdminSurveyItem {
 
 // Paginated survey response from API
 export interface SurveyPaginatedData {
-  quizzes: AdminSurveyItem[]; // API returns "quizzes" array for surveys too
+  quizzes?: AdminSurveyItem[]; // Legacy shape
+  surveys?: AdminSurveyDetail[]; // New shape with nested questions
+  totalCount: number;
+  pageNumber: number;
+  pageSize: number;
+}
+
+export interface SurveySelectResponse {
+  surveys: AdminSurveyDetail[];
   totalCount: number;
   pageNumber: number;
   pageSize: number;
@@ -206,6 +256,17 @@ export interface UpdateQuizDto {
   isActive?: boolean;
 }
 
+export interface DeleteTestQuizRequest {
+  testId: string;
+  quizId: string;
+}
+
+export interface DeleteTestQuizQuestionsRequest {
+  testId: string;
+  quizId: string;
+  questionIds: string[];
+}
+
 // ============================================================================
 // Student Surveys & Tests Types
 // ============================================================================
@@ -284,6 +345,77 @@ export interface StudentSurveysResponse {
 }
 
 export interface StudentTestsResponse {
+  studentTests: StudentTest[];
+  totalCount: number;
+  pageNumber: number;
+  pageSize: number;
+}
+
+export interface StudentSurveyAnswerDetail {
+  answerId: string;
+  answerText: string;
+  selectedByStudent: boolean;
+  isCorrect?: boolean;
+}
+
+export interface StudentSurveyQuestionResult {
+  questionId: string;
+  questionText: string;
+  questionType: number;
+  answers: StudentSurveyAnswerDetail[];
+}
+
+export interface StudentSurveyDetail {
+  studentQuizId: string;
+  studentId: string;
+  studentName: string;
+  studentEmail: string;
+  surveyId: string;
+  surveyTitle: string | null;
+  surveyDescription?: string | null;
+  surveyCode: string | null;
+  createdAt: string;
+  questionResults: StudentSurveyQuestionResult[];
+  totalQuestions?: number;
+  totalAnswers?: number;
+}
+
+// Placement Test Detail Interfaces
+export interface PlacementTestAnswer {
+  answerId: string;
+  answerText: string;
+  isCorrect: boolean;
+}
+
+export interface PlacementTestQuestion {
+  questionId: string;
+  questionText: string;
+  questionType: number;
+  questionTypeName: string;
+  difficultyLevel: number; // 1 = Easy, 2 = Medium, 3 = Hard
+  answers: PlacementTestAnswer[];
+}
+
+export interface PlacementTestQuiz {
+  quizId: string;
+  title: string;
+  description: string;
+  subjectCode: string;
+  subjectCodeName: string;
+  totalQuestions: number;
+  questions: PlacementTestQuestion[];
+}
+
+export interface PlacementTestDetail {
+  testId: string;
+  testName: string;
+  description: string;
+  totalStudentAnswered: number;
+  quizzes: PlacementTestQuiz[];
+}
+
+// Student Test List Interface (SelectStudentTests)
+export interface StudentTestsListResponse {
   studentTests: StudentTest[];
   totalCount: number;
   pageNumber: number;
@@ -481,6 +613,54 @@ class QuizAdminServiceApi {
     }
   }
 
+  /**
+   * Delete a specific quiz inside a test
+   * DELETE /quiz/api/v1/Admin/DeleteTestQuiz
+   */
+  async deleteTestQuiz(payload: DeleteTestQuizRequest): Promise<ApiResponse<void>> {
+    try {
+      await this.client.delete('/api/v1/Admin/DeleteTestQuiz', {
+        data: payload,
+      });
+
+      return {
+        success: true,
+        message: 'Test quiz deleted successfully',
+      };
+    } catch (error: unknown) {
+      const axiosError = error as { response?: { data?: { message?: string; errors?: string[] } } };
+      return {
+        success: false,
+        message: axiosError.response?.data?.message || 'Failed to delete test quiz',
+        errors: axiosError.response?.data?.errors,
+      };
+    }
+  }
+
+  /**
+   * Delete question(s) from a test quiz
+   * DELETE /quiz/api/v1/Admin/DeleteTestQuizQuestions
+   */
+  async deleteTestQuizQuestions(payload: DeleteTestQuizQuestionsRequest): Promise<ApiResponse<void>> {
+    try {
+      await this.client.delete('/api/v1/Admin/DeleteTestQuizQuestions', {
+        data: payload,
+      });
+
+      return {
+        success: true,
+        message: 'Test quiz questions deleted successfully',
+      };
+    } catch (error: unknown) {
+      const axiosError = error as { response?: { data?: { message?: string; errors?: string[] } } };
+      return {
+        success: false,
+        message: axiosError.response?.data?.message || 'Failed to delete test quiz questions',
+        errors: axiosError.response?.data?.errors,
+      };
+    }
+  }
+
   // ============================================================================
   // Surveys API
   // ============================================================================
@@ -493,28 +673,64 @@ class QuizAdminServiceApi {
     try {
       const response = await this.client.get<QuizApiResponseWrapper<SurveyPaginatedData>>('/api/v1/Admin/SelectSurveys', {
         params: {
-          pageNumber: params.pageNumber,
-          pageSize: params.pageSize,
-          search: params.search || '',
+          PageNumber: params.pageNumber,
+          PageSize: params.pageSize,
+          SearchTitle: params.search || '',
         },
       });
       
       const apiData = response.data;
       
       if (apiData.success && apiData.response) {
+        const { totalCount, pageNumber, pageSize } = apiData.response;
+
+        const surveys = apiData.response.quizzes || apiData.response.surveys || [];
+
+        const mapSurveyToAdmin = (survey: AdminSurveyItem | AdminSurveyDetail): AdminSurvey => {
+          const asItem = survey as AdminSurveyItem;
+          const asDetail = survey as AdminSurveyDetail;
+
+          // Extract code (surveyCode)
+          const code = asDetail.surveyQuizSetting?.surveyCode
+            || asItem.surveyCode
+            || '';
+
+          // Extract title with fallback chain
+          const title = (asDetail.surveyQuizSetting?.title
+            || asItem.title
+            || asDetail.surveyQuizSetting?.surveyCode
+            || asItem.surveyCode
+            || (asItem.quizTypeName ? `Survey ${asItem.quizTypeName}` : undefined)
+            || 'Survey').trim();
+
+          // Extract description
+          const description = asDetail.surveyQuizSetting?.description
+            ?? asItem.description
+            ?? undefined;
+
+          // Extract counts
+          const totalQuestions = asDetail.totalQuestions ?? asItem.totalQuestions ?? 0;
+          const totalStudentsTaken = asDetail.totalStudentsTaken ?? asItem.totalStudentsTaken ?? 0;
+
+          return {
+            id: 'quizId' in survey ? (survey as AdminSurveyItem).quizId : asDetail.surveyId,
+            code,
+            title,
+            description,
+            totalQuestions,
+            totalStudentsTaken,
+            isActive: 'isActive' in survey ? (survey as AdminSurveyItem).isActive : (asDetail.isActive ?? true),
+            createdAt: 'createdAt' in survey ? (survey as AdminSurveyItem).createdAt : asDetail.createdAt,
+          };
+        };
+
         // Map API response to expected format
         const mappedData: PaginatedResponse<AdminSurvey> = {
-          data: apiData.response.quizzes.map(survey => ({
-            id: survey.quizId,
-            title: survey.title || survey.surveyCode || `Survey ${survey.quizTypeName}`,
-            description: survey.description || undefined,
-            isActive: survey.isActive,
-            createdAt: survey.createdAt,
-          })),
-          pageNumber: apiData.response.pageNumber,
-          pageSize: apiData.response.pageSize,
-          totalCount: apiData.response.totalCount,
-          totalPages: Math.ceil(apiData.response.totalCount / apiData.response.pageSize),
+          data: surveys.map(mapSurveyToAdmin),
+          pageNumber,
+          pageSize,
+          totalCount,
+          totalPages: Math.ceil(totalCount / pageSize),
         };
         
         return {
@@ -533,6 +749,38 @@ class QuizAdminServiceApi {
         success: false,
         message: axiosError.response?.data?.message || 'Failed to fetch surveys',
         errors: axiosError.response?.data?.errors,
+      };
+    }
+  }
+
+  /**
+   * Get surveys (raw) with nested questions
+   * GET /quiz/api/v1/Admin/SelectSurveys
+   */
+  async getSurveysWithQuestions(params: PaginationParams): Promise<ApiResponseWithNested<SurveySelectResponse>> {
+    try {
+      const response = await this.client.get('/api/v1/Admin/SelectSurveys', {
+        params: {
+          PageNumber: params.pageNumber,
+          PageSize: params.pageSize,
+          SearchTitle: params.search || '',
+        },
+      });
+
+      return response.data;
+    } catch (error: unknown) {
+      const axiosError = error as { response?: { data?: { message?: string; detailErrors?: string[] } } };
+      return {
+        response: {
+          surveys: [],
+          totalCount: 0,
+          pageNumber: params.pageNumber ?? 0,
+          pageSize: params.pageSize ?? 10,
+        },
+        success: false,
+        messageId: 'E00001',
+        message: axiosError.response?.data?.message || 'Failed to fetch surveys',
+        detailErrors: axiosError.response?.data?.detailErrors || null,
       };
     }
   }
@@ -739,6 +987,33 @@ class QuizAdminServiceApi {
   // ============================================================================
 
   /**
+   * Get placement test detail with all quizzes and questions
+   * GET /quiz/api/v1/Admin/SelectPlacementTestDetail
+   */
+  async getPlacementTestDetail(): Promise<ApiResponseWithNested<PlacementTestDetail>> {
+    try {
+      const response = await this.client.get('/api/v1/Admin/SelectPlacementTestDetail');
+      
+      return response.data;
+    } catch (error: unknown) {
+      const axiosError = error as { response?: { data?: { message?: string; detailErrors?: string[] } } };
+      return {
+        response: {
+          testId: '',
+          testName: '',
+          description: '',
+          totalStudentAnswered: 0,
+          quizzes: [],
+        },
+        success: false,
+        messageId: 'E00001',
+        message: axiosError.response?.data?.message || 'Failed to fetch placement test detail',
+        detailErrors: axiosError.response?.data?.detailErrors || null,
+      };
+    }
+  }
+
+  /**
    * Get paginated list of student surveys
    * GET /quiz/api/v1/Admin/SelectStudentSurveys
    */
@@ -770,10 +1045,10 @@ class QuizAdminServiceApi {
   }
 
   /**
-   * Get paginated list of student tests
+   * Get paginated list of student tests (placement test results)
    * GET /quiz/api/v1/Admin/SelectStudentTests
    */
-  async getStudentTests(params: PaginationParams): Promise<ApiResponseWithNested<StudentTestsResponse>> {
+  async getStudentTests(params: PaginationParams): Promise<ApiResponseWithNested<StudentTestsListResponse>> {
     try {
       const response = await this.client.get('/api/v1/Admin/SelectStudentTests', {
         params: {
@@ -797,6 +1072,25 @@ class QuizAdminServiceApi {
         message: axiosError.response?.data?.message || 'Failed to fetch student tests',
         detailErrors: axiosError.response?.data?.detailErrors || null,
       };
+    }
+  }
+
+  /**
+   * Get detailed information about a student survey submission
+   * GET /quiz/api/v1/Admin/SelectStudentSurveyDetail
+   */
+  async getStudentSurveyDetail(studentQuizId: string): Promise<ApiResponseWithNested<StudentSurveyDetail>> {
+    try {
+      const response = await this.client.get('/api/v1/Admin/SelectStudentSurveyDetail', {
+        params: {
+          StudentQuizId: studentQuizId,
+        },
+      });
+
+      return response.data;
+    } catch (error: unknown) {
+      const axiosError = error as { response?: { data?: { message?: string; detailErrors?: string[] } } };
+      throw new Error(axiosError.response?.data?.message || 'Failed to fetch student survey detail');
     }
   }
 

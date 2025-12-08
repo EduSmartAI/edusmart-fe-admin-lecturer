@@ -7,7 +7,6 @@ import {
   Button,
   Table,
   Tag,
-  Space,
   Tooltip,
   Row,
   Col,
@@ -19,9 +18,7 @@ import {
   EyeOutlined,
   ReloadOutlined,
   SearchOutlined,
-  ClockCircleOutlined,
   UserOutlined,
-  FileTextOutlined,
 } from "@ant-design/icons";
 import { useRouter } from "next/navigation";
 import { useStudentTestStore } from "EduSmart/stores/Admin/StudentTestStore";
@@ -86,99 +83,83 @@ export default function StudentTestsClient() {
 
   const columns = [
     {
-      title: "Student",
+      title: "Sinh viên",
       key: "student",
       width: "20%",
       render: (_: unknown, record: StudentTest) => (
-        <div>
-          <div className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-            <UserOutlined className="text-blue-500" />
-            {record.studentName}
-          </div>
-          <div className="text-xs text-gray-500 mt-1">{record.studentEmail}</div>
+        <div className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+          <UserOutlined className="text-blue-500" />
+          {record.studentName}
         </div>
       ),
     },
     {
-      title: "Test",
+      title: "Bài kiểm tra",
       dataIndex: "testName",
       key: "testName",
-      width: "20%",
+      width: "25%",
       render: (text: string) => (
-        <div className="flex items-center gap-2">
-          <FileTextOutlined className="text-purple-500" />
-          <span className="font-medium">{text}</span>
-        </div>
+        <span className="font-medium">{text}</span>
       ),
     },
     {
-      title: "Score",
+      title: "Điểm",
       key: "score",
       width: "15%",
       render: (_: unknown, record: StudentTest) => {
         const percentage = ((record.totalCorrectAnswers / record.totalQuestions) * 100).toFixed(1);
         return (
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <Tag color={getScoreColor(record.totalCorrectAnswers, record.totalQuestions)} className="font-bold">
-                {record.totalCorrectAnswers}/{record.totalQuestions}
-              </Tag>
-              <span className="text-sm text-gray-600">({percentage}%)</span>
-            </div>
-            <div className="text-xs text-gray-500">
-              {record.totalQuizzes} quiz{record.totalQuizzes > 1 ? "zes" : ""}
-            </div>
+          <div className="flex items-center gap-2">
+            <Tag color={getScoreColor(record.totalCorrectAnswers, record.totalQuestions)} className="font-bold">
+              {record.totalCorrectAnswers}/{record.totalQuestions}
+            </Tag>
+            <span className="text-sm text-gray-600">({percentage}%)</span>
           </div>
         );
       },
     },
     {
-      title: "Level",
+      title: "Cấp độ",
       dataIndex: "studentLevel",
       key: "studentLevel",
-      width: "10%",
+      width: "12%",
       render: (level: number) => getLevelTag(level),
     },
     {
-      title: "Duration",
+      title: "Thời gian",
       dataIndex: "duration",
       key: "duration",
       width: "10%",
       render: (duration: string) => (
-        <div className="flex items-center gap-2">
-          <ClockCircleOutlined className="text-gray-400" />
-          <span className="font-medium">{formatDuration(duration)}</span>
-        </div>
+        <span className="font-medium">{formatDuration(duration)}</span>
       ),
     },
     {
-      title: "Completed",
+      title: "Hoàn thành",
       dataIndex: "finishedAt",
       key: "finishedAt",
       width: "15%",
       render: (date: string) => (
         <div className="text-sm">
-          {dayjs(date).format("MMM D, YYYY")}
-          <div className="text-xs text-gray-500">{dayjs(date).format("h:mm A")}</div>
+          {dayjs(date).format("DD/MM/YYYY")}
+          <div className="text-xs text-gray-500">{dayjs(date).format("HH:mm")}</div>
         </div>
       ),
     },
     {
-      title: "Actions",
+      title: "Thao tác",
       key: "actions",
-      width: "10%",
+      width: "8%",
       render: (_: unknown, record: StudentTest) => (
-        <Space size="small">
-          <Tooltip title="View Details">
-            <Button
-              type="text"
-              icon={<EyeOutlined />}
-              size="small"
-              onClick={() => router.push(`/Admin/content-management/student-tests/${record.studentTestId}`)}
-              className="text-blue-600"
-            />
-          </Tooltip>
-        </Space>
+        <Tooltip title="Xem chi tiết">
+          <Button
+            type="text"
+            icon={<EyeOutlined />}
+            size="small"
+            onClick={() => router.push(`/Admin/content-management/student-tests/${record.studentTestId}`)}
+            className="text-blue-600"
+          />
+        </Tooltip>
       ),
     },
   ];
@@ -206,10 +187,10 @@ export default function StudentTestsClient() {
               </div>
               <div>
                 <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                  Student Tests
+                  Kết quả bài kiểm tra
                 </h1>
                 <p className="text-gray-600 dark:text-gray-400">
-                  Monitor student test submissions and performance
+                  Theo dõi kết quả và hiệu suất của sinh viên
                 </p>
               </div>
             </div>
@@ -222,7 +203,7 @@ export default function StudentTestsClient() {
             <Card className="shadow-sm hover:shadow-md transition-shadow border-0">
               <div className="text-center">
                 <div className="text-3xl font-bold text-blue-600">{total}</div>
-                <div className="text-gray-600 text-sm mt-1">Total Submissions</div>
+                <div className="text-gray-600 text-sm mt-1">Tổng bài làm</div>
               </div>
             </Card>
           </Col>
@@ -235,7 +216,7 @@ export default function StudentTestsClient() {
                     return percentage >= 80;
                   }).length}
                 </div>
-                <div className="text-gray-600 text-sm mt-1">✅ Passed (≥80%)</div>
+                <div className="text-gray-600 text-sm mt-1">✅ Đạt (≥80%)</div>
               </div>
             </Card>
           </Col>
@@ -248,7 +229,7 @@ export default function StudentTestsClient() {
                     return percentage >= 60 && percentage < 80;
                   }).length}
                 </div>
-                <div className="text-gray-600 text-sm mt-1">⚠️ Average (60-79%)</div>
+                <div className="text-gray-600 text-sm mt-1">⚠️ Trung bình (60-79%)</div>
               </div>
             </Card>
           </Col>
@@ -261,7 +242,7 @@ export default function StudentTestsClient() {
                     return percentage < 60;
                   }).length}
                 </div>
-                <div className="text-gray-600 text-sm mt-1">❌ Failed (&lt;60%)</div>
+                <div className="text-gray-600 text-sm mt-1">❌ Chưa đạt (&lt;60%)</div>
               </div>
             </Card>
           </Col>
@@ -283,7 +264,7 @@ export default function StudentTestsClient() {
         <Card className="mb-6 shadow-sm border-0">
           <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center justify-between">
             <Input
-              placeholder="Search by student name, email, or test name..."
+              placeholder="Tìm kiếm theo tên sinh viên hoặc tên bài kiểm tra..."
               prefix={<SearchOutlined />}
               value={searchValue}
               onChange={(e) => setSearchValue(e.target.value)}

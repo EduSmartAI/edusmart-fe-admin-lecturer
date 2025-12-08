@@ -1,10 +1,10 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import subjectApiService, { Subject } from 'EduSmart/api/api-subject-service';
+import subjectApiService, { LegacySubject } from 'EduSmart/api/api-subject-service';
 
 export interface SubjectState {
   // State
-  subjects: Subject[];
+  subjects: LegacySubject[];
   isLoading: boolean;
   error: string | null;
   lastFetched: number | null;
@@ -12,9 +12,9 @@ export interface SubjectState {
 
   // Actions
   fetchSubjects: (forceRefresh?: boolean) => Promise<void>;
-  getSubjectById: (id: string) => Subject | undefined;
-  getSubjectByCode: (code: string) => Subject | undefined;
-  searchSubjects: (query: string) => Subject[];
+  getSubjectById: (id: string) => LegacySubject | undefined;
+  getSubjectByCode: (code: string) => LegacySubject | undefined;
+  searchSubjects: (query: string) => LegacySubject[];
   clearCache: () => void;
   clearError: () => void;
 }

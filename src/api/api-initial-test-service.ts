@@ -16,7 +16,7 @@ import {
   CreateInitialTestDto,
   InitialTest,
   InitialTestListItem,
-  PaginationParams,
+  // PaginationParams,
   PaginatedResponse,
   ApiResponse,
 } from 'EduSmart/types/initial-test';
@@ -115,23 +115,80 @@ class InitialTestApi {
 
   /**
    * Get paginated list of tests
-   * GET /quiz/api/v1/Admin/SelectTests
+   * GET /quiz/api/v1/Admin/SelectPlacementTestDetail (returns the single placement test)
+   * Note: This endpoint doesn't support pagination - it returns the master placement test template
    */
-  async getTests(params: PaginationParams): Promise<ApiResponse<PaginatedResponse<InitialTestListItem>>> {
+  async getTests(): Promise<ApiResponse<PaginatedResponse<InitialTestListItem>>> {
     try {
-      const response = await this.client.get<ApiResponse<PaginatedResponse<InitialTestListItem>>>(
-        '/api/v1/Admin/SelectTests',
-        {
-          params: {
-            PageNumber: params.pageNumber,
-            PageSize: params.pageSize,
-            SearchTerm: params.search || '',
-          },
-        }
-      );
+      console.log('[InitialTestApi] Fetching placement test detail');
       
-      return response.data;
+      const response = await this.client.get<{
+        response: {
+          testId: string;
+          testName: string;
+          description: string;
+          totalStudentAnswered: number;
+          quizzes: Array<{
+            quizId: string;
+            title: string;
+            description: string;
+            subjectCode: string;
+            subjectCodeName: string;
+            totalQuestions: number;
+            questions: unknown[];
+          }>;
+        };
+        success: boolean;
+        messageId: string | null;
+        message: string | null;
+        detailErrors: string[] | null;
+      }>('/api/v1/Admin/SelectPlacementTestDetail');
+      
+      console.log('[InitialTestApi] API Response:', response.data);
+      
+      if (response.data.success && response.data.response) {
+        const placementTest = response.data.response;
+        
+        // Convert the single placement test to a list format for the UI
+        const items: InitialTestListItem[] = [{
+          testId: placementTest.testId,
+          testName: placementTest.testName,
+          description: placementTest.description,
+          totalQuizzes: placementTest.quizzes.length,
+          totalQuestions: placementTest.quizzes.reduce((sum, q) => sum + q.totalQuestions, 0),
+          totalStudentsCompleted: placementTest.totalStudentAnswered,
+          createdAt: new Date().toISOString(), // API doesn't return this
+          updatedAt: new Date().toISOString(), // API doesn't return this
+        }];
+        
+        return {
+          response: {
+            items,
+            totalCount: 1, // Only one placement test
+            pageNumber: 1,
+            pageSize: 1,
+          },
+          success: true,
+          messageId: response.data.messageId || 'I00001',
+          message: response.data.message || 'Success',
+          detailErrors: null,
+        };
+      }
+      
+      return {
+        response: {
+          items: [],
+          totalCount: 0,
+          pageNumber: 0,
+          pageSize: 10,
+        },
+        success: false,
+        messageId: 'E00001',
+        message: response.data.message || 'Failed to fetch placement test',
+        detailErrors: response.data.detailErrors,
+      };
     } catch (error: unknown) {
+      console.error('[InitialTestApi] Error:', error);
       const axiosError = error as { 
         response?: { 
           data?: { 
@@ -158,21 +215,101 @@ class InitialTestApi {
 
   /**
    * Get test detail
-   * GET /quiz/api/v1/Admin/SelectTest?TestId={guid}
+   * GET /quiz/api/v1/Admin/SelectPlacementTestDetail
+   * Note: testId parameter is ignored as there's only one placement test
    */
   async getTestDetail(testId: string): Promise<ApiResponse<InitialTest>> {
     try {
-      const response = await this.client.get<ApiResponse<InitialTest>>(
-        '/api/v1/Admin/SelectTest',
-        {
-          params: {
-            TestId: testId,
-          },
-        }
-      );
+      console.log('[InitialTestApi] Fetching placement test detail for:', testId);
       
-      return response.data;
+      const response = await this.client.get<{
+        response: {
+          testId: string;
+          testName: string;
+          description: string;
+          totalStudentAnswered: number;
+          quizzes: Array<{
+            quizId: string;
+            title: string;
+            description: string;
+            subjectCode: string;
+            subjectCodeName: string;
+            totalQuestions: number;
+            questions: Array<{
+              questionId: string;
+              questionText: string;
+              questionType: number;
+              questionTypeName: string;
+              difficultyLevel: number;
+              answers: Array<{
+                answerId: string;
+                answerText: string;
+                isCorrect: boolean;
+              }>;
+            }>;
+          }>;
+        };
+        success: boolean;
+        messageId: string | null;
+        message: string | null;
+        detailErrors: string[] | null;
+      }>('/api/v1/Admin/SelectPlacementTestDetail');
+      
+      console.log('[InitialTestApi] Test detail response:', response.data);
+      
+      if (response.data.success && response.data.response) {
+        const data = response.data.response;
+        
+        // Transform to InitialTest format
+        const initialTest: InitialTest = {
+          testId: data.testId,
+          testName: data.testName,
+          description: data.description,
+          totalQuizzes: data.quizzes.length,
+          totalQuestions: data.quizzes.reduce((sum, q) => sum + q.totalQuestions, 0),
+          totalStudentsCompleted: data.totalStudentAnswered,
+          quizzes: data.quizzes.map(quiz => ({
+            quizId: quiz.quizId,
+            title: quiz.title,
+            description: quiz.description,
+            subjectCode: quiz.subjectCode,
+            subjectCodeName: quiz.subjectCodeName,
+            totalQuestions: quiz.totalQuestions,
+            questions: quiz.questions.map(q => ({
+              questionId: q.questionId,
+              questionText: q.questionText,
+              questionType: q.questionType,
+              questionTypeName: q.questionTypeName,
+              difficultyLevel: q.difficultyLevel,
+              answers: q.answers.map(a => ({
+                answerId: a.answerId,
+                answerText: a.answerText,
+                isCorrect: a.isCorrect,
+              })),
+            })),
+          })),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        
+        return {
+          response: initialTest,
+          success: true,
+          messageId: response.data.messageId || 'I00001',
+          message: response.data.message || 'Success',
+          detailErrors: null,
+        };
+      }
+      
+      return {
+        response: {} as InitialTest,
+        success: false,
+        messageId: 'E00003',
+        message: response.data.message || 'Failed to fetch test detail',
+        detailErrors: response.data.detailErrors,
+      };
     } catch (error: unknown) {
+      console.error('[InitialTestApi] Error fetching test detail:', error);
       const axiosError = error as { 
         response?: { 
           data?: { 

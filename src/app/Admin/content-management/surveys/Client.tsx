@@ -16,6 +16,8 @@ import {
   Badge,
   Popconfirm,
   message,
+  Modal,
+  Descriptions,
 } from "antd";
 import {
   PlusOutlined,
@@ -25,7 +27,6 @@ import {
   ReloadOutlined,
   FileTextOutlined,
   CheckOutlined,
-  StopOutlined,
   EyeOutlined,
   ArrowLeftOutlined,
   SaveOutlined,
@@ -38,6 +39,7 @@ import { useDebouncedSearch } from "EduSmart/hooks/useDebounce";
 import SurveyFormBuilder, {
   SurveyQuestion as FormQuestion,
 } from "EduSmart/components/Admin/Survey/SurveyFormBuilder";
+import { quizAdminServiceApi, type AdminSurvey, type AdminSurveyDetail } from "EduSmart/api/api-quiz-admin-service";
 
 type ViewMode = "list" | "create" | "edit";
 
@@ -66,26 +68,34 @@ const convertToApiFormat = (questions: FormQuestion[]): ApiQuestionPayload[] => 
 };
 
 // Convert API questions to form format  
-const convertToFormFormat = (questions: ApiSurveyQuestion[]): FormQuestion[] => {
-  return questions.map((q) => ({
-    id: Math.random().toString(36).substring(2, 11),
-    questionText: q.questionText,
-    required: false,
-    options: q.answers?.map((a) => ({
-      id: Math.random().toString(36).substring(2, 11),
-      text: a.answerText,
-    })) || [
-      { id: Math.random().toString(36).substring(2, 11), text: "Lựa chọn 1" },
-      { id: Math.random().toString(36).substring(2, 11), text: "Lựa chọn 2" },
-    ],
-  }));
-};
+// const convertToFormFormat = (questions: ApiSurveyQuestion[]): FormQuestion[] => {
+//   return questions.map((q) => ({
+//     id: Math.random().toString(36).substring(2, 11),
+//     questionText: q.questionText,
+//     required: false,
+//     options: q.answers?.map((a) => ({
+//       id: Math.random().toString(36).substring(2, 11),
+//       text: a.answerText,
+//     })) || [
+//       { id: Math.random().toString(36).substring(2, 11), text: "Lựa chọn 1" },
+//       { id: Math.random().toString(36).substring(2, 11), text: "Lựa chọn 2" },
+//     ],
+//   }));
+// };
 
 export default function SurveysClient() {
   const [searchValue, setSearchValue, debouncedSearch] = useDebouncedSearch("", 500);
   const [currentPage, setCurrentPage] = useState(1);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [selectedSurvey, setSelectedSurvey] = useState<Survey | null>(null);
+  
+  // New API integration state
+  const [adminSurveys, setAdminSurveys] = useState<AdminSurvey[]>([]);
+  const [totalSurveys, setTotalSurveys] = useState(0);
+  const [isLoadingApi, setIsLoadingApi] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [surveyDetailData, setSurveyDetailData] = useState<AdminSurveyDetail | null>(null);
   
   // Form builder state
   const [surveyTitle, setSurveyTitle] = useState("");
@@ -95,24 +105,39 @@ export default function SurveysClient() {
   const [isSaving, setIsSaving] = useState(false);
 
   const {
-    surveys,
-    isLoading,
-    error,
-    total,
-    pageSize,
-    fetchSurveys,
     createSurvey,
     updateSurvey,
-    publishSurvey,
-    deleteSurvey,
-    clearError,
   } = useSurveyStore();
 
-  // Load surveys on mount and when search/page changes
+  // Load surveys from NEW API on mount and when search/page changes
   useEffect(() => {
-    fetchSurveys(currentPage, 20, debouncedSearch);
+    loadSurveysFromApi();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, debouncedSearch]);
+
+  const loadSurveysFromApi = async () => {
+    setIsLoadingApi(true);
+    setApiError(null);
+    try {
+      const response = await quizAdminServiceApi.getSurveys({
+        pageNumber: currentPage,
+        pageSize: 20,
+        search: debouncedSearch,
+      });
+
+      if (response.success && response.data) {
+        setAdminSurveys(response.data.data);
+        setTotalSurveys(response.data.totalCount);
+      } else {
+        setApiError(response.message || 'Failed to load surveys');
+      }
+    } catch (err) {
+      setApiError(formatErrorMessage(err));
+      console.error('[SurveysClient] Error loading surveys:', err);
+    } finally {
+      setIsLoadingApi(false);
+    }
+  };
 
   // Reset form state
   const resetFormState = () => {
@@ -139,14 +164,14 @@ export default function SurveysClient() {
     setViewMode("create");
   };
 
-  const handleEdit = (survey: Survey) => {
-    setSelectedSurvey(survey);
-    setSurveyTitle(survey.title);
-    setSurveyDescription(survey.description || "");
-    setSurveyCode(survey.code);
-    setQuestions(convertToFormFormat(survey.questions || []));
-    setViewMode("edit");
-  };
+  // const handleEdit = (survey: Survey) => {
+  //   setSelectedSurvey(survey);
+  //   setSurveyTitle(survey.title);
+  //   setSurveyDescription(survey.description || "");
+  //   setSurveyCode(survey.code);
+  //   setQuestions(convertToFormFormat(survey.questions || []));
+  //   setViewMode("edit");
+  // };
 
   const handleBackToList = () => {
     resetFormState();
@@ -223,60 +248,113 @@ export default function SurveysClient() {
 
 
 
-  const handlePublish = async (surveyId: string) => {
-    try {
-      const result = await publishSurvey(surveyId);
-      if (result) {
-        message.success("Xuất bản khảo sát thành công!");
-      }
-    } catch (err) {
-      message.error(formatErrorMessage(err));
-    }
-  };
+  // const handlePublish = async (surveyId: string) => {
+  //   try {
+  //     const result = await publishSurvey(surveyId);
+  //     if (result) {
+  //       message.success("Xuất bản khảo sát thành công!");
+  //     }
+  //   } catch (err) {
+  //     message.error(formatErrorMessage(err));
+  //   }
+  // };
 
   const handleDelete = async (id: string) => {
     try {
-      const success = await deleteSurvey(id);
-      if (success) {
+      const response = await quizAdminServiceApi.deleteSurvey(id);
+      if (response.success) {
         message.success("Xóa khảo sát thành công!");
-        if (surveys.length === 1 && currentPage > 1) {
+        if (adminSurveys.length === 1 && currentPage > 1) {
           setCurrentPage(currentPage - 1);
         } else {
-          fetchSurveys(currentPage, pageSize, debouncedSearch);
+          loadSurveysFromApi();
         }
+      } else {
+        message.error(response.message || "Xóa khảo sát thất bại");
       }
     } catch (err) {
       message.error(formatErrorMessage(err));
     }
   };
 
-  const getStatusColor = (
-    status: string
-  ): "success" | "processing" | "default" | "error" => {
-    switch (status) {
-      case "DRAFT":
-        return "default";
-      case "PUBLISHED":
-        return "success";
-      case "CLOSED":
-        return "error";
-      default:
-        return "default";
+  const handleViewDetail = async (surveyId: string) => {
+    setIsLoadingApi(true);
+    try {
+      console.log('[SurveysClient] Fetching detail for surveyId:', surveyId);
+      
+      const response = await quizAdminServiceApi.getSurveysWithQuestions({
+        pageNumber: 1,
+        pageSize: 100,
+        search: '',
+      });
+
+      console.log('[SurveysClient] API Response:', response);
+
+      if (response.success && response.response) {
+        console.log('[SurveysClient] Response data:', response.response);
+        console.log('[SurveysClient] Surveys array:', response.response.surveys);
+        
+        // Find the specific survey in the response
+        const survey = response.response.surveys?.find((s: AdminSurveyDetail) => {
+          console.log('[SurveysClient] Checking survey:', s.surveyId, 'against', surveyId);
+          return s.surveyId === surveyId;
+        });
+        
+        console.log('[SurveysClient] Found survey:', survey);
+        
+        if (survey) {
+          setSurveyDetailData(survey);
+          setDetailModalVisible(true);
+        } else {
+          console.error('[SurveysClient] Survey not found in response. Available IDs:', 
+            response.response.surveys?.map((s: AdminSurveyDetail) => s.surveyId));
+          message.error('Không tìm thấy khảo sát');
+        }
+      } else {
+        console.error('[SurveysClient] API response failed:', response);
+        message.error(response.message || 'Không thể tải chi tiết khảo sát');
+      }
+    } catch (err) {
+      console.error('[SurveysClient] Error in handleViewDetail:', err);
+      message.error(formatErrorMessage(err));
+    } finally {
+      setIsLoadingApi(false);
     }
   };
 
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case "DRAFT":
-        return "Nháp";
-      case "PUBLISHED":
-        return "Đã xuất bản";
-      case "CLOSED":
-        return "Đã đóng";
-      default:
-        return status;
-    }
-  };
+  // const handleEditSurvey = (survey: AdminSurvey) => {
+  //   // For now, show message that edit is coming soon
+  //   // TODO: Implement edit form with survey data
+  //   message.info(`Chỉnh sửa khảo sát: ${survey.title} (Tính năng đang phát triển)`);
+  // };
+
+  // const getStatusColor = (
+  //   status: string
+  // ): "success" | "processing" | "default" | "error" => {
+  //   switch (status) {
+  //     case "DRAFT":
+  //       return "default";
+  //     case "PUBLISHED":
+  //       return "success";
+  //     case "CLOSED":
+  //       return "error";
+  //     default:
+  //       return "default";
+  //   }
+  // };
+
+  // const getStatusLabel = (status: string) => {
+  //   switch (status) {
+  //     case "DRAFT":
+  //       return "Nháp";
+  //     case "PUBLISHED":
+  //       return "Đã xuất bản";
+  //     case "CLOSED":
+  //       return "Đã đóng";
+  //     default:
+  //       return status;
+  //   }
+  // };
 
   const columns = [
     {
@@ -298,63 +376,48 @@ export default function SurveysClient() {
       render: (text: string) => <span className="font-medium">{text}</span>,
     },
     {
-      title: "Trạng thái",
-      dataIndex: "status",
-      key: "status",
-      width: "15%",
-      render: (status: string) => (
-        <Badge
-          status={getStatusColor(status)}
-          text={getStatusLabel(status)}
-        />
+      title: "Mô tả",
+      dataIndex: "description",
+      key: "description",
+      width: "25%",
+      render: (text: string) => (
+        <span className="text-gray-600 text-sm">{text || "—"}</span>
       ),
     },
     {
       title: "Câu hỏi",
-      dataIndex: "questionCount",
-      key: "questionCount",
-      width: "12%",
+      dataIndex: "totalQuestions",
+      key: "totalQuestions",
+      width: "10%",
+      align: "center" as const,
       render: (count: number) => (
         <span className="font-semibold text-blue-600">{count || 0}</span>
       ),
     },
     {
+      title: "Học viên",
+      dataIndex: "totalStudentsTaken",
+      key: "totalStudentsTaken",
+      width: "10%",
+      align: "center" as const,
+      render: (count: number) => (
+        <span className="font-semibold text-green-600">{count || 0}</span>
+      ),
+    },
+    {
       title: "Thao tác",
       key: "actions",
-      width: "20%",
-      render: (_: unknown, record: Survey) => (
+      width: "15%",
+      align: "center" as const,
+      render: (_: unknown, record: AdminSurvey) => (
         <Space size="small" wrap>
-          {record.status === "DRAFT" && (
-            <Tooltip title="Xuất bản">
-              <Button
-                type="text"
-                icon={<CheckOutlined />}
-                size="small"
-                onClick={() => handlePublish(record.id)}
-                className="text-green-600"
-              />
-            </Tooltip>
-          )}
-          {record.status === "PUBLISHED" && (
-            <Tooltip title="Đóng">
-              <Button
-                type="text"
-                icon={<StopOutlined />}
-                size="small"
-                onClick={() => {
-                  message.info("Tính năng đóng sẽ có sớm");
-                }}
-                className="text-orange-600"
-              />
-            </Tooltip>
-          )}
           <Tooltip title="Xem chi tiết">
             <Button
               type="text"
               icon={<EyeOutlined />}
               size="small"
-              onClick={() => handleEdit(record)}
-              className="text-blue-600"
+              onClick={() => handleViewDetail(record.id)}
+              className="text-blue-600 hover:text-blue-700"
             />
           </Tooltip>
           <Tooltip title="Chỉnh sửa">
@@ -362,9 +425,8 @@ export default function SurveysClient() {
               type="text"
               icon={<EditOutlined />}
               size="small"
-              onClick={() => handleEdit(record)}
-              className="text-blue-600"
-              disabled={record.status !== "DRAFT"}
+              onClick={() => message.info('Chức năng chỉnh sửa đang phát triển')}
+              className="text-orange-600 hover:text-orange-700"
             />
           </Tooltip>
           <Popconfirm
@@ -381,7 +443,7 @@ export default function SurveysClient() {
                 icon={<DeleteOutlined />}
                 size="small"
                 danger
-                loading={isLoading}
+                loading={isLoadingApi}
               />
             </Tooltip>
           </Popconfirm>
@@ -500,54 +562,44 @@ export default function SurveysClient() {
 
         {/* Stats Cards */}
         <Row gutter={16} className="mb-6">
-          <Col xs={24} sm={12} lg={6}>
+          <Col xs={24} sm={12} lg={8}>
             <Card className="shadow-sm hover:shadow-md transition-shadow border-l-4 border-l-purple-500">
               <div className="text-center">
-                <div className="text-3xl font-bold text-purple-600">{total}</div>
-                <div className="text-gray-600 text-sm mt-1">Tổng số</div>
+                <div className="text-3xl font-bold text-purple-600">{totalSurveys}</div>
+                <div className="text-gray-600 text-sm mt-1">Tổng số khảo sát</div>
               </div>
             </Card>
           </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card className="shadow-sm hover:shadow-md transition-shadow border-l-4 border-l-gray-400">
+          <Col xs={24} sm={12} lg={8}>
+            <Card className="shadow-sm hover:shadow-md transition-shadow border-l-4 border-l-blue-500">
               <div className="text-center">
-                <div className="text-3xl font-bold text-gray-600">
-                  {(surveys || []).filter((s) => s.status === "DRAFT").length}
+                <div className="text-3xl font-bold text-blue-600">
+                  {adminSurveys.filter((s) => s.isActive).length}
                 </div>
-                <div className="text-gray-600 text-sm mt-1">Nháp</div>
+                <div className="text-gray-600 text-sm mt-1">Đang hoạt động</div>
               </div>
             </Card>
           </Col>
-          <Col xs={24} sm={12} lg={6}>
+          <Col xs={24} sm={12} lg={8}>
             <Card className="shadow-sm hover:shadow-md transition-shadow border-l-4 border-l-green-500">
               <div className="text-center">
                 <div className="text-3xl font-bold text-green-600">
-                  {(surveys || []).filter((s) => s.status === "PUBLISHED").length}
+                  {adminSurveys.reduce((sum, s) => sum + (s.totalStudentsTaken || 0), 0)}
                 </div>
-                <div className="text-gray-600 text-sm mt-1">Đã xuất bản</div>
-              </div>
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card className="shadow-sm hover:shadow-md transition-shadow border-l-4 border-l-red-500">
-              <div className="text-center">
-                <div className="text-3xl font-bold text-red-600">
-                  {(surveys || []).filter((s) => s.status === "CLOSED").length}
-                </div>
-                <div className="text-gray-600 text-sm mt-1">Đã đóng</div>
+                <div className="text-gray-600 text-sm mt-1">Tổng lượt làm</div>
               </div>
             </Card>
           </Col>
         </Row>
 
         {/* Error Alert */}
-        {error && (
+        {apiError && (
           <Alert
             message="Lỗi"
-            description={error}
+            description={apiError}
             type="error"
             closable
-            onClose={() => clearError()}
+            onClose={() => setApiError(null)}
             className="mb-6"
           />
         )}
@@ -570,8 +622,8 @@ export default function SurveysClient() {
               <Tooltip title="Làm mới">
                 <Button
                   icon={<ReloadOutlined />}
-                  loading={isLoading}
-                  onClick={() => fetchSurveys(currentPage, pageSize, debouncedSearch)}
+                  loading={isLoadingApi}
+                  onClick={() => loadSurveysFromApi()}
                 />
               </Tooltip>
               <Button
@@ -589,13 +641,13 @@ export default function SurveysClient() {
 
         {/* Table */}
         <Card className="shadow-sm">
-          {isLoading && surveys.length === 0 ? (
+          {isLoadingApi && adminSurveys.length === 0 ? (
             <div className="flex justify-center py-12">
               <Spin size="large">
                 <div className="p-12" />
               </Spin>
             </div>
-          ) : surveys.length === 0 ? (
+          ) : adminSurveys.length === 0 ? (
             <Empty
               description="Chưa có khảo sát nào"
               style={{ paddingTop: 48, paddingBottom: 48 }}
@@ -612,13 +664,13 @@ export default function SurveysClient() {
           ) : (
             <Table
               columns={columns}
-              dataSource={surveys}
+              dataSource={adminSurveys}
               rowKey="id"
-              loading={isLoading}
+              loading={isLoadingApi}
               pagination={{
                 current: currentPage,
-                pageSize: pageSize,
-                total: total,
+                pageSize: 20,
+                total: totalSurveys,
                 onChange: setCurrentPage,
                 showSizeChanger: false,
                 showTotal: (total, range) =>
@@ -628,6 +680,99 @@ export default function SurveysClient() {
             />
           )}
         </Card>
+
+        {/* Detail Modal */}
+        <Modal
+          title={
+            <div className="flex items-center gap-2">
+              <FileTextOutlined className="text-purple-600" />
+              <span>Chi tiết khảo sát</span>
+            </div>
+          }
+          open={detailModalVisible}
+          onCancel={() => {
+            setDetailModalVisible(false);
+            setSurveyDetailData(null);
+          }}
+          footer={[
+            <Button key="close" onClick={() => setDetailModalVisible(false)}>
+              Đóng
+            </Button>,
+          ]}
+          width={800}
+        >
+          {surveyDetailData ? (
+            <div className="space-y-4">
+              <Descriptions bordered column={2} size="small">
+                <Descriptions.Item label="Mã khảo sát" span={2}>
+                  <span className="font-mono bg-gray-100 px-2 py-1 rounded">
+                    {surveyDetailData.surveyQuizSetting.surveyCode}
+                  </span>
+                </Descriptions.Item>
+                <Descriptions.Item label="Tiêu đề" span={2}>
+                  {surveyDetailData.surveyQuizSetting.title || '—'}
+                </Descriptions.Item>
+                <Descriptions.Item label="Mô tả" span={2}>
+                  {surveyDetailData.surveyQuizSetting.description || '—'}
+                </Descriptions.Item>
+                <Descriptions.Item label="Loại khảo sát">
+                  {surveyDetailData.surveyQuizSetting.surveyTypeName}
+                </Descriptions.Item>
+                <Descriptions.Item label="Số câu hỏi">
+                  <span className="font-semibold text-blue-600">
+                    {surveyDetailData.totalQuestions}
+                  </span>
+                </Descriptions.Item>
+                <Descriptions.Item label="Số học viên">
+                  <span className="font-semibold text-green-600">
+                    {surveyDetailData.totalStudentsTaken}
+                  </span>
+                </Descriptions.Item>
+                <Descriptions.Item label="Trạng thái">
+                  <Badge
+                    status={surveyDetailData.isActive ? "success" : "default"}
+                    text={surveyDetailData.isActive ? "Hoạt động" : "Không hoạt động"}
+                  />
+                </Descriptions.Item>
+              </Descriptions>
+
+              <div className="mt-6">
+                <h4 className="font-semibold mb-3 text-gray-700">
+                  Danh sách câu hỏi ({surveyDetailData.questions.length})
+                </h4>
+                <div className="space-y-4">
+                  {surveyDetailData.questions.map((q, index) => (
+                    <Card key={q.questionId} size="small" className="bg-gray-50">
+                      <div className="font-medium text-gray-800 mb-2">
+                        {index + 1}. {q.questionText}
+                      </div>
+                      <div className="ml-4 space-y-1">
+                        {q.answers.map((a, aIndex) => (
+                          <div
+                            key={a.answerId}
+                            className={`flex items-center gap-2 ${
+                              a.isCorrect ? 'text-green-600 font-medium' : 'text-gray-600'
+                            }`}
+                          >
+                            <span className="text-xs">
+                              {String.fromCharCode(65 + aIndex)}.
+                            </span>
+                            <span>{a.answerText}</span>
+                            {a.isCorrect && (
+                              <CheckOutlined className="text-green-600 text-xs" />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <Spin />
+          )}
+        </Modal>
       </div>
     </div>
   );

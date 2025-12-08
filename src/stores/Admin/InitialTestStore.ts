@@ -10,7 +10,6 @@ import {
   InitialTest,
   InitialTestListItem,
   CreateInitialTestDto,
-  PaginationParams,
 } from 'EduSmart/types/initial-test';
 
 export interface InitialTestState {
@@ -49,16 +48,11 @@ export const useInitialTestStore = create<InitialTestState>()(
       pageSize: 20,
 
       // Fetch tests with pagination
-      fetchTests: async (page = 1, pageSize = 20, search = '') => {
+      fetchTests: async (page = 1, pageSize = 20) => {
         set({ isLoading: true, error: null });
         try {
-          const params: PaginationParams = {
-            pageNumber: page,
-            pageSize,
-            search,
-          };
-
-          const response = await initialTestApi.getTests(params);
+          // Note: getTests() doesn't accept params - it returns the single placement test
+          const response = await initialTestApi.getTests();
 
           if (response.success) {
             set({
