@@ -2,6 +2,7 @@
 
 import axios, { AxiosInstance } from 'axios';
 import { useAuthStore } from 'EduSmart/stores/Auth/AuthStore';
+import type { UpdateSyllabusDto } from 'EduSmart/types/syllabus';
 
 // Types
 export interface MajorDto {
@@ -185,6 +186,20 @@ export const syllabusServiceAPI = {
     );
     return response.data;
   },
+
+  // ==================== SYLLABUS APIs ====================
+
+  /**
+   * Update syllabus (modify semesters and subjects)
+   * PUT /api/Syllabus
+   */
+  updateSyllabus: async (data: UpdateSyllabusDto): Promise<ApiResponse<boolean>> => {
+    const response = await syllabusApiClient.put<ApiResponse<boolean>>(
+      '/api/Syllabus',
+      data
+    );
+    return response.data;
+  },
 };
 
 export default syllabusServiceAPI;
@@ -217,5 +232,10 @@ export const deleteMajor = async (majorId: string): Promise<boolean> => {
 
 export const deleteSubject = async (subjectId: string): Promise<boolean> => {
   const response = await syllabusServiceAPI.deleteSubject(subjectId);
+  return response.success;
+};
+
+export const updateSyllabus = async (data: UpdateSyllabusDto): Promise<boolean> => {
+  const response = await syllabusServiceAPI.updateSyllabus(data);
   return response.success;
 };

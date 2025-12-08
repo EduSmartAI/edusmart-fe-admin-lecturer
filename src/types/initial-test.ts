@@ -38,24 +38,29 @@ export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
 
 // Answer Interface
 export interface QuestionAnswer {
+  answerId: string;
   answerText: string;
   isCorrect: boolean;
 }
 
 // Question Interface
 export interface Question {
+  questionId: string;
   questionText: string;
-  difficultyLevel: DifficultyLevel;
-  questionType: QuestionType;
-  explanation: string;
+  questionType: number;
+  questionTypeName: string;
+  difficultyLevel: number;
   answers: QuestionAnswer[];
 }
 
 // Quiz Interface
 export interface Quiz {
+  quizId: string;
   title: string;
   description: string;
-  subjectCode: string; // UUID
+  subjectCode: string;
+  subjectCodeName: string;
+  totalQuestions: number;
   questions: Question[];
 }
 
@@ -73,6 +78,7 @@ export interface InitialTestListItem {
   description: string;
   totalQuizzes: number;
   totalQuestions: number;
+  totalStudentsCompleted?: number;
   createdAt: string;
   updatedAt: string;
 }

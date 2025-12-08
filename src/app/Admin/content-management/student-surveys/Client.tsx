@@ -11,19 +11,29 @@ import {
   Empty,
   Badge,
   Button,
+  Modal,
+  Descriptions,
+  Spin,
+  Tooltip,
+  Space,
+  message,
 } from "antd";
 import {
   FormOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
   ReloadOutlined,
+  EyeOutlined,
 } from "@ant-design/icons";
 import { useStudentSurveyStore } from "EduSmart/stores/Admin";
-import { StudentSurvey } from "EduSmart/api/api-quiz-admin-service";
+import { StudentSurvey, quizAdminServiceApi, StudentSurveyDetail } from "EduSmart/api/api-quiz-admin-service";
 import moment from "moment";
 
 export default function StudentSurveysClient() {
   const [currentPage, setCurrentPage] = useState(1);
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [selectedSurveyDetail, setSelectedSurveyDetail] = useState<StudentSurveyDetail | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
 
   const {
     surveys,
@@ -52,6 +62,37 @@ export default function StudentSurveysClient() {
         return "orange";
       default:
         return "default";
+    }
+  };
+
+  // Handle view detail
+  const handleViewDetail = async (studentQuizId: string) => {
+    setLoadingDetail(true);
+    try {
+      const response = await quizAdminServiceApi.getStudentSurveyDetail(studentQuizId);
+      
+      if (response.success && response.response) {
+        setSelectedSurveyDetail(response.response);
+        setDetailModalVisible(true);
+      } else {
+        message.error(response.message || 'Không thể tải chi tiết khảo sát');
+      }
+    } catch (err) {
+      message.error('Lỗi khi tải chi tiết khảo sát');
+      console.error('[StudentSurveysClient] Error loading detail:', err);
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
+
+  // Get question type label
+  const getQuestionTypeLabel = (type: number) => {
+    switch (type) {
+      case 1: return 'Trắc nghiệm';
+      case 2: return 'Đúng/Sai';
+      case 3: return 'Số';
+      case 4: return 'Lựa chọn';
+      default: return 'Khác';
     }
   };
 
@@ -123,7 +164,7 @@ export default function StudentSurveysClient() {
     {
       title: "Trạng thái",
       key: "status",
-      width: "15%",
+      width: "12%",
       render: (_: unknown, record: StudentSurvey) => {
         const isComplete = record.totalAnswers === record.totalQuestions;
         return (
@@ -132,6 +173,26 @@ export default function StudentSurveysClient() {
           </Tag>
         );
       },
+    },
+    {
+      title: "Thao tác",
+      key: "actions",
+      width: "8%",
+      align: "center" as const,
+      render: (_: unknown, record: StudentSurvey) => (
+        <Space size="small">
+          <Tooltip title="Xem chi tiết">
+            <Button
+              type="text"
+              icon={<EyeOutlined />}
+              size="small"
+              onClick={() => handleViewDetail(record.studentQuizId)}
+              loading={loadingDetail}
+              className="text-blue-600 hover:text-blue-700"
+            />
+          </Tooltip>
+        </Space>
+      ),
     },
   ];
 
@@ -237,6 +298,106 @@ export default function StudentSurveysClient() {
             />
           )}
         </Card>
+
+        {/* Detail Modal */}
+        <Modal
+          title={
+            <div className="flex items-center gap-2">
+              <FormOutlined className="text-blue-600" />
+              <span>Chi tiết khảo sát sinh viên</span>
+            </div>
+          }
+          open={detailModalVisible}
+          onCancel={() => {
+            setDetailModalVisible(false);
+            setSelectedSurveyDetail(null);
+          }}
+          footer={[
+            <Button key="close" onClick={() => setDetailModalVisible(false)}>
+              Đóng
+            </Button>,
+          ]}
+          width={900}
+        >
+          {selectedSurveyDetail ? (
+            <div className="space-y-4">
+              <Descriptions bordered column={2} size="small">
+                <Descriptions.Item label="Sinh viên" span={2}>
+                  <div>
+                    <div className="font-medium">{selectedSurveyDetail.studentName}</div>
+                    <div className="text-sm text-gray-500">{selectedSurveyDetail.studentEmail}</div>
+                  </div>
+                </Descriptions.Item>
+                <Descriptions.Item label="Khảo sát" span={2}>
+                  <div className="flex items-center gap-2">
+                    <span>{selectedSurveyDetail.surveyTitle || 'Chưa có tiêu đề'}</span>
+                    <Tag color={getSurveyCodeColor(selectedSurveyDetail.surveyCode || '')}>
+                      {selectedSurveyDetail.surveyCode}
+                    </Tag>
+                  </div>
+                </Descriptions.Item>
+                <Descriptions.Item label="Mô tả" span={2}>
+                  {selectedSurveyDetail.surveyDescription || '—'}
+                </Descriptions.Item>
+                <Descriptions.Item label="Thời gian làm">
+                  {moment(selectedSurveyDetail.createdAt).format('DD/MM/YYYY HH:mm')}
+                </Descriptions.Item>
+                <Descriptions.Item label="Số câu hỏi">
+                  <Badge count={selectedSurveyDetail.questionResults.length} showZero style={{ backgroundColor: '#52c41a' }} />
+                </Descriptions.Item>
+              </Descriptions>
+
+              <div className="mt-6">
+                <h4 className="font-semibold mb-3 text-gray-700">
+                  Câu trả lời ({selectedSurveyDetail.questionResults.length} câu)
+                </h4>
+                <div className="space-y-4">
+                  {selectedSurveyDetail.questionResults.map((q, index) => (
+                    <Card key={q.questionId} size="small" className="bg-gray-50">
+                      <div className="mb-3">
+                        <div className="flex items-start justify-between">
+                          <div className="font-medium text-gray-800 flex-1">
+                            <span className="text-blue-600 mr-2">Câu {index + 1}:</span>
+                            {q.questionText}
+                          </div>
+                          <Tag color="blue" className="ml-2">
+                            {getQuestionTypeLabel(q.questionType)}
+                          </Tag>
+                        </div>
+                      </div>
+                      <div className="ml-4 space-y-2">
+                        {q.answers.map((a, aIndex) => (
+                          <div
+                            key={a.answerId}
+                            className={`flex items-center gap-2 p-2 rounded ${
+                              a.selectedByStudent
+                                ? 'bg-blue-50 border-l-4 border-l-blue-500'
+                                : 'bg-white'
+                            }`}
+                          >
+                            <span className="text-xs font-medium min-w-[20px]">
+                              {String.fromCharCode(65 + aIndex)}.
+                            </span>
+                            <span className={a.selectedByStudent ? 'font-medium text-blue-700' : 'text-gray-600'}>
+                              {a.answerText}
+                            </span>
+                            {a.selectedByStudent && (
+                              <CheckCircleOutlined className="text-blue-600 ml-auto" />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex justify-center py-12">
+              <Spin />
+            </div>
+          )}
+        </Modal>
       </div>
     </div>
   );

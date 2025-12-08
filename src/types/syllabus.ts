@@ -78,6 +78,23 @@ export interface CreateFullSyllabusPayload {
   createFullSyllabusDto: CreateFullSyllabusDto;
 }
 
+// ========== Update Syllabus DTOs ==========
+export interface UpdateSyllabusSubjectDto {
+  subjectId: string;
+  credit: number;
+  isMandatory: boolean;
+}
+
+export interface UpdateSyllabusSemesterDto {
+  semesterId: string;
+  subjects: UpdateSyllabusSubjectDto[];
+}
+
+export interface UpdateSyllabusDto {
+  syllabusId: string;
+  semesters: UpdateSyllabusSemesterDto[];
+}
+
 // ========== Clone Syllabus DTOs ==========
 export interface CloneCascadeSyllabusDto {
   baseVersion: string;

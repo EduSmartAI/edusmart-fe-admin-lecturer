@@ -35,6 +35,7 @@ import {
 import { useSyllabusStore } from "EduSmart/stores/Admin";
 import SyllabusCreateWizard from "./components/SyllabusCreateWizard";
 import SyllabusDetailModal from "./components/SyllabusDetailModal";
+import SyllabusEditModal from "./components/SyllabusEditModal";
 import CloneSyllabusModal from "./components/CloneSyllabusModal";
 import CreateMajorModal from "./components/CreateMajorModal";
 import CreateSubjectModal from "./components/CreateSubjectModal";
@@ -62,7 +63,9 @@ export default function SyllabusManagementClient() {
   const [activeTab, setActiveTab] = useState("guide");
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [viewedSyllabus, setViewedSyllabus] = useState<Syllabus | null>(null);
+  const [editingSyllabus, setEditingSyllabus] = useState<Syllabus | null>(null);
   
   // Search state với 2 trường
   const [selectedMajorCode, setSelectedMajorCode] = useState<string | undefined>(undefined);
@@ -495,6 +498,26 @@ export default function SyllabusManagementClient() {
           onClone={(syllabus: Syllabus) => {
             setIsDetailModalOpen(false);
             handleCloneCascade(syllabus);
+          }}
+          onEdit={(syllabus: Syllabus) => {
+            setEditingSyllabus(syllabus);
+            setIsEditModalOpen(true);
+          }}
+        />
+
+        <SyllabusEditModal
+          open={isEditModalOpen}
+          syllabus={editingSyllabus}
+          onClose={() => {
+            setIsEditModalOpen(false);
+            setEditingSyllabus(null);
+          }}
+          onSuccess={() => {
+            // Refresh the syllabus detail if it was open
+            if (viewedSyllabus) {
+              handleViewSyllabus(viewedSyllabus.versionLabel, allMajors.find(m => m.majorId === viewedSyllabus.majorId)?.majorCode || '');
+            }
+            message.success('Cập nhật syllabus thành công!');
           }}
         />
 

@@ -18,6 +18,7 @@ import {
   BookOutlined,
   CopyOutlined,
   CheckCircleOutlined,
+  EditOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import type { Syllabus, SyllabusSemester } from "EduSmart/types/syllabus";
@@ -32,6 +33,7 @@ interface SyllabusDetailModalProps {
   loading: boolean;
   onClose: () => void;
   onClone: (syllabus: Syllabus) => void;
+  onEdit?: (syllabus: Syllabus) => void;
 }
 
 export default function SyllabusDetailModal({
@@ -40,6 +42,7 @@ export default function SyllabusDetailModal({
   loading,
   onClose,
   onClone,
+  onEdit,
 }: SyllabusDetailModalProps) {
   const { allMajors } = useSyllabusStore();
 
@@ -94,6 +97,15 @@ export default function SyllabusDetailModal({
       footer={
         <Space>
           <Button onClick={onClose}>Đóng</Button>
+          {onEdit && (
+            <Button
+              type="default"
+              icon={<EditOutlined />}
+              onClick={() => onEdit(syllabus)}
+            >
+              Chỉnh sửa
+            </Button>
+          )}
           <Button
             type="primary"
             icon={<CopyOutlined />}

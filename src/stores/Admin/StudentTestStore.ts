@@ -43,26 +43,33 @@ export const useStudentTestStore = create<StudentTestState>((set) => ({
   fetchTests: async (page = 0, pageSize = 10) => {
     set({ isLoading: true, error: null });
     try {
+      console.log('[StudentTestStore] Fetching tests with page:', page, 'pageSize:', pageSize);
+      
       const response = await quizAdminServiceApi.getStudentTests({
-        pageNumber: page,
+        pageNumber: page + 1, // API expects 1-based pagination
         pageSize: pageSize,
       });
 
+      console.log('[StudentTestStore] API Response:', response);
+
       if (response.success && response.response) {
+        console.log('[StudentTestStore] Tests loaded:', response.response.studentTests.length);
         set({
           tests: response.response.studentTests,
           total: response.response.totalCount,
-          currentPage: response.response.pageNumber,
+          currentPage: page, // Store as 0-based for UI
           pageSize: response.response.pageSize,
           isLoading: false,
         });
       } else {
+        console.error('[StudentTestStore] API failed:', response.message);
         set({
           error: response.message || "Failed to fetch student tests",
           isLoading: false,
         });
       }
     } catch (error: unknown) {
+      console.error('[StudentTestStore] Error:', error);
       const errorMessage = error instanceof Error ? error.message : "Failed to fetch student tests";
       set({ error: errorMessage, isLoading: false });
     }

@@ -1,44 +1,54 @@
 "use client";
 
-import React, { useState } from "react";
-import { Table, Button, Modal, Form, Input, Card, Typography, Space } from "antd";
+import React, { useState, useEffect } from "react";
+import { Table, Button, Modal, Form, Input, Card, Typography, Space, Spin } from "antd";
 import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
 import { courseServiceAPI } from "EduSmart/api/api-course-service";
 import { useNotification } from "EduSmart/Provider/NotificationProvider";
+import syllabusServiceAPI, { MajorDto } from "EduSmart/api/api-syllabus-service";
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 
-interface Major {
-    id: string;
-    majorCode: string;
-    majorName: string;
-    description: string;
-}
-
-// Mock data
-const MOCK_MAJORS: Major[] = [
-    { id: "1", majorCode: "SE", majorName: "Software Engineering", description: "Software development and engineering" },
-    { id: "2", majorCode: "AI", majorName: "Artificial Intelligence", description: "AI and Machine Learning" },
-];
-
 export default function LecturerMajorPage() {
-    const [majors, setMajors] = useState<Major[]>(MOCK_MAJORS);
+    const [majors, setMajors] = useState<MajorDto[]>([]);
+    const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [loading, setLoading] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
     const [form] = Form.useForm();
     const notification = useNotification();
 
+    // Fetch majors from API
+    useEffect(() => {
+        const fetchMajors = async () => {
+            try {
+                setLoading(true);
+                const response = await syllabusServiceAPI.getAllMajors(1, 1000);
+                if (response.success && response.response) {
+                    setMajors(response.response.items);
+                }
+            } catch (error) {
+                console.error('Error fetching majors:', error);
+                notification.error('Không thể tải danh sách chuyên ngành');
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchMajors();
+    }, [notification]);
+
     const handleCreate = async (values: unknown) => {
-        setLoading(true);
+        setSubmitting(true);
         try {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             await courseServiceAPI.syllabus.createMajor(values as any);
             notification.success("Tạo chuyên ngành thành công!");
 
-            // Mock update list
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            setMajors([...majors, { id: Date.now().toString(), ...(values as any) }]);
+            // Refresh list from API
+            const response = await syllabusServiceAPI.getAllMajors(1, 1000);
+            if (response.success && response.response) {
+                setMajors(response.response.items);
+            }
 
             setIsModalOpen(false);
             form.resetFields();
@@ -47,7 +57,7 @@ export default function LecturerMajorPage() {
             console.error("Create major error:", error);
             notification.error(error.message || "Tạo chuyên ngành thất bại");
         } finally {
-            setLoading(false);
+            setSubmitting(false);
         }
     };
 
@@ -69,6 +79,7 @@ export default function LecturerMajorPage() {
             title: "Mô tả",
             dataIndex: "description",
             key: "description",
+            render: (text: string) => <Text type="secondary">{text || '—'}</Text>,
         },
         {
             title: "Hành động",
@@ -100,12 +111,14 @@ export default function LecturerMajorPage() {
                     </Button>
                 </div>
 
-                <Table
-                    dataSource={majors}
-                    columns={columns}
-                    rowKey="id"
-                    pagination={{ pageSize: 10 }}
-                />
+                <Spin spinning={loading}>
+                    <Table
+                        dataSource={majors}
+                        columns={columns}
+                        rowKey="majorId"
+                        pagination={{ pageSize: 10 }}
+                    />
+                </Spin>
             </Card>
 
             <Modal
@@ -113,7 +126,7 @@ export default function LecturerMajorPage() {
                 open={isModalOpen}
                 onCancel={() => setIsModalOpen(false)}
                 onOk={() => form.submit()}
-                confirmLoading={loading}
+                confirmLoading={submitting}
                 okText="Tạo"
                 cancelText="Hủy"
             >

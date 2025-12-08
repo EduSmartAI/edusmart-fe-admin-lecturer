@@ -14,9 +14,7 @@ import {
   BarChartOutlined,
   BulbOutlined,
   CodeOutlined,
-  UserOutlined,
   FileSearchOutlined,
-  TeamOutlined,
   ScheduleOutlined,
 } from "@ant-design/icons";
 import type { MenuProps } from "antd";
@@ -66,7 +64,6 @@ const getItem = (
  * 2. Academic Management - Majors & Subjects (Syllabus)
  * 3. Assessment - Tests & Surveys
  * 4. Content - Learning Goals & Technologies
- * 5. User Management - Users & Subscriptions
  */
 const navItems: NavMenuItem[] = [
   // ========== DASHBOARD ==========
@@ -81,13 +78,6 @@ const navItems: NavMenuItem[] = [
         <DashboardOutlined />,
         undefined,
         "/Admin",
-      ),
-      getItem(
-        "Người dùng",
-        "dashboard-user",
-        <TeamOutlined />,
-        undefined,
-        "/Admin/profiles",
       ),
     ],
     undefined,
@@ -202,24 +192,6 @@ const navItems: NavMenuItem[] = [
         <CodeOutlined />,
         undefined,
         "/Admin/content-management/technologies",
-      ),
-    ],
-    undefined,
-    "group",
-  ),
-
-  // ========== USER & SYSTEM ==========
-  getItem(
-    "Hệ thống",
-    "system-group",
-    null,
-    [
-      getItem(
-        "Đăng ký gói",
-        "subscriptions",
-        <UserOutlined />,
-        undefined,
-        "/Admin/subscriptions",
       ),
     ],
     undefined,
