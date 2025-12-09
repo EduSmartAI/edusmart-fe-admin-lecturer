@@ -19,6 +19,8 @@ import {
   // PaginationParams,
   PaginatedResponse,
   ApiResponse,
+  InsertTestQuizDto,
+  InsertTestQuizQuestionsDto,
 } from 'EduSmart/types/initial-test';
 
 class InitialTestApi {
@@ -392,6 +394,145 @@ class InitialTestApi {
         success: false,
         messageId: 'E00005',
         message: axiosError.response?.data?.message || 'Failed to delete test',
+        detailErrors: axiosError.response?.data?.detailErrors || null,
+      };
+    }
+  }
+
+  /**
+   * Insert quiz(es) into a test
+   * POST /quiz/api/v1/Admin/InsertTestQuiz
+   */
+  async insertTestQuiz(dto: InsertTestQuizDto): Promise<ApiResponse<void>> {
+    try {
+      const response = await this.client.post<ApiResponse<void>>(
+        '/api/v1/Admin/InsertTestQuiz',
+        dto
+      );
+      
+      return response.data;
+    } catch (error: unknown) {
+      const axiosError = error as { 
+        response?: { 
+          data?: { 
+            message?: string; 
+            detailErrors?: string[] 
+          } 
+        } 
+      };
+      
+      return {
+        response: undefined as unknown as void,
+        success: false,
+        messageId: 'E00006',
+        message: axiosError.response?.data?.message || 'Failed to insert quiz',
+        detailErrors: axiosError.response?.data?.detailErrors || null,
+      };
+    }
+  }
+
+  /**
+   * Delete a quiz from a test
+   * DELETE /quiz/api/v1/Admin/DeleteTestQuiz
+   */
+  async deleteTestQuiz(testId: string, quizId: string): Promise<ApiResponse<void>> {
+    try {
+      const response = await this.client.delete<ApiResponse<void>>(
+        '/api/v1/Admin/DeleteTestQuiz',
+        {
+          data: {
+            testId,
+            quizId,
+          },
+        }
+      );
+      
+      return response.data;
+    } catch (error: unknown) {
+      const axiosError = error as { 
+        response?: { 
+          data?: { 
+            message?: string; 
+            detailErrors?: string[] 
+          } 
+        } 
+      };
+      
+      return {
+        response: undefined as unknown as void,
+        success: false,
+        messageId: 'E00007',
+        message: axiosError.response?.data?.message || 'Failed to delete quiz',
+        detailErrors: axiosError.response?.data?.detailErrors || null,
+      };
+    }
+  }
+
+  /**
+   * Delete multiple questions from a quiz
+   * DELETE /quiz/api/v1/Admin/DeleteTestQuizQuestions
+   */
+  async deleteTestQuizQuestions(testId: string, quizId: string, questionIds: string[]): Promise<ApiResponse<void>> {
+    try {
+      const response = await this.client.delete<ApiResponse<void>>(
+        '/api/v1/Admin/DeleteTestQuizQuestions',
+        {
+          data: {
+            testId,
+            quizId,
+            questionIds,
+          },
+        }
+      );
+      
+      return response.data;
+    } catch (error: unknown) {
+      const axiosError = error as { 
+        response?: { 
+          data?: { 
+            message?: string; 
+            detailErrors?: string[] 
+          } 
+        } 
+      };
+      
+      return {
+        response: undefined as unknown as void,
+        success: false,
+        messageId: 'E00008',
+        message: axiosError.response?.data?.message || 'Failed to delete questions',
+        detailErrors: axiosError.response?.data?.detailErrors || null,
+      };
+    }
+  }
+
+  /**
+   * Insert questions into an existing quiz
+   * POST /quiz/api/v1/Admin/InsertTestQuizQuestions
+   */
+  async insertTestQuizQuestions(dto: InsertTestQuizQuestionsDto): Promise<ApiResponse<void>> {
+    try {
+      const response = await this.client.post<ApiResponse<void>>(
+        '/api/v1/Admin/InsertTestQuizQuestions',
+        dto
+      );
+      
+      return response.data;
+    } catch (error: unknown) {
+      const axiosError = error as { 
+        response?: { 
+          data?: { 
+            message?: string; 
+            detailErrors?: string[] 
+          } 
+        } 
+      };
+      
+      return {
+        response: undefined as unknown as void,
+        success: false,
+        messageId: 'E00009',
+        message: axiosError.response?.data?.message || 'Failed to insert questions',
         detailErrors: axiosError.response?.data?.detailErrors || null,
       };
     }
