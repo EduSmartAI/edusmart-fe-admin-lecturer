@@ -3,213 +3,405 @@
 import { useEffect, useState } from "react";
 import {
   Button,
-  Table,
-  Space,
   Spin,
   Alert,
   Empty,
   Row,
   Col,
   Card,
-  Tooltip,
   Popconfirm,
   message,
+  Collapse,
+  Tag,
+  Space,
+  Modal,
+  Form,
   Input,
+  Select,
+  Checkbox,
 } from "antd";
 import {
   PlusOutlined,
-  EditOutlined,
   DeleteOutlined,
-  SearchOutlined,
   ReloadOutlined,
   FileTextOutlined,
-  EyeOutlined,
   BookOutlined,
   QuestionCircleOutlined,
-  CopyOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  MinusCircleOutlined,
+  UserOutlined,
 } from "@ant-design/icons";
-import { useRouter } from "next/navigation";
 import { useInitialTestStore } from "EduSmart/stores/Admin";
-import { InitialTestListItem } from "EduSmart/types/initial-test";
+import { useSubjectStore } from "EduSmart/stores/SubjectStore";
 import { formatErrorMessage } from "EduSmart/utils/adminErrorHandling";
-import { useDebouncedSearch } from "EduSmart/hooks/useDebounce";
+import {
+  InsertQuizDto,
+  InsertQuizQuestionDto,
+  Question,
+  Quiz,
+} from "EduSmart/types/initial-test";
+
+const { Panel } = Collapse;
+const { TextArea } = Input;
+
+interface QuizFormValues {
+  title: string;
+  description: string;
+  subjectCode: string;
+  questions: {
+    questionText: string;
+    questionType: number;
+    difficultyLevel: number;
+    answers: {
+      answerText: string;
+      isCorrect: boolean;
+    }[];
+  }[];
+}
+
+interface QuestionFormValues {
+  questions: {
+    questionText: string;
+    questionType: number;
+    difficultyLevel: number;
+    answers: {
+      answerText: string;
+      isCorrect: boolean;
+    }[];
+  }[];
+}
 
 export default function InitialTestsClient() {
-  const router = useRouter();
-  const [searchValue, setSearchValue, debouncedSearch] = useDebouncedSearch("", 500);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [isAddQuizModalOpen, setIsAddQuizModalOpen] = useState(false);
+  const [isAddQuestionModalOpen, setIsAddQuestionModalOpen] = useState(false);
+  const [selectedQuizId, setSelectedQuizId] = useState<string | null>(null);
+  const [selectedQuestionIds, setSelectedQuestionIds] = useState<Record<string, string[]>>({});
+  const [quizForm] = Form.useForm();
+  const [questionForm] = Form.useForm();
 
   const {
-    tests,
+    selectedTest,
     isLoading,
     error,
-    total,
-    pageSize,
-    fetchTests,
-    deleteTest,
-    duplicateTest,
+    getTestDetail,
+    insertTestQuiz,
+    insertTestQuizQuestions,
+    deleteTestQuiz,
+    deleteTestQuizQuestions,
     clearError,
   } = useInitialTestStore();
 
-  // Load tests on mount and when filters change
+  const {
+    subjects,
+    isLoading: isLoadingSubjects,
+    fetchSubjects,
+  } = useSubjectStore();
+
+  // Load the initial test on mount
   useEffect(() => {
-    fetchTests(currentPage, pageSize, debouncedSearch);
+    getTestDetail("");
+    fetchSubjects();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, debouncedSearch, pageSize]);
-
-  const handleDelete = async (testId: string) => {
-    try {
-      const success = await deleteTest(testId);
-      if (success) {
-        message.success("Xóa bài kiểm tra thành công!");
-        if (tests.length === 1 && currentPage > 1) {
-          setCurrentPage(currentPage - 1);
-        } else {
-          fetchTests(currentPage, pageSize, debouncedSearch);
-        }
-      } else {
-        message.error("Không thể xóa bài kiểm tra");
-      }
-    } catch (err) {
-      message.error(formatErrorMessage(err));
-    }
-  };
-
-  const handleDuplicate = async (testId: string) => {
-    try {
-      await duplicateTest(testId);
-      message.success("Sao chép bài kiểm tra thành công!");
-      fetchTests(currentPage, pageSize, debouncedSearch);
-    } catch (err) {
-      message.error(formatErrorMessage(err));
-    }
-  };
+  }, []);
 
   const handleRefresh = () => {
-    fetchTests(currentPage, pageSize, debouncedSearch);
+    getTestDetail("");
   };
 
-  // Calculate stats from tests
-  const stats = {
-    total: total,
-    totalQuizzes: tests.reduce((sum, test) => sum + test.totalQuizzes, 0),
-    totalQuestions: tests.reduce((sum, test) => sum + test.totalQuestions, 0),
+  const handleDeleteQuiz = async (quizId: string) => {
+    if (!selectedTest) return;
+
+    try {
+      console.log("[Client] Deleting quiz:", quizId);
+      const success = await deleteTestQuiz(selectedTest.testId, quizId);
+      if (success) {
+        message.success("Xóa quiz thành công!");
+      } else {
+        message.error("Không thể xóa quiz");
+      }
+    } catch (err) {
+      console.error("[Client] Error deleting quiz:", err);
+      message.error(formatErrorMessage(err));
+    }
   };
 
-  const columns = [
-    {
-      title: "Tên bài kiểm tra",
-      dataIndex: "testName",
-      key: "testName",
-      width: "30%",
-      render: (text: string, record: InitialTestListItem) => (
-        <div>
-          <div className="font-semibold text-gray-900 dark:text-white">
-            {text}
+  const handleDeleteQuestions = async (quizId: string) => {
+    if (!selectedTest) return;
+
+    const questionIds = selectedQuestionIds[quizId] || [];
+    if (questionIds.length === 0) {
+      message.warning("Vui lòng chọn ít nhất một câu hỏi để xóa");
+      return;
+    }
+
+    try {
+      console.log("[Client] Deleting questions:", questionIds);
+      const success = await deleteTestQuizQuestions(
+        selectedTest.testId,
+        quizId,
+        questionIds
+      );
+      if (success) {
+        message.success(`Xóa ${questionIds.length} câu hỏi thành công!`);
+        setSelectedQuestionIds((prev) => ({ ...prev, [quizId]: [] }));
+      } else {
+        message.error("Không thể xóa câu hỏi");
+      }
+    } catch (err) {
+      console.error("[Client] Error deleting questions:", err);
+      message.error(formatErrorMessage(err));
+    }
+  };
+
+  const handleAddQuiz = async (values: QuizFormValues) => {
+    if (!selectedTest) return;
+
+    console.log("[Client] Adding quiz with values:", values);
+
+    const quizDto: InsertQuizDto = {
+      subjectCode: values.subjectCode,
+      title: values.title,
+      description: values.description,
+      questions: values.questions.map((q) => ({
+        questionText: q.questionText,
+        questionType: q.questionType,
+        difficultyLevel: q.difficultyLevel,
+        answers: q.answers,
+      })),
+    };
+
+    console.log("[Client] Quiz DTO:", quizDto);
+
+    try {
+      const success = await insertTestQuiz(selectedTest.testId, [quizDto]);
+      if (success) {
+        message.success("Thêm quiz thành công!");
+        setIsAddQuizModalOpen(false);
+        quizForm.resetFields();
+      } else {
+        message.error("Không thể thêm quiz");
+      }
+    } catch (err) {
+      console.error("[Client] Error adding quiz:", err);
+      message.error(formatErrorMessage(err));
+    }
+  };
+
+  const handleAddQuestions = async (values: QuestionFormValues) => {
+    if (!selectedTest || !selectedQuizId) return;
+
+    console.log("[Client] Adding questions with values:", values);
+
+    const questions: InsertQuizQuestionDto[] = values.questions.map((q) => ({
+      questionText: q.questionText,
+      questionType: q.questionType,
+      difficultyLevel: q.difficultyLevel,
+      answers: q.answers,
+    }));
+
+    console.log("[Client] Questions DTO:", questions);
+
+    try {
+      const success = await insertTestQuizQuestions(
+        selectedTest.testId,
+        selectedQuizId,
+        questions
+      );
+      if (success) {
+        message.success("Thêm câu hỏi thành công!");
+        setIsAddQuestionModalOpen(false);
+        setSelectedQuizId(null);
+        questionForm.resetFields();
+      } else {
+        message.error("Không thể thêm câu hỏi");
+      }
+    } catch (err) {
+      console.error("[Client] Error adding questions:", err);
+      message.error(formatErrorMessage(err));
+    }
+  };
+
+  const openAddQuestionModal = (quizId: string) => {
+    setSelectedQuizId(quizId);
+    setIsAddQuestionModalOpen(true);
+  };
+
+  const handleQuestionSelect = (quizId: string, questionId: string, checked: boolean) => {
+    setSelectedQuestionIds((prev) => {
+      const current = prev[quizId] || [];
+      if (checked) {
+        return { ...prev, [quizId]: [...current, questionId] };
+      } else {
+        return { ...prev, [quizId]: current.filter((id) => id !== questionId) };
+      }
+    });
+  };
+
+  const getDifficultyTag = (level: number) => {
+    const labels: Record<number, string> = {
+      0: "Không xác định",
+      1: "Dễ",
+      2: "Trung bình",
+      3: "Khó",
+    };
+    const colors: Record<number, string> = {
+      0: "default",
+      1: "green",
+      2: "orange",
+      3: "red",
+    };
+    return (
+      <Tag color={colors[level] || "default"}>
+        {labels[level] || `Level ${level}`}
+      </Tag>
+    );
+  };
+
+  const renderQuestionCard = (question: Question, quizId: string) => {
+    const isSelected = (selectedQuestionIds[quizId] || []).includes(
+      question.questionId
+    );
+    return (
+      <Card
+        key={question.questionId}
+        size="small"
+        className={`mb-2 ${isSelected ? "border-blue-500 border-2" : ""}`}
+      >
+        <div className="flex items-start gap-3">
+          <Checkbox
+            checked={isSelected}
+            onChange={(e) =>
+              handleQuestionSelect(quizId, question.questionId, e.target.checked)
+            }
+          />
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-2">
+              {getDifficultyTag(question.difficultyLevel)}
+              <Tag color="blue">{question.questionTypeName}</Tag>
+            </div>
+            <p className="font-medium text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+              {question.questionText}
+            </p>
+            <div className="mt-2 space-y-1">
+              {question.answers.map((answer) => (
+                <div
+                  key={answer.answerId}
+                  className={`flex items-center gap-2 p-2 rounded ${
+                    answer.isCorrect
+                      ? "bg-green-50 dark:bg-green-900/20"
+                      : "bg-gray-50 dark:bg-gray-800"
+                  }`}
+                >
+                  {answer.isCorrect ? (
+                    <CheckCircleOutlined className="text-green-500" />
+                  ) : (
+                    <CloseCircleOutlined className="text-red-500" />
+                  )}
+                  <span
+                    className={
+                      answer.isCorrect
+                        ? "text-green-700 dark:text-green-400"
+                        : "text-gray-600 dark:text-gray-400"
+                    }
+                  >
+                    {answer.answerText}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
-            {record.description}
+        </div>
+      </Card>
+    );
+  };
+
+  const renderQuizPanel = (quiz: Quiz) => {
+    const selectedCount = (selectedQuestionIds[quiz.quizId] || []).length;
+    return (
+      <Panel
+        key={quiz.quizId}
+        header={
+          <div className="flex items-center justify-between w-full pr-4">
+            <div>
+              <span className="font-semibold text-lg">{quiz.title}</span>
+              <div className="text-sm text-gray-500 mt-1">
+                <Tag color="purple">{quiz.subjectCodeName}</Tag>
+                <span className="ml-2">
+                  <QuestionCircleOutlined className="mr-1" />
+                  {quiz.totalQuestions} câu hỏi
+                </span>
+              </div>
+            </div>
           </div>
-        </div>
-      ),
-    },
-    {
-      title: "Số Quiz",
-      dataIndex: "totalQuizzes",
-      key: "totalQuizzes",
-      width: "12%",
-      align: "center" as const,
-      render: (count: number) => (
-        <div className="flex items-center justify-center gap-2">
-          <BookOutlined className="text-blue-500" />
-          <span className="font-semibold text-blue-600">{count}</span>
-        </div>
-      ),
-    },
-    {
-      title: "Số câu hỏi",
-      dataIndex: "totalQuestions",
-      key: "totalQuestions",
-      width: "12%",
-      align: "center" as const,
-      render: (count: number) => (
-        <div className="flex items-center justify-center gap-2">
-          <QuestionCircleOutlined className="text-green-500" />
-          <span className="font-semibold text-green-600">{count}</span>
-        </div>
-      ),
-    },
-    {
-      title: "Ngày tạo",
-      dataIndex: "createdAt",
-      key: "createdAt",
-      width: "18%",
-      render: (date: string) => (
-        <span className="text-gray-600 dark:text-gray-400">
-          {new Date(date).toLocaleDateString("vi-VN", {
-            year: "numeric",
-            month: "2-digit",
-            day: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        </span>
-      ),
-    },
-    {
-      title: "Thao tác",
-      key: "actions",
-      width: "20%",
-      render: (_: unknown, record: InitialTestListItem) => (
-        <Space size="small" wrap>
-          <Tooltip title="Xem chi tiết">
+        }
+        extra={
+          <Space onClick={(e) => e.stopPropagation()}>
             <Button
-              type="text"
-              icon={<EyeOutlined />}
+              type="primary"
               size="small"
-              onClick={() => router.push(`/Admin/content-management/initial-tests/${record.testId}`)}
-              className="text-blue-600"
-            />
-          </Tooltip>
-          <Tooltip title="Chỉnh sửa">
-            <Button
-              type="text"
-              icon={<EditOutlined />}
-              size="small"
-              onClick={() => router.push(`/Admin/content-management/initial-tests/${record.testId}/edit`)}
-              className="text-blue-600"
-            />
-          </Tooltip>
-          <Tooltip title="Sao chép">
-            <Button
-              type="text"
-              icon={<CopyOutlined />}
-              size="small"
-              onClick={() => handleDuplicate(record.testId)}
-              className="text-green-600"
-            />
-          </Tooltip>
-          <Popconfirm
-            title="Xóa bài kiểm tra?"
-            description="Hành động này không thể hoàn tác."
-            onConfirm={() => handleDelete(record.testId)}
-            okText="Có"
-            cancelText="Không"
-            okButtonProps={{ danger: true }}
+              icon={<PlusOutlined />}
+              onClick={() => openAddQuestionModal(quiz.quizId)}
+            >
+              Thêm câu hỏi
+            </Button>
+            {selectedCount > 0 && (
+              <Popconfirm
+                title={`Xóa ${selectedCount} câu hỏi đã chọn?`}
+                onConfirm={() => handleDeleteQuestions(quiz.quizId)}
+                okText="Có"
+                cancelText="Không"
+                okButtonProps={{ danger: true }}
+              >
+                <Button danger size="small" icon={<DeleteOutlined />}>
+                  Xóa ({selectedCount})
+                </Button>
+              </Popconfirm>
+            )}
+            <Popconfirm
+              title="Xóa quiz này?"
+              description="Tất cả câu hỏi trong quiz sẽ bị xóa."
+              onConfirm={() => handleDeleteQuiz(quiz.quizId)}
+              okText="Có"
+              cancelText="Không"
+              okButtonProps={{ danger: true }}
+            >
+              <Button danger size="small" icon={<DeleteOutlined />}>
+                Xóa Quiz
+              </Button>
+            </Popconfirm>
+          </Space>
+        }
+      >
+        <p className="text-gray-600 dark:text-gray-400 mb-4">
+          {quiz.description}
+        </p>
+        {quiz.questions.length === 0 ? (
+          <Empty
+            description="Chưa có câu hỏi nào"
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
           >
-            <Tooltip title="Xóa">
-              <Button
-                type="text"
-                danger
-                icon={<DeleteOutlined />}
-                size="small"
-              />
-            </Tooltip>
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ];
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => openAddQuestionModal(quiz.quizId)}
+            >
+              Thêm câu hỏi đầu tiên
+            </Button>
+          </Empty>
+        ) : (
+          quiz.questions.map((q) => renderQuestionCard(q, quiz.quizId))
+        )}
+      </Panel>
+    );
+  };
+
+  // Calculate stats
+  const stats = {
+    totalQuizzes: selectedTest?.quizzes.length || 0,
+    totalQuestions: selectedTest?.totalQuestions || 0,
+    totalStudents: selectedTest?.totalStudentsCompleted || 0,
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
@@ -222,10 +414,11 @@ export default function InitialTestsClient() {
             </div>
             <div>
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                Bài Kiểm Tra Đầu Vào
+                {selectedTest?.testName || "Bài Kiểm Tra Đầu Vào"}
               </h1>
               <p className="text-gray-600 dark:text-gray-400">
-                Quản lý bài kiểm tra đầu vào cho học viên
+                {selectedTest?.description ||
+                  "Quản lý bài kiểm tra đầu vào cho học viên"}
               </p>
             </div>
           </div>
@@ -246,24 +439,6 @@ export default function InitialTestsClient() {
 
         {/* Stats Cards */}
         <Row gutter={[16, 16]} className="mb-6">
-          <Col xs={24} sm={8}>
-            <Card className="border-l-4 border-l-blue-500 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-500 dark:text-gray-400 text-sm">
-                    Tổng số bài test
-                  </p>
-                  <p className="text-3xl font-bold text-blue-600 mt-1">
-                    {stats.total}
-                  </p>
-                </div>
-                <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
-                  <FileTextOutlined className="text-2xl text-blue-600" />
-                </div>
-              </div>
-            </Card>
-          </Col>
-
           <Col xs={24} sm={8}>
             <Card className="border-l-4 border-l-purple-500 shadow-sm">
               <div className="flex items-center justify-between">
@@ -299,20 +474,32 @@ export default function InitialTestsClient() {
               </div>
             </Card>
           </Col>
+
+          <Col xs={24} sm={8}>
+            <Card className="border-l-4 border-l-blue-500 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-gray-500 dark:text-gray-400 text-sm">
+                    Học viên đã làm
+                  </p>
+                  <p className="text-3xl font-bold text-blue-600 mt-1">
+                    {stats.totalStudents}
+                  </p>
+                </div>
+                <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+                  <UserOutlined className="text-2xl text-blue-600" />
+                </div>
+              </div>
+            </Card>
+          </Col>
         </Row>
 
-        {/* Filters and Actions */}
+        {/* Actions */}
         <Card className="mb-6 shadow-sm">
           <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
-            <Input
-              placeholder="Tìm kiếm bài kiểm tra..."
-              prefix={<SearchOutlined />}
-              value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
-              className="w-full md:w-64"
-              allowClear
-            />
-
+            <div className="text-gray-600 dark:text-gray-400">
+              Quản lý các quiz và câu hỏi trong bài kiểm tra đầu vào
+            </div>
             <div className="flex gap-2 w-full md:w-auto">
               <Button
                 icon={<ReloadOutlined />}
@@ -324,55 +511,475 @@ export default function InitialTestsClient() {
               <Button
                 type="primary"
                 icon={<PlusOutlined />}
-                onClick={() => router.push("/Admin/content-management/initial-tests/create")}
+                onClick={() => setIsAddQuizModalOpen(true)}
                 className="bg-gradient-to-r from-indigo-600 to-purple-600 border-0 flex-1 md:flex-none"
               >
-                Tạo bài kiểm tra
+                Thêm Quiz mới
               </Button>
             </div>
           </div>
         </Card>
 
-        {/* Table */}
+        {/* Quizzes List */}
         <Card className="shadow-sm">
-          {isLoading && tests.length === 0 ? (
+          {isLoading && !selectedTest ? (
             <div className="flex justify-center items-center py-12">
               <Spin size="large" />
             </div>
-          ) : tests.length === 0 ? (
+          ) : !selectedTest || selectedTest.quizzes.length === 0 ? (
             <Empty
-              description="Chưa có bài kiểm tra nào"
+              description="Chưa có quiz nào"
               image={Empty.PRESENTED_IMAGE_SIMPLE}
               className="py-12"
             >
               <Button
                 type="primary"
                 icon={<PlusOutlined />}
-                onClick={() => router.push("/Admin/content-management/initial-tests/create")}
+                onClick={() => setIsAddQuizModalOpen(true)}
                 className="bg-gradient-to-r from-indigo-600 to-purple-600 border-0"
               >
-                Tạo bài kiểm tra đầu tiên
+                Thêm Quiz đầu tiên
               </Button>
             </Empty>
           ) : (
-            <Table
-              columns={columns}
-              dataSource={tests}
-              rowKey="testId"
-              loading={isLoading}
-              pagination={{
-                current: currentPage,
-                pageSize: pageSize,
-                total: total,
-                onChange: (page) => setCurrentPage(page),
-                showSizeChanger: false,
-                showTotal: (total) => `Tổng ${total} bài kiểm tra`,
-              }}
-              scroll={{ x: 800 }}
-            />
+            <Collapse accordion className="bg-transparent">
+              {selectedTest.quizzes.map((quiz) => renderQuizPanel(quiz))}
+            </Collapse>
           )}
         </Card>
       </div>
+
+      {/* Add Quiz Modal */}
+      <Modal
+        title="Thêm Quiz mới"
+        open={isAddQuizModalOpen}
+        onCancel={() => {
+          setIsAddQuizModalOpen(false);
+          quizForm.resetFields();
+        }}
+        footer={null}
+        width={800}
+      >
+        <Form
+          form={quizForm}
+          layout="vertical"
+          onFinish={handleAddQuiz}
+          initialValues={{
+            questions: [
+              {
+                questionText: "",
+                questionType: 1,
+                difficultyLevel: 1,
+                answers: [
+                  { answerText: "", isCorrect: true },
+                  { answerText: "", isCorrect: false },
+                  { answerText: "", isCorrect: false },
+                  { answerText: "", isCorrect: false },
+                ],
+              },
+            ],
+          }}
+        >
+          <Form.Item
+            name="title"
+            label="Tên Quiz"
+            rules={[{ required: true, message: "Vui lòng nhập tên quiz" }]}
+          >
+            <Input placeholder="Nhập tên quiz" />
+          </Form.Item>
+
+          <Form.Item
+            name="description"
+            label="Mô tả"
+            rules={[{ required: true, message: "Vui lòng nhập mô tả" }]}
+          >
+            <TextArea rows={2} placeholder="Nhập mô tả quiz" />
+          </Form.Item>
+
+          <Form.Item
+            name="subjectCode"
+            label="Môn học"
+            rules={[{ required: true, message: "Vui lòng chọn môn học" }]}
+          >
+            <Select
+              placeholder="Chọn môn học"
+              loading={isLoadingSubjects}
+              showSearch
+              optionFilterProp="children"
+            >
+              {subjects.map((subject) => (
+                <Select.Option key={subject.id} value={subject.id}>
+                  {subject.name} ({subject.code})
+                </Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          <Form.List name="questions">
+            {(fields, { add, remove }) => (
+              <>
+                <div className="mb-2 font-medium">Câu hỏi:</div>
+                {fields.map((field, index) => (
+                  <Card
+                    key={field.key}
+                    size="small"
+                    className="mb-4"
+                    title={`Câu hỏi ${index + 1}`}
+                    extra={
+                      fields.length > 1 && (
+                        <Button
+                          type="text"
+                          danger
+                          icon={<MinusCircleOutlined />}
+                          onClick={() => remove(field.name)}
+                        >
+                          Xóa
+                        </Button>
+                      )
+                    }
+                  >
+                    <Form.Item
+                      {...field}
+                      name={[field.name, "questionText"]}
+                      label="Nội dung câu hỏi"
+                      rules={[
+                        { required: true, message: "Vui lòng nhập câu hỏi" },
+                      ]}
+                    >
+                      <TextArea rows={2} placeholder="Nhập nội dung câu hỏi" />
+                    </Form.Item>
+
+                    <Row gutter={16}>
+                      <Col span={12}>
+                        <Form.Item
+                          {...field}
+                          name={[field.name, "questionType"]}
+                          label="Loại câu hỏi"
+                          rules={[{ required: true }]}
+                        >
+                          <Select>
+                            <Select.Option value={1}>Nhiều lựa chọn</Select.Option>
+                            <Select.Option value={2}>Đúng/Sai</Select.Option>
+                            <Select.Option value={3}>Điền vào chỗ trống</Select.Option>
+                            <Select.Option value={4}>Một lựa chọn</Select.Option>
+                          </Select>
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item
+                          {...field}
+                          name={[field.name, "difficultyLevel"]}
+                          label="Độ khó"
+                          rules={[{ required: true }]}
+                        >
+                          <Select>
+                            <Select.Option value={1}>Dễ</Select.Option>
+                            <Select.Option value={2}>Trung bình</Select.Option>
+                            <Select.Option value={3}>Khó</Select.Option>
+                          </Select>
+                        </Form.Item>
+                      </Col>
+                    </Row>
+
+                    <Form.List name={[field.name, "answers"]}>
+                      {(answerFields, { add: addAnswer, remove: removeAnswer }) => (
+                        <>
+                          <div className="mb-2 font-medium">Đáp án:</div>
+                          {answerFields.map((answerField, answerIndex) => (
+                            <div
+                              key={answerField.key}
+                              className="flex items-center gap-2 mb-2"
+                            >
+                              <Form.Item
+                                {...answerField}
+                                name={[answerField.name, "isCorrect"]}
+                                valuePropName="checked"
+                                noStyle
+                              >
+                                <Checkbox />
+                              </Form.Item>
+                              <Form.Item
+                                {...answerField}
+                                name={[answerField.name, "answerText"]}
+                                noStyle
+                                rules={[
+                                  {
+                                    required: true,
+                                    message: "Nhập đáp án",
+                                  },
+                                ]}
+                              >
+                                <Input
+                                  placeholder={`Đáp án ${answerIndex + 1}`}
+                                  className="flex-1"
+                                />
+                              </Form.Item>
+                              {answerFields.length > 2 && (
+                                <Button
+                                  type="text"
+                                  danger
+                                  icon={<MinusCircleOutlined />}
+                                  onClick={() => removeAnswer(answerField.name)}
+                                />
+                              )}
+                            </div>
+                          ))}
+                          <Button
+                            type="dashed"
+                            onClick={() =>
+                              addAnswer({ answerText: "", isCorrect: false })
+                            }
+                            block
+                            icon={<PlusOutlined />}
+                          >
+                            Thêm đáp án
+                          </Button>
+                        </>
+                      )}
+                    </Form.List>
+                  </Card>
+                ))}
+                <Button
+                  type="dashed"
+                  onClick={() =>
+                    add({
+                      questionText: "",
+                      questionType: 1,
+                      difficultyLevel: 1,
+                      answers: [
+                        { answerText: "", isCorrect: true },
+                        { answerText: "", isCorrect: false },
+                        { answerText: "", isCorrect: false },
+                        { answerText: "", isCorrect: false },
+                      ],
+                    })
+                  }
+                  block
+                  icon={<PlusOutlined />}
+                  className="mb-4"
+                >
+                  Thêm câu hỏi
+                </Button>
+              </>
+            )}
+          </Form.List>
+
+          <Form.Item className="mb-0 mt-4">
+            <Space className="w-full justify-end">
+              <Button
+                onClick={() => {
+                  setIsAddQuizModalOpen(false);
+                  quizForm.resetFields();
+                }}
+              >
+                Hủy
+              </Button>
+              <Button type="primary" htmlType="submit" loading={isLoading}>
+                Thêm Quiz
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Add Questions Modal */}
+      <Modal
+        title="Thêm câu hỏi vào Quiz"
+        open={isAddQuestionModalOpen}
+        onCancel={() => {
+          setIsAddQuestionModalOpen(false);
+          setSelectedQuizId(null);
+          questionForm.resetFields();
+        }}
+        footer={null}
+        width={800}
+      >
+        <Form
+          form={questionForm}
+          layout="vertical"
+          onFinish={handleAddQuestions}
+          initialValues={{
+            questions: [
+              {
+                questionText: "",
+                questionType: 1,
+                difficultyLevel: 1,
+                answers: [
+                  { answerText: "", isCorrect: true },
+                  { answerText: "", isCorrect: false },
+                  { answerText: "", isCorrect: false },
+                  { answerText: "", isCorrect: false },
+                ],
+              },
+            ],
+          }}
+        >
+          <Form.List name="questions">
+            {(fields, { add, remove }) => (
+              <>
+                {fields.map((field, index) => (
+                  <Card
+                    key={field.key}
+                    size="small"
+                    className="mb-4"
+                    title={`Câu hỏi ${index + 1}`}
+                    extra={
+                      fields.length > 1 && (
+                        <Button
+                          type="text"
+                          danger
+                          icon={<MinusCircleOutlined />}
+                          onClick={() => remove(field.name)}
+                        >
+                          Xóa
+                        </Button>
+                      )
+                    }
+                  >
+                    <Form.Item
+                      {...field}
+                      name={[field.name, "questionText"]}
+                      label="Nội dung câu hỏi"
+                      rules={[
+                        { required: true, message: "Vui lòng nhập câu hỏi" },
+                      ]}
+                    >
+                      <TextArea rows={2} placeholder="Nhập nội dung câu hỏi" />
+                    </Form.Item>
+
+                    <Row gutter={16}>
+                      <Col span={12}>
+                        <Form.Item
+                          {...field}
+                          name={[field.name, "questionType"]}
+                          label="Loại câu hỏi"
+                          rules={[{ required: true }]}
+                        >
+                          <Select>
+                            <Select.Option value={1}>Nhiều lựa chọn</Select.Option>
+                            <Select.Option value={2}>Đúng/Sai</Select.Option>
+                            <Select.Option value={3}>Điền vào chỗ trống</Select.Option>
+                            <Select.Option value={4}>Một lựa chọn</Select.Option>
+                          </Select>
+                        </Form.Item>
+                      </Col>
+                      <Col span={12}>
+                        <Form.Item
+                          {...field}
+                          name={[field.name, "difficultyLevel"]}
+                          label="Độ khó"
+                          rules={[{ required: true }]}
+                        >
+                          <Select>
+                            <Select.Option value={1}>Dễ</Select.Option>
+                            <Select.Option value={2}>Trung bình</Select.Option>
+                            <Select.Option value={3}>Khó</Select.Option>
+                          </Select>
+                        </Form.Item>
+                      </Col>
+                    </Row>
+
+                    <Form.List name={[field.name, "answers"]}>
+                      {(answerFields, { add: addAnswer, remove: removeAnswer }) => (
+                        <>
+                          <div className="mb-2 font-medium">Đáp án:</div>
+                          {answerFields.map((answerField, answerIndex) => (
+                            <div
+                              key={answerField.key}
+                              className="flex items-center gap-2 mb-2"
+                            >
+                              <Form.Item
+                                {...answerField}
+                                name={[answerField.name, "isCorrect"]}
+                                valuePropName="checked"
+                                noStyle
+                              >
+                                <Checkbox />
+                              </Form.Item>
+                              <Form.Item
+                                {...answerField}
+                                name={[answerField.name, "answerText"]}
+                                noStyle
+                                rules={[
+                                  {
+                                    required: true,
+                                    message: "Nhập đáp án",
+                                  },
+                                ]}
+                              >
+                                <Input
+                                  placeholder={`Đáp án ${answerIndex + 1}`}
+                                  className="flex-1"
+                                />
+                              </Form.Item>
+                              {answerFields.length > 2 && (
+                                <Button
+                                  type="text"
+                                  danger
+                                  icon={<MinusCircleOutlined />}
+                                  onClick={() => removeAnswer(answerField.name)}
+                                />
+                              )}
+                            </div>
+                          ))}
+                          <Button
+                            type="dashed"
+                            onClick={() =>
+                              addAnswer({ answerText: "", isCorrect: false })
+                            }
+                            block
+                            icon={<PlusOutlined />}
+                          >
+                            Thêm đáp án
+                          </Button>
+                        </>
+                      )}
+                    </Form.List>
+                  </Card>
+                ))}
+                <Button
+                  type="dashed"
+                  onClick={() =>
+                    add({
+                      questionText: "",
+                      questionType: 1,
+                      difficultyLevel: 1,
+                      answers: [
+                        { answerText: "", isCorrect: true },
+                        { answerText: "", isCorrect: false },
+                        { answerText: "", isCorrect: false },
+                        { answerText: "", isCorrect: false },
+                      ],
+                    })
+                  }
+                  block
+                  icon={<PlusOutlined />}
+                  className="mb-4"
+                >
+                  Thêm câu hỏi
+                </Button>
+              </>
+            )}
+          </Form.List>
+
+          <Form.Item className="mb-0 mt-4">
+            <Space className="w-full justify-end">
+              <Button
+                onClick={() => {
+                  setIsAddQuestionModalOpen(false);
+                  setSelectedQuizId(null);
+                  questionForm.resetFields();
+                }}
+              >
+                Hủy
+              </Button>
+              <Button type="primary" htmlType="submit" loading={isLoading}>
+                Thêm câu hỏi
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
 }

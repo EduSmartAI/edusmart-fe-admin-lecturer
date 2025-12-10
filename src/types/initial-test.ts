@@ -110,3 +110,70 @@ export interface ApiResponse<T> {
   message: string;
   detailErrors: string[] | null;
 }
+
+// DTO for inserting quiz answer
+export interface InsertQuizQuestionAnswerDto {
+  answerText: string;
+  isCorrect: boolean;
+}
+
+// DTO for inserting quiz question
+export interface InsertQuizQuestionDto {
+  questionText: string;
+  questionType: number;
+  difficultyLevel: number;
+  answers: InsertQuizQuestionAnswerDto[];
+}
+
+// DTO for inserting quiz (used when creating new quiz with subjectCode)
+export interface InsertQuizDto {
+  subjectCode: string;
+  title: string;
+  description: string;
+  questions: InsertQuizQuestionDto[];
+}
+
+// DTO for InsertTestQuiz API - create new quiz with subjectCode
+export interface InsertTestQuizDto {
+  testId: string;
+  quizzes: InsertQuizDto[];
+}
+
+// DTO for InsertTestQuizQuestions API - add questions to existing quiz with quizId
+export interface InsertTestQuizQuestionsDto {
+  testId: string;
+  quizId: string;
+  questions: InsertQuizQuestionDto[];
+}
+
+// Insert Quiz Request DTO
+export interface InsertQuizQuestionAnswerDto {
+  answerText: string;
+  isCorrect: boolean;
+}
+
+export interface InsertQuizQuestionDto {
+  questionText: string;
+  questionType: number;
+  difficultyLevel: number;
+  answers: InsertQuizQuestionAnswerDto[];
+}
+
+export interface InsertQuizDto {
+  subjectCode: string;
+  title: string;
+  description: string;
+  questions: InsertQuizQuestionDto[];
+}
+
+export interface InsertTestQuizDto {
+  testId: string;
+  quizzes: InsertQuizDto[];
+}
+
+// Insert Questions to existing Quiz DTO
+export interface InsertTestQuizQuestionsDto {
+  testId: string;
+  quizId: string;
+  questions: InsertQuizQuestionDto[];
+}

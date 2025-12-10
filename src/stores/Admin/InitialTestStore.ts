@@ -10,6 +10,9 @@ import {
   InitialTest,
   InitialTestListItem,
   CreateInitialTestDto,
+  InsertTestQuizDto,
+  InsertQuizDto,
+  InsertQuizQuestionDto,
 } from 'EduSmart/types/initial-test';
 
 export interface InitialTestState {
@@ -29,6 +32,12 @@ export interface InitialTestState {
   updateTest: (dto: InitialTest) => Promise<InitialTest | null>;
   deleteTest: (testId: string) => Promise<boolean>;
   duplicateTest: (testId: string) => Promise<boolean>;
+  
+  // Quiz Actions
+  insertTestQuiz: (testId: string, quizzes: InsertQuizDto[]) => Promise<boolean>;
+  insertTestQuizQuestions: (testId: string, quizId: string, questions: InsertQuizQuestionDto[]) => Promise<boolean>;
+  deleteTestQuiz: (testId: string, quizId: string) => Promise<boolean>;
+  deleteTestQuizQuestions: (testId: string, quizId: string, questionIds: string[]) => Promise<boolean>;
   
   // Utility
   clearError: () => void;
@@ -249,6 +258,115 @@ export const useInitialTestStore = create<InitialTestState>()(
       // Clear selected test
       clearSelected: () => {
         set({ selectedTest: null });
+      },
+
+      // Insert quiz(es) into test
+      insertTestQuiz: async (testId: string, quizzes: InsertQuizDto[]) => {
+        set({ isLoading: true, error: null });
+        try {
+          const dto: InsertTestQuizDto = { testId, quizzes };
+          const response = await initialTestApi.insertTestQuiz(dto);
+
+          if (response.success) {
+            // Refresh the test detail to get updated data
+            await get().getTestDetail(testId);
+            set({ isLoading: false });
+            return true;
+          } else {
+            set({
+              error: response.message,
+              isLoading: false,
+            });
+            return false;
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Failed to insert quiz';
+          set({ error: errorMessage, isLoading: false });
+          console.error('[InitialTestStore] Error inserting quiz:', error);
+          return false;
+        }
+      },
+
+      // Insert questions into existing quiz
+      insertTestQuizQuestions: async (testId: string, quizId: string, questions: InsertQuizQuestionDto[]) => {
+        set({ isLoading: true, error: null });
+        try {
+          const response = await initialTestApi.insertTestQuizQuestions({
+            testId,
+            quizId,
+            questions,
+          });
+
+          if (response.success) {
+            // Refresh the test detail to get updated data
+            await get().getTestDetail(testId);
+            set({ isLoading: false });
+            return true;
+          } else {
+            set({
+              error: response.message,
+              isLoading: false,
+            });
+            return false;
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Failed to insert questions';
+          set({ error: errorMessage, isLoading: false });
+          console.error('[InitialTestStore] Error inserting questions:', error);
+          return false;
+        }
+      },
+
+      // Delete a quiz from test
+      deleteTestQuiz: async (testId: string, quizId: string) => {
+        set({ isLoading: true, error: null });
+        try {
+          const response = await initialTestApi.deleteTestQuiz(testId, quizId);
+
+          if (response.success) {
+            // Refresh the test detail to get updated data
+            await get().getTestDetail(testId);
+            set({ isLoading: false });
+            return true;
+          } else {
+            set({
+              error: response.message,
+              isLoading: false,
+            });
+            return false;
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Failed to delete quiz';
+          set({ error: errorMessage, isLoading: false });
+          console.error('[InitialTestStore] Error deleting quiz:', error);
+          return false;
+        }
+      },
+
+      // Delete questions from a quiz
+      deleteTestQuizQuestions: async (testId: string, quizId: string, questionIds: string[]) => {
+        set({ isLoading: true, error: null });
+        try {
+          const response = await initialTestApi.deleteTestQuizQuestions(testId, quizId, questionIds);
+
+          if (response.success) {
+            // Refresh the test detail to get updated data
+            await get().getTestDetail(testId);
+            set({ isLoading: false });
+            return true;
+          } else {
+            set({
+              error: response.message,
+              isLoading: false,
+            });
+            return false;
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Failed to delete questions';
+          set({ error: errorMessage, isLoading: false });
+          console.error('[InitialTestStore] Error deleting questions:', error);
+          return false;
+        }
       },
     }),
     {
