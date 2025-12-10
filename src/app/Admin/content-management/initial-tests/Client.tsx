@@ -608,7 +608,7 @@ export default function InitialTestsClient() {
               optionFilterProp="children"
             >
               {subjects.map((subject) => (
-                <Select.Option key={subject.subjectId} value={subject.subjectId}>
+                <Select.Option key={subject.id} value={subject.id}>
                   {subject.name} ({subject.code})
                 </Select.Option>
               ))}
