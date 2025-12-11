@@ -211,7 +211,10 @@ export interface AddTestCasesDto {
 // Response Types (API structure)
 export interface ApiPracticeSolution {
   solutionId?: string;
-  languageId: number;
+  language: {
+    languageId: number;
+    languageName: string;
+  };
   solutionCode: string;
 }
 

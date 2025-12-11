@@ -53,6 +53,13 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
       setIsInitializing(true);
       const test = await getPracticeTestDetail(problemId);
       
+      console.log('🔍 [Edit Client] Loaded practice test:', {
+        problemId,
+        hasSolutions: !!test?.solutions,
+        solutionsCount: test?.solutions?.length,
+        solutions: test?.solutions,
+      });
+      
       if (test) {
         /**
          * Convert PracticeTest to UpdatePracticeTestDto format
@@ -102,7 +109,7 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
           // Load existing solutions if available
           solutions: (test.solutions || []).map(s => ({
             solutionId: s.solutionId, // Include ID to update existing solution
-            languageId: s.languageId,
+            languageId: s.language?.languageId || 0, // API returns nested language object
             solutionCode: s.solutionCode,
           })),
         };
@@ -450,6 +457,7 @@ export default function EditPracticeTestClient({ problemId }: EditPracticeTestCl
               onEdit={handleEdit}
               onSubmit={handleSubmit}
               isSubmitting={isSubmitting}
+              isEditMode={true}
             />
           )}
         </div>

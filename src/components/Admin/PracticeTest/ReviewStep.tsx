@@ -65,6 +65,7 @@ interface ReviewStepProps {
   onEdit: (step: number) => void;
   onSubmit: () => void;
   isSubmitting: boolean;
+  isEditMode?: boolean;
 }
 
 export default function ReviewStep({
@@ -73,6 +74,7 @@ export default function ReviewStep({
   onEdit,
   onSubmit,
   isSubmitting,
+  isEditMode = false,
 }: ReviewStepProps) {
   const { problem, examples, testcases, templates, solutions } = formData;
 
@@ -93,10 +95,10 @@ export default function ReviewStep({
       <div className="mb-6">
         <h2 className="text-xl font-bold text-gray-800 mb-2 flex items-center gap-2">
           <CheckCircleOutlined className="text-emerald-500" />
-          Review & Tạo Practice Test
+          {isEditMode ? 'Xác nhận cập nhật' : 'Review & Tạo Practice Test'}
         </h2>
         <p className="text-gray-500">
-          Xem lại toàn bộ thông tin trước khi tạo. Bạn có thể chỉnh sửa từng phần.
+          {isEditMode ? 'Xem lại các thay đổi trước khi cập nhật. Bạn có thể chỉnh sửa từng phần.' : 'Xem lại toàn bộ thông tin trước khi tạo. Bạn có thể chỉnh sửa từng phần.'}
         </p>
       </div>
 
@@ -351,11 +353,11 @@ export default function ReviewStep({
           type="primary"
           onClick={onSubmit}
           size="large"
-          icon={<RocketOutlined />}
+          icon={isEditMode ? <CheckCircleOutlined /> : <RocketOutlined />}
           loading={isSubmitting}
           className="px-8 bg-gradient-to-r from-emerald-500 to-teal-500 border-0 hover:opacity-90 h-12 text-base font-semibold"
         >
-          {isSubmitting ? "Đang tạo..." : "Tạo Practice Test"}
+          {isSubmitting ? (isEditMode ? "Đang cập nhật..." : "Đang tạo...") : (isEditMode ? "Cập nhật Practice Test" : "Tạo Practice Test")}
         </Button>
       </div>
 
