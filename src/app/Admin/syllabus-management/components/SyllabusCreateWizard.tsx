@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Modal,
   Steps,
@@ -22,6 +22,7 @@ import {
   Divider,
   Empty,
 } from "antd";
+import type { DefaultOptionType } from "antd/es/select";
 import {
   PlusOutlined,
   DeleteOutlined,
@@ -69,6 +70,22 @@ export default function SyllabusCreateWizard({ open, onClose }: SyllabusCreateWi
     fetchAllSubjects,
   } = useSyllabusStore();
 
+  const selectedMajorId = step1Data?.majorId ?? form.getFieldValue("majorId");
+  const selectedMajor = useMemo(() => {
+    if (!selectedMajorId) return null;
+    return allMajors.find(m => m.majorId === selectedMajorId) ?? null;
+  }, [allMajors, selectedMajorId]);
+
+  const isFoundationMajor = useMemo(() => {
+    const name = selectedMajor?.majorName ?? "";
+    return name.toLowerCase().includes("foundation");
+  }, [selectedMajor?.majorName]);
+
+  const visibleSemesters = useMemo(() => {
+    if (isFoundationMajor) return semesters;
+    return semesters.filter(s => (s.semesterNumber ?? 0) >= 5);
+  }, [isFoundationMajor, semesters]);
+
   // Load data on mount
   useEffect(() => {
     if (open) {
@@ -99,12 +116,33 @@ export default function SyllabusCreateWizard({ open, onClose }: SyllabusCreateWi
         effectiveFrom: values.effectiveRange[0].format("YYYY-MM-DD"),
         effectiveTo: values.effectiveRange[1].format("YYYY-MM-DD"),
       };
+
+      // If major changes, clear any step-2/3 selections to avoid mixing semesters/subjects
+      if (step1Data?.majorId && step1Data.majorId !== data.majorId) {
+        setStep2Data(null);
+        setSemesterSubjects({});
+        form.setFieldsValue({ selectedSemesters: [] });
+      }
+
       setStep1Data(data);
       setCurrentStep(1);
     } catch {
       // Validation error
     }
   };
+
+  // When major/visibility changes while on step 2, ensure selected semesters remain valid
+  useEffect(() => {
+    if (currentStep !== 1) return;
+
+    const allowedIds = new Set(visibleSemesters.map(s => s.semesterId));
+    const selectedIds: string[] = form.getFieldValue("selectedSemesters") || [];
+    const filtered = selectedIds.filter(id => allowedIds.has(id));
+
+    if (filtered.length !== selectedIds.length) {
+      form.setFieldsValue({ selectedSemesters: filtered });
+    }
+  }, [currentStep, form, visibleSemesters]);
 
   // Handle step 2 submit
   const handleStep2Submit = () => {
@@ -151,36 +189,40 @@ export default function SyllabusCreateWizard({ open, onClose }: SyllabusCreateWi
     const subject = allSubjects.find(s => s.subjectId === subjectId);
     if (!subject) return;
 
-    const currentSubjects = semesterSubjects[semesterId] || [];
-    
-    // Check if already added
-    if (currentSubjects.some(s => s.subjectId === subjectId)) {
-      message.warning("Môn học này đã được thêm vào kỳ học");
-      return;
-    }
+    setSemesterSubjects(prev => {
+      const currentSubjects = prev[semesterId] || [];
 
-    const newSubject: CreateSyllabusSubjectDto = {
-      subjectId: subject.subjectId,
-      credit: 3, // Default credit
-      isMandatory: true,
-      positionIndex: currentSubjects.length + 1,
-    };
+      // Check if already added
+      if (currentSubjects.some(s => s.subjectId === subjectId)) {
+        message.warning("Môn học này đã được thêm vào kỳ học");
+        return prev;
+      }
 
-    setSemesterSubjects({
-      ...semesterSubjects,
-      [semesterId]: [...currentSubjects, newSubject],
+      const newSubject: CreateSyllabusSubjectDto = {
+        subjectId: subject.subjectId,
+        credit: 3, // Default credit
+        isMandatory: true,
+        positionIndex: currentSubjects.length + 1,
+      };
+
+      return {
+        ...prev,
+        [semesterId]: [...currentSubjects, newSubject],
+      };
     });
   };
 
   // Remove subject from semester
   const handleRemoveSubject = (semesterId: string, subjectId: string) => {
-    const currentSubjects = semesterSubjects[semesterId] || [];
-    const filtered = currentSubjects.filter(s => s.subjectId !== subjectId);
-    // Re-index
-    const reindexed = filtered.map((s, idx) => ({ ...s, positionIndex: idx + 1 }));
-    setSemesterSubjects({
-      ...semesterSubjects,
-      [semesterId]: reindexed,
+    setSemesterSubjects(prev => {
+      const currentSubjects = prev[semesterId] || [];
+      const filtered = currentSubjects.filter(s => s.subjectId !== subjectId);
+      // Re-index
+      const reindexed = filtered.map((s, idx) => ({ ...s, positionIndex: idx + 1 }));
+      return {
+        ...prev,
+        [semesterId]: reindexed,
+      };
     });
   };
 
@@ -191,13 +233,15 @@ export default function SyllabusCreateWizard({ open, onClose }: SyllabusCreateWi
     field: 'credit' | 'isMandatory',
     value: number | boolean
   ) => {
-    const currentSubjects = semesterSubjects[semesterId] || [];
-    const updated = currentSubjects.map(s => 
-      s.subjectId === subjectId ? { ...s, [field]: value } : s
-    );
-    setSemesterSubjects({
-      ...semesterSubjects,
-      [semesterId]: updated,
+    setSemesterSubjects(prev => {
+      const currentSubjects = prev[semesterId] || [];
+      const updated = currentSubjects.map(s => 
+        s.subjectId === subjectId ? { ...s, [field]: value } : s
+      );
+      return {
+        ...prev,
+        [semesterId]: updated,
+      };
     });
   };
 
@@ -299,9 +343,10 @@ export default function SyllabusCreateWizard({ open, onClose }: SyllabusCreateWi
                   placeholder="Chọn chuyên ngành"
                   showSearch
                   optionFilterProp="children"
-                  filterOption={(input, option) =>
-                    (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
-                  }
+                  filterOption={(input: string, option?: DefaultOptionType) => {
+                    const raw = (option?.label ?? (option as unknown as { children?: unknown })?.children ?? "") as unknown;
+                    return String(raw).toLowerCase().includes(input.toLowerCase());
+                  }}
                 >
                   {allMajors.map(major => (
                     <Option key={major.majorId} value={major.majorId}>
@@ -355,7 +400,11 @@ export default function SyllabusCreateWizard({ open, onClose }: SyllabusCreateWi
       {currentStep === 1 && (
         <div>
           <Alert
-            message="Chọn các học kỳ sẽ có trong chương trình đào tạo"
+            message={
+              isFoundationMajor
+                ? "Chọn các học kỳ sẽ có trong chương trình đào tạo"
+                : "Chọn các học kỳ sẽ có trong chương trình đào tạo (bắt đầu từ kỳ 5)"
+            }
             type="info"
             showIcon
             className="mb-4"
@@ -365,7 +414,7 @@ export default function SyllabusCreateWizard({ open, onClose }: SyllabusCreateWi
             <Form.Item name="selectedSemesters" initialValue={step2Data?.selectedSemesterIds || []}>
               <Checkbox.Group className="w-full">
                 <Row gutter={[16, 16]}>
-                  {semesters.map(semester => (
+                  {visibleSemesters.map(semester => (
                     <Col span={8} key={semester.semesterId}>
                       <Card
                         hoverable
@@ -428,13 +477,15 @@ export default function SyllabusCreateWizard({ open, onClose }: SyllabusCreateWi
                 >
                   {/* Add subject select */}
                   <Select
+                    key={`${semesterId}-${subjects.length}`}
                     placeholder="Chọn môn học để thêm..."
                     showSearch
                     className="w-full mb-3"
                     optionFilterProp="children"
-                    filterOption={(input, option) =>
-                      (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
-                    }
+                    filterOption={(input: string, option?: DefaultOptionType) => {
+                      const raw = (option?.label ?? (option as unknown as { children?: unknown })?.children ?? "") as unknown;
+                      return String(raw).toLowerCase().includes(input.toLowerCase());
+                    }}
                     onChange={(value: string) => {
                       if (value) {
                         handleAddSubject(semesterId, value);

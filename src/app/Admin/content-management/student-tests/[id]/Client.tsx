@@ -98,6 +98,17 @@ export default function StudentTestDetailClient() {
 
   const { testName, testDescription, startedAt, finishedAt, quizResults } = selectedTestDetail;
 
+  const formatDuration = (totalMinutes: number) => {
+    const safeMinutes = Number.isFinite(totalMinutes) ? Math.max(0, Math.floor(totalMinutes)) : 0;
+    const days = Math.floor(safeMinutes / (24 * 60));
+    const hours = Math.floor((safeMinutes % (24 * 60)) / 60);
+    const minutes = safeMinutes % 60;
+
+    if (days > 0) return `${days} ngày ${hours} giờ ${minutes} phút`;
+    if (hours > 0) return `${hours} giờ ${minutes} phút`;
+    return `${minutes} phút`;
+  };
+
   // Calculate totals
   const totalQuestions = quizResults.reduce((sum, quiz) => sum + quiz.totalQuestions, 0);
   const totalCorrect = quizResults.reduce((sum, quiz) => sum + quiz.totalCorrectAnswers, 0);
@@ -112,11 +123,11 @@ export default function StudentTestDetailClient() {
 
   const getDifficultyLabel = (level: number) => {
     const labels: Record<number, string> = {
-      1: "Easy",
-      2: "Medium",
-      3: "Hard",
+      1: "Dễ",
+      2: "Trung bình",
+      3: "Khó",
     };
-    return labels[level] || `Level ${level}`;
+    return labels[level] || `Mức ${level}`;
   };
 
   const getDifficultyColor = (level: number) => {
@@ -138,7 +149,7 @@ export default function StudentTestDetailClient() {
             onClick={() => router.back()}
             className="mb-4"
           >
-            Back to List
+            Quay lại danh sách
           </Button>
 
           <div className="flex items-center gap-3">
@@ -150,7 +161,7 @@ export default function StudentTestDetailClient() {
                 {testName}
               </h1>
               <p className="text-gray-600 dark:text-gray-400">
-                Student Test Submission Details
+                Chi tiết kết quả làm bài
               </p>
             </div>
           </div>
@@ -158,26 +169,26 @@ export default function StudentTestDetailClient() {
 
         {/* Test Info Card */}
         <Card className="mb-6 shadow-sm border-0">
-          <Descriptions title="Test Information" column={{ xs: 1, sm: 2, md: 3 }}>
-            <Descriptions.Item label="Test Name">
+          <Descriptions title="Thông tin bài kiểm tra" column={{ xs: 1, sm: 2, md: 3 }}>
+            <Descriptions.Item label="Tên bài kiểm tra">
               <span className="font-semibold">{testName}</span>
             </Descriptions.Item>
-            <Descriptions.Item label="Started">
+            <Descriptions.Item label="Bắt đầu">
               <Space>
                 <ClockCircleOutlined />
-                {dayjs(startedAt).format("MMM D, YYYY h:mm A")}
+                {dayjs(startedAt).format("DD/MM/YYYY HH:mm")}
               </Space>
             </Descriptions.Item>
-            <Descriptions.Item label="Completed">
+            <Descriptions.Item label="Hoàn thành">
               <Space>
                 <CheckCircleOutlined className="text-green-500" />
-                {dayjs(finishedAt).format("MMM D, YYYY h:mm A")}
+                {dayjs(finishedAt).format("DD/MM/YYYY HH:mm")}
               </Space>
             </Descriptions.Item>
-            <Descriptions.Item label="Duration">
-              {dayjs(finishedAt).diff(dayjs(startedAt), "minute")} minutes
+            <Descriptions.Item label="Thời lượng">
+              {formatDuration(dayjs(finishedAt).diff(dayjs(startedAt), "minute"))}
             </Descriptions.Item>
-            <Descriptions.Item label="Total Quizzes">
+            <Descriptions.Item label="Tổng số quiz">
               <Tag color="blue">{quizResults.length}</Tag>
             </Descriptions.Item>
           </Descriptions>
@@ -186,7 +197,7 @@ export default function StudentTestDetailClient() {
             <>
               <Divider />
               <div>
-                <strong>Description:</strong>
+                <strong>Mô tả:</strong>
                 <p className="mt-2 text-gray-600">{testDescription}</p>
               </div>
             </>
@@ -201,7 +212,7 @@ export default function StudentTestDetailClient() {
                 <Tag color={getScoreColor()} className="text-2xl font-bold px-4 py-2">
                   {percentage}%
                 </Tag>
-                <div className="text-gray-600 text-sm mt-2">Overall Score</div>
+                <div className="text-gray-600 text-sm mt-2">Điểm tổng</div>
               </div>
             </Card>
           </Col>
@@ -209,7 +220,7 @@ export default function StudentTestDetailClient() {
             <Card className="shadow-sm hover:shadow-md transition-shadow border-0">
               <div className="text-center">
                 <div className="text-3xl font-bold text-green-600">{totalCorrect}</div>
-                <div className="text-gray-600 text-sm mt-2">Correct Answers</div>
+                <div className="text-gray-600 text-sm mt-2">Số câu đúng</div>
               </div>
             </Card>
           </Col>
@@ -217,17 +228,18 @@ export default function StudentTestDetailClient() {
             <Card className="shadow-sm hover:shadow-md transition-shadow border-0">
               <div className="text-center">
                 <div className="text-3xl font-bold text-blue-600">{totalQuestions}</div>
-                <div className="text-gray-600 text-sm mt-2">Total Questions</div>
+                <div className="text-gray-600 text-sm mt-2">Tổng câu hỏi</div>
               </div>
             </Card>
           </Col>
         </Row>
 
         {/* Quiz Results */}
-        <Card className="shadow-sm border-0" title={`Quiz Results (${quizResults.length})`}>
+        <Card className="shadow-sm border-0" title={`Kết quả từng quiz (${quizResults.length})`}>
           <Collapse accordion>
             {quizResults.map((quiz, quizIndex) => {
               const quizPercentage = ((quiz.totalCorrectAnswers / quiz.totalQuestions) * 100).toFixed(1);
+              const subjectLabel = String(quiz.subjectCodeName || "").trim();
               
               return (
                 <Panel
@@ -235,7 +247,7 @@ export default function StudentTestDetailClient() {
                     <div className="flex items-center justify-between w-full">
                       <div className="flex items-center gap-3">
                         <span className="font-semibold">{quiz.title}</span>
-                        <Tag color="purple">{quiz.subjectCodeName} ({quiz.subjectCode})</Tag>
+                        {subjectLabel && <Tag color="purple">{subjectLabel}</Tag>}
                       </div>
                       <div className="flex items-center gap-3">
                         <Tag color={parseFloat(quizPercentage) >= 60 ? "green" : "red"}>
@@ -248,7 +260,7 @@ export default function StudentTestDetailClient() {
                 >
                   {quiz.description && (
                     <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-800 rounded">
-                      <strong>Description:</strong> {quiz.description}
+                      <strong>Mô tả:</strong> {quiz.description}
                     </div>
                   )}
 
@@ -311,12 +323,12 @@ export default function StudentTestDetailClient() {
                                     <span>{answer.answerText}</span>
                                     {answer.selectedByStudent && (
                                       <Tag color="blue" className="ml-auto">
-                                        Selected
+                                        Đã chọn
                                       </Tag>
                                     )}
                                     {answer.isCorrectAnswer && !answer.selectedByStudent && (
                                       <Tag color="green" className="ml-auto">
-                                        Correct Answer
+                                        Đáp án đúng
                                       </Tag>
                                     )}
                                   </div>
@@ -326,7 +338,7 @@ export default function StudentTestDetailClient() {
                               {question.explanation && (
                                 <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200">
                                   <strong className="text-blue-700 dark:text-blue-300">
-                                    Explanation:
+                                    Giải thích:
                                   </strong>
                                   <p className="mt-1 text-gray-700 dark:text-gray-300">
                                     {question.explanation}

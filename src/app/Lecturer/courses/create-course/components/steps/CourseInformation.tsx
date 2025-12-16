@@ -369,97 +369,57 @@ const CourseInformation: FC = () => {
             if (prevValuesRef.current && JSON.stringify(prevValuesRef.current) === JSON.stringify(allValues)) {
                 return;
             }
-            
-            // Clear any existing timeout to debounce updates
-            if (updateTimeoutRef.current) {
-                clearTimeout(updateTimeoutRef.current);
-            }
-            
-            // Check if array lengths changed (indicating add/remove operations)
-            if (prevValuesRef.current) {
-                const prevObj = (prevValuesRef.current as any).learningObjectives || [];
-                const currObj = (allValues as any).learningObjectives || [];
-                const prevReq = (prevValuesRef.current as any).requirements || [];
-                const currReq = (allValues as any).requirements || [];
-                const prevAud = (prevValuesRef.current as any).targetAudience || [];
-                const currAud = (allValues as any).targetAudience || [];
-                
-                if (prevObj.length !== currObj.length || 
-                    prevReq.length !== currReq.length || 
-                    prevAud.length !== currAud.length) {
-                    listOperationRef.current = true;
-                }
-            }
-            
-            // Auto-save to localStorage (for backup) only
-            
-            // Log specific array values to debug add/remove operations
-            if ((allValues as any).learningObjectives) {
-            }
-            if ((allValues as any).requirements) {
-            }
-            if ((allValues as any).targetAudience) {
-            }
-            
+
             // Normalize video field before saving locally to avoid losing value on sync
             const normalizedForSave = {
                 ...(allValues as any),
-                courseIntroVideoUrl: (allValues as any)?.promoVideo ?? (allValues as any)?.courseIntroVideoUrl
+                courseIntroVideoUrl: (allValues as any)?.promoVideo ?? (allValues as any)?.courseIntroVideoUrl,
             };
             debouncedSave(normalizedForSave as any);
-            
-            // Use a longer delay to allow Form.List operations to complete properly
-            // Check if list operations are happening and adjust delay accordingly
-            const delay = listOperationRef.current ? 3000 : 1000; // Increased from 2500 to 3000ms for list operations
-            
-            updateTimeoutRef.current = setTimeout(() => {
-                try {
-                    // Helper function to check if HTML content is empty or different
-                    const normalizeHtml = (html: string): string => {
-                        if (!html) return '';
-                        const tempDiv = document.createElement('div');
-                        tempDiv.innerHTML = html;
-                        return tempDiv.innerHTML;
-                    };
 
-                    // Only update store if values have actually changed
-                    const currentStoreState = useCreateCourseStore.getState();
-                    const hasChanges = (
-                        currentStoreState.courseInformation.title !== ((allValues as any).title || '') ||
-                        currentStoreState.courseInformation.shortDescription !== ((allValues as any).subtitle || '') ||
-                        normalizeHtml(currentStoreState.courseInformation.description) !== normalizeHtml((allValues as any).description || '') ||
-                        currentStoreState.courseInformation.subjectId !== ((allValues as any).subjectId || '') ||
-                        currentStoreState.courseInformation.courseImageUrl !== ((allValues as any).courseImageUrl || '') ||
-                        currentStoreState.objectives.length !== (((allValues as any).learningObjectives || []).length) ||
-                        currentStoreState.requirements.length !== (((allValues as any).requirements || []).length) ||
-                        currentStoreState.targetAudience.length !== (((allValues as any).targetAudience || []).length) ||
-                        // Include video intro field compare to ensure store sync on upload
-                        (currentStoreState.courseInformation.courseIntroVideoUrl || '') !== (((allValues as any).promoVideo || (allValues as any).courseIntroVideoUrl || '') as string)
-                    );
-                    
-                    if (hasChanges) {
-                        // Set flag to prevent sync effect from running during store update
-                        isUpdatingStoreRef.current = true;
-                        
-                        // Normalize form values → store shape to prevent UI clearing
-                        const normalized = {
-                            ...(allValues as any),
-                            courseIntroVideoUrl: (allValues as any)?.promoVideo ?? (allValues as any)?.courseIntroVideoUrl,
-                        };
-                        updateCourseInformation(normalized as any);
-                        
-                        // Reset flag after a short delay to allow store update to complete
-                        setTimeout(() => {
-                            isUpdatingStoreRef.current = false;
-                        }, 100);
-                    }
-                    
-                    listOperationRef.current = false; // Reset after successful update
-                } catch (e) {                }
-            }, delay);
-            
-            // Store current values for next comparison
-            prevValuesRef.current = { ...(allValues as any) };
+            try {
+                // Helper function to check if HTML content is empty or different
+                const normalizeHtml = (html: string): string => {
+                    if (!html) return '';
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = html;
+                    return tempDiv.innerHTML;
+                };
+
+                // Only update store if values have actually changed
+                const currentStoreState = useCreateCourseStore.getState();
+                const hasChanges = (
+                    currentStoreState.courseInformation.title !== ((allValues as any).title || '') ||
+                    currentStoreState.courseInformation.shortDescription !== ((allValues as any).subtitle || '') ||
+                    normalizeHtml(currentStoreState.courseInformation.description) !== normalizeHtml((allValues as any).description || '') ||
+                    currentStoreState.courseInformation.subjectId !== ((allValues as any).subjectId || '') ||
+                    currentStoreState.courseInformation.courseImageUrl !== ((allValues as any).courseImageUrl || '') ||
+                    currentStoreState.objectives.length !== (((allValues as any).learningObjectives || []).length) ||
+                    currentStoreState.requirements.length !== (((allValues as any).requirements || []).length) ||
+                    currentStoreState.targetAudience.length !== (((allValues as any).targetAudience || []).length) ||
+                    // Include video intro field compare to ensure store sync on upload
+                    (currentStoreState.courseInformation.courseIntroVideoUrl || '') !== (((allValues as any).promoVideo || (allValues as any).courseIntroVideoUrl || '') as string)
+                );
+
+                if (hasChanges) {
+                    // Set flag to prevent sync effect from running during store update
+                    isUpdatingStoreRef.current = true;
+
+                    // Normalize form values → store shape to prevent UI clearing
+                    const normalized = {
+                        ...(allValues as any),
+                        courseIntroVideoUrl: (allValues as any)?.promoVideo ?? (allValues as any)?.courseIntroVideoUrl,
+                    };
+                    updateCourseInformation(normalized as any);
+
+                    // Reset flag immediately (fully immediate updates)
+                    isUpdatingStoreRef.current = false;
+                }
+
+                // Store current values for next comparison
+                prevValuesRef.current = { ...(allValues as any) };
+            } catch (e) {
+            }
         }
     }, [allValues, debouncedSave, updateCourseInformation]);
 
@@ -530,12 +490,14 @@ const CourseInformation: FC = () => {
 
     // Cleanup timeout on unmount
     useEffect(() => {
+        const saveTimeout = saveTimeoutRef.current;
+        const updateTimeout = updateTimeoutRef.current;
         return () => {
-            if (saveTimeoutRef.current) {
-                clearTimeout(saveTimeoutRef.current);
+            if (saveTimeout) {
+                clearTimeout(saveTimeout);
             }
-            if (updateTimeoutRef.current) {
-                clearTimeout(updateTimeoutRef.current);
+            if (updateTimeout) {
+                clearTimeout(updateTimeout);
             }
         };
     }, []);
