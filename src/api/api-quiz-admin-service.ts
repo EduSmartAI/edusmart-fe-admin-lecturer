@@ -10,6 +10,8 @@
 import axios, { AxiosInstance } from 'axios';
 import { useAuthStore } from 'EduSmart/stores/Auth/AuthStore';
 
+let isRedirectingToLogin = false;
+
 // ============================================================================
 // Types & Interfaces
 // ============================================================================
@@ -467,7 +469,12 @@ class QuizAdminServiceApi {
         if (error.response?.status === 401) {
           // Handle unauthorized - redirect to login
           if (typeof window !== 'undefined') {
-            window.location.href = '/Login';
+            const pathname = window.location.pathname || '';
+            const isOnLoginPage = pathname.toLowerCase() === '/login';
+            if (!isOnLoginPage && !isRedirectingToLogin) {
+              isRedirectingToLogin = true;
+              window.location.href = '/Login';
+            }
           }
         }
         return Promise.reject(error);

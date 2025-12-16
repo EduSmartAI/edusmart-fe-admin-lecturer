@@ -1,15 +1,69 @@
 "use client";
 
 import { useState } from "react";
-import { Modal, Form, Input, Select, Button, Card, Empty, message } from "antd";
+import { Modal, Form, Select, Button, Card, Empty, message, Tag } from "antd";
 import { PlusOutlined, MinusCircleOutlined, SaveOutlined } from "@ant-design/icons";
 import { usePracticeTestStore } from "EduSmart/stores/Admin";
+import CodeEditor from "EduSmart/components/Common/CodeEditor";
 import {
   CodeTemplate,
   ProgrammingLanguage,
   LANGUAGE_NAMES,
   LANGUAGE_ICONS,
 } from "EduSmart/types/practice-test";
+
+const USER_CODE_PLACEHOLDER = "{{USER_CODE}}";
+
+const getMonacoLanguageById = (languageId?: number): string => {
+  switch (languageId) {
+    case ProgrammingLanguage.TYPESCRIPT:
+      return "typescript";
+    case ProgrammingLanguage.JAVASCRIPT:
+      return "javascript";
+    case ProgrammingLanguage.PYTHON:
+      return "python";
+    case ProgrammingLanguage.JAVA:
+      return "java";
+    case ProgrammingLanguage.CSHARP:
+      return "csharp";
+    case ProgrammingLanguage.CPP:
+      return "cpp";
+    case ProgrammingLanguage.GO:
+      return "go";
+    case ProgrammingLanguage.PHP:
+      return "php";
+    case ProgrammingLanguage.RUBY:
+      return "ruby";
+    case ProgrammingLanguage.SWIFT:
+      return "swift";
+    case ProgrammingLanguage.KOTLIN:
+      return "kotlin";
+    default:
+      return "plaintext";
+  }
+};
+
+const splitTemplate = (fullTemplate: string): { prefix: string; stub: string; suffix: string } => {
+  const lines = (fullTemplate || "").split("\n");
+  const placeholderIndex = lines.findIndex((line) => line.includes(USER_CODE_PLACEHOLDER));
+
+  if (placeholderIndex === -1) {
+    return {
+      prefix: "",
+      stub: fullTemplate || "",
+      suffix: "",
+    };
+  }
+
+  const placeholderLine = lines[placeholderIndex];
+  const stubCode = placeholderLine.replace(USER_CODE_PLACEHOLDER, "// Write your solution here");
+
+  return {
+    prefix: lines.slice(0, placeholderIndex).join("\n"),
+    stub: stubCode,
+    suffix: lines.slice(placeholderIndex + 1).join("\n"),
+  };
+};
 
 interface AddTemplatesModalProps {
   problemId: string;
@@ -28,16 +82,37 @@ export default function AddTemplatesModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { addTemplates } = usePracticeTestStore();
 
-  const handleSubmit = async (values: { templates: CodeTemplate[] }) => {
+  const safeExistingLanguageIds = (existingLanguageIds || []).filter(
+    (id): id is number => typeof id === "number" && Number.isFinite(id)
+  );
+
+  const handleSubmit = async (values: { templates: Array<{ languageId: number; fullTemplate: string }> }) => {
     if (!values.templates || values.templates.length === 0) {
+      message.warning("Vui lòng thêm ít nhất 1 template");
+      return;
+    }
+
+    const templatesPayload: CodeTemplate[] = values.templates
+      .filter((t) => t && typeof t.languageId === "number")
+      .map((t) => {
+        const { prefix, stub, suffix } = splitTemplate(t.fullTemplate || "");
+        return {
+          languageId: t.languageId as unknown as ProgrammingLanguage,
+          userTemplatePrefix: prefix,
+          userStubCode: stub,
+          userTemplateSuffix: suffix,
+        };
+      });
+
+    if (templatesPayload.length === 0) {
       message.warning("Vui lòng thêm ít nhất 1 template");
       return;
     }
 
     setIsSubmitting(true);
     try {
-      await addTemplates(problemId, { templates: values.templates });
-      message.success(`Đã thêm ${values.templates.length} template mới!`);
+      await addTemplates(problemId, { templates: templatesPayload });
+      message.success(`Đã thêm ${templatesPayload.length} template mới!`);
       form.resetFields();
       onClose();
     } catch (error: unknown) {
@@ -54,12 +129,14 @@ export default function AddTemplatesModal({
   };
 
   // Get newly selected languages to prevent duplicates within the form
-  const selectedLanguages = Form.useWatch('templates', form)?.map((t: CodeTemplate) => t.languageId) || [];
+  const selectedLanguages: number[] = (Form.useWatch("templates", form) || [])
+    .map((t: CodeTemplate | undefined | null) => t?.languageId)
+    .filter((id: number | undefined): id is number => typeof id === "number" && Number.isFinite(id));
 
   // Available languages = all languages - existing - already selected in form
   const availableLanguages = Object.keys(LANGUAGE_NAMES)
     .map(Number)
-    .filter(id => !existingLanguageIds.includes(id));
+    .filter(id => !safeExistingLanguageIds.includes(id));
 
   return (
     <Modal
@@ -85,7 +162,7 @@ export default function AddTemplatesModal({
         </p>
         {existingLanguageIds.length > 0 && (
           <div className="flex flex-wrap gap-2 mt-2">
-            {existingLanguageIds.map(id => (
+            {safeExistingLanguageIds.map(id => (
               <span
                 key={id}
                 className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded text-xs"
@@ -124,6 +201,9 @@ export default function AddTemplatesModal({
 
                 {fields.map(({ key, name, ...restField }, index) => {
                   const currentLanguageId = form.getFieldValue(['templates', name, 'languageId']);
+                  const monacoLanguage = getMonacoLanguageById(
+                    typeof currentLanguageId === "number" ? currentLanguageId : undefined
+                  );
 
                   return (
                     <Card
@@ -169,7 +249,7 @@ export default function AddTemplatesModal({
                         >
                           {Object.entries(LANGUAGE_NAMES).map(([id, name]) => {
                             const langId = Number(id);
-                            const isExisting = existingLanguageIds.includes(langId);
+                            const isExisting = safeExistingLanguageIds.includes(langId);
                             const isSelected = selectedLanguages.includes(langId) && langId !== currentLanguageId;
                             const isDisabled = isExisting || isSelected;
 
@@ -198,41 +278,36 @@ export default function AddTemplatesModal({
 
                       <Form.Item
                         {...restField}
-                        label="Template Prefix (Code trước)"
-                        name={[name, "userTemplatePrefix"]}
-                        tooltip="Code được chạy trước code của user"
+                        label={
+                          <span>
+                            Code Template (1 khối)
+                            <Tag color="blue" className="ml-2">
+                              {USER_CODE_PLACEHOLDER}
+                            </Tag>
+                          </span>
+                        }
+                        name={[name, "fullTemplate"]}
+                        tooltip={`Nhập toàn bộ code template. Dùng ${USER_CODE_PLACEHOLDER} để đánh dấu vị trí user sẽ viết code.`}
+                        rules={[
+                          { required: true, message: "Nhập code template" },
+                          {
+                            validator: async (_, value) => {
+                              const v = String(value || "");
+                              if (!v.includes(USER_CODE_PLACEHOLDER)) {
+                                return Promise.reject(
+                                  new Error(`Template phải chứa ${USER_CODE_PLACEHOLDER} để đánh dấu vị trí user code!`)
+                                );
+                              }
+                              return Promise.resolve();
+                            },
+                          },
+                        ]}
+                        valuePropName="value"
+                        getValueFromEvent={(v) => v}
                       >
-                        <Input.TextArea
-                          placeholder="VD: class Solution:\n"
-                          rows={3}
-                          className="font-mono text-sm bg-gray-50 dark:bg-gray-900"
-                        />
-                      </Form.Item>
-
-                      <Form.Item
-                        {...restField}
-                        label="Stub Code (Code khởi đầu cho user)"
-                        name={[name, "userStubCode"]}
-                        rules={[{ required: true, message: "Nhập stub code" }]}
-                        tooltip="Code mẫu mà user sẽ thấy và chỉnh sửa"
-                      >
-                        <Input.TextArea
-                          placeholder="VD:     def twoSum(self, nums: List[int], target: int) -> List[int]:\n        pass"
-                          rows={6}
-                          className="font-mono text-sm bg-gray-50 dark:bg-gray-900"
-                        />
-                      </Form.Item>
-
-                      <Form.Item
-                        {...restField}
-                        label="Template Suffix (Code sau)"
-                        name={[name, "userTemplateSuffix"]}
-                        tooltip="Code được chạy sau code của user"
-                      >
-                        <Input.TextArea
-                          placeholder="VD: # Test code here..."
-                          rows={3}
-                          className="font-mono text-sm bg-gray-50 dark:bg-gray-900"
+                        <CodeEditor
+                          language={monacoLanguage}
+                          height={420}
                         />
                       </Form.Item>
                     </Card>

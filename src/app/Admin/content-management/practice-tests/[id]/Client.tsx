@@ -40,6 +40,15 @@ import AddExamplesModal from "EduSmart/components/Admin/PracticeTest/AddExamples
 import AddTemplatesModal from "EduSmart/components/Admin/PracticeTest/AddTemplatesModal";
 import AddTestCasesModal from "EduSmart/components/Admin/PracticeTest/AddTestCasesModal";
 
+type ApiSolution = {
+  languageId?: number | null;
+  language?: {
+    languageId?: number | null;
+    languageName?: string | null;
+  } | null;
+  solutionCode?: string | null;
+};
+
 interface PracticeTestDetailClientProps {
   problemId: string;
 }
@@ -58,6 +67,7 @@ export default function PracticeTestDetailClient({ problemId }: PracticeTestDeta
 
   const [activeTab, setActiveTab] = useState("description");
   const [selectedLanguage, setSelectedLanguage] = useState<number | null>(null);
+  const [selectedSolutionLanguage, setSelectedSolutionLanguage] = useState<number | null>(null);
   const [showAddExamples, setShowAddExamples] = useState(false);
   const [showAddTemplates, setShowAddTemplates] = useState(false);
   const [showAddTestCases, setShowAddTestCases] = useState(false);
@@ -73,6 +83,15 @@ export default function PracticeTestDetailClient({ problemId }: PracticeTestDeta
       setSelectedLanguage(selectedTest.templates[0].languageId);
     }
   }, [selectedTest?.templates, selectedLanguage]);
+
+  // Set default selected language when solutions load
+  useEffect(() => {
+    const firstSolution = (selectedTest?.solutions?.[0] ?? null) as ApiSolution | null;
+    const firstLangId = firstSolution?.languageId ?? firstSolution?.language?.languageId ?? null;
+    if (firstLangId && !selectedSolutionLanguage) {
+      setSelectedSolutionLanguage(firstLangId);
+    }
+  }, [selectedTest?.solutions, selectedSolutionLanguage]);
 
   const handleDelete = async () => {
     try {
@@ -141,12 +160,21 @@ export default function PracticeTestDetailClient({ problemId }: PracticeTestDeta
   const totalTestCount = publicTestCount + privateTestCount;
   const exampleCount = selectedTest.totalExamples || selectedTest.examples?.length || 0;
   const templateCount = selectedTest.totalTemplates || selectedTest.templates?.length || 0;
+  const solutionCount = selectedTest.solutions?.length || 0;
   const existingLanguageIds = selectedTest.templates?.map((t) => t?.languageId).filter(Boolean) || [];
 
   const difficultyStyle = DIFFICULTY_STYLES[selectedTest.difficulty] || DIFFICULTY_STYLES.Easy;
 
   // Get current template
   const currentTemplate = selectedTest.templates?.find((t) => t.languageId === selectedLanguage);
+
+  const getSolutionLanguageId = (solution: ApiSolution | null | undefined): number | null => {
+    return solution?.languageId ?? solution?.language?.languageId ?? null;
+  };
+
+  const currentSolution = (selectedTest.solutions as unknown as ApiSolution[] | undefined)?.find(
+    (s) => getSolutionLanguageId(s) === selectedSolutionLanguage
+  );
 
   // Tab items
   const tabItems = [
@@ -493,6 +521,96 @@ export default function PracticeTestDetailClient({ problemId }: PracticeTestDeta
                       </pre>
                     </div>
                   )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "solutions",
+      label: (
+        <span className="flex items-center gap-2 px-1">
+          <CheckCircleOutlined />
+          Solutions
+          <Badge
+            count={solutionCount}
+            style={{
+              backgroundColor: solutionCount > 0 ? "#10b981" : "#9ca3af",
+              fontSize: "11px",
+              minWidth: "18px",
+              height: "18px",
+              lineHeight: "18px",
+            }}
+          />
+        </span>
+      ),
+      children: (
+        <div className="p-0">
+          {solutionCount === 0 ? (
+            <div className="p-6">
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description={<span className="text-gray-500">Chưa có solution nào</span>}
+              />
+            </div>
+          ) : (
+            <div className="flex flex-col h-[600px]">
+              {/* Language Tabs */}
+              <div className="flex items-center justify-between border-b border-gray-200 px-4 py-2 bg-gray-50">
+                <div className="flex items-center gap-2 overflow-x-auto">
+                  {(selectedTest.solutions as unknown as ApiSolution[] | undefined)?.map((solution) => {
+                    const langId = getSolutionLanguageId(solution);
+                    if (!langId) return null;
+
+                    const langName =
+                      LANGUAGE_NAMES[langId as ProgrammingLanguage] ||
+                      solution?.language?.languageName ||
+                      `ID: ${langId}`;
+                    const langIcon = LANGUAGE_ICONS[langId as ProgrammingLanguage] || "💻";
+                    const isActive = selectedSolutionLanguage === langId;
+
+                    return (
+                      <button
+                        key={langId}
+                        onClick={() => setSelectedSolutionLanguage(langId)}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
+                          isActive
+                            ? "bg-emerald-500 text-white shadow-sm"
+                            : "text-gray-600 hover:text-gray-800 hover:bg-gray-100"
+                        }`}
+                      >
+                        <span>{langIcon}</span>
+                        <span>{langName}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Solution Display */}
+              {currentSolution && (
+                <div className="flex-1 overflow-auto bg-gray-900">
+                  <div className="border-b border-gray-700">
+                    <div className="flex items-center justify-between px-4 py-2 bg-gray-800">
+                      <span className="text-xs font-medium text-emerald-400 uppercase tracking-wider">
+                        ✅ Solution Code
+                      </span>
+                      <Tooltip title={copiedCode ? "Copied!" : "Copy code"}>
+                        <Button
+                          type="text"
+                          size="small"
+                          icon={<CopyOutlined />}
+                          onClick={() => copyToClipboard(String(currentSolution.solutionCode ?? ""))}
+                          className="text-gray-400 hover:text-white"
+                        />
+                      </Tooltip>
+                    </div>
+                    <pre className="p-4 text-sm font-mono text-white overflow-x-auto m-0 bg-gray-900">
+                      {String(currentSolution.solutionCode ?? "")}
+                    </pre>
+                  </div>
                 </div>
               )}
             </div>

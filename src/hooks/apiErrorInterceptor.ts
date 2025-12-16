@@ -8,23 +8,12 @@ export const setupAxiosInterceptors = () => {
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    
-    // Log all requests in dev mode
-    if (process.env.NODE_ENV === "development") {
-      console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`, {
-        params: config.params,
-        data: config.data,
-      });
-    }
-    
+
     return config;
   });
 
   axios.interceptors.response.use(
     (response) => {
-      if (process.env.NODE_ENV === "development") {
-        console.log(`[API ✓] ${response.status} ${response.config.url}`);
-      }
       return response;
     },
     (error) => {

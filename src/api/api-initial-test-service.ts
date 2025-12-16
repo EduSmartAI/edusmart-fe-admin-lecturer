@@ -23,6 +23,8 @@ import {
   InsertTestQuizQuestionsDto,
 } from 'EduSmart/types/initial-test';
 
+let isRedirectingToLogin = false;
+
 class InitialTestApi {
   private client: AxiosInstance;
   private baseURL: string;
@@ -56,7 +58,12 @@ class InitialTestApi {
       (error) => {
         if (error.response?.status === 401) {
           if (typeof window !== 'undefined') {
-            window.location.href = '/Login';
+            const pathname = window.location.pathname || '';
+            const isOnLoginPage = pathname.toLowerCase() === '/login';
+            if (!isOnLoginPage && !isRedirectingToLogin) {
+              isRedirectingToLogin = true;
+              window.location.href = '/Login';
+            }
           }
         }
         return Promise.reject(error);
@@ -122,8 +129,6 @@ class InitialTestApi {
    */
   async getTests(): Promise<ApiResponse<PaginatedResponse<InitialTestListItem>>> {
     try {
-      console.log('[InitialTestApi] Fetching placement test detail');
-      
       const response = await this.client.get<{
         response: {
           testId: string;
@@ -145,8 +150,6 @@ class InitialTestApi {
         message: string | null;
         detailErrors: string[] | null;
       }>('/api/v1/Admin/SelectPlacementTestDetail');
-      
-      console.log('[InitialTestApi] API Response:', response.data);
       
       if (response.data.success && response.data.response) {
         const placementTest = response.data.response;
@@ -222,7 +225,8 @@ class InitialTestApi {
    */
   async getTestDetail(testId: string): Promise<ApiResponse<InitialTest>> {
     try {
-      console.log('[InitialTestApi] Fetching placement test detail for:', testId);
+      // Endpoint ignores testId (only one placement test), keep signature for callers.
+      void testId;
       
       const response = await this.client.get<{
         response: {
@@ -256,8 +260,6 @@ class InitialTestApi {
         message: string | null;
         detailErrors: string[] | null;
       }>('/api/v1/Admin/SelectPlacementTestDetail');
-      
-      console.log('[InitialTestApi] Test detail response:', response.data);
       
       if (response.data.success && response.data.response) {
         const data = response.data.response;

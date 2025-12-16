@@ -691,57 +691,14 @@ export const useCreateCourseStore = create<CreateCourseState>()(
                         }
                     }
                     
-                    // Subject mapping: handle both subjectId and derive subjectCode
+                    // Subject mapping: subjectCode should come from form data
                     if (data.subjectId !== undefined && data.subjectId !== null && data.subjectId !== '') {
                         cleanData.subjectId = String(data.subjectId);
-                        
-                        // Map subjectId to subjectCode using the predefined mapping
-                        const subjectCodeMap: Record<string, string> = {
-                            'a4917fc0-bbcc-46b1-a7c8-f32e1d2aa298': 'PRF192',
-                            'a83eabde-fb96-4732-88f3-3e7a846796bc': 'MAE101',
-                            '432cabc2-79bd-42ac-a67b-fc233dd3a6bc': 'CEA201',
-                            '3ed33ae3-da55-49f7-b563-41ca0503fab5': 'SSL101C',
-                            '63368d18-6112-413d-9815-4e31597b6e4c': 'CSI104',
-                            '5e8967c9-2971-4250-a7fc-a8a26ca7f106': 'NWC203C',
-                            '0611fe1b-416d-49eb-b0bd-b0ff73cc00c9': 'SSG104',
-                            'e70ee6db-2fc9-4176-adae-904973bcc475': 'PRO192',
-                            'ec341342-0993-42b2-a4df-ff0433381605': 'MAD101',
-                            'b47af2e8-ac4c-4328-b61a-7ba0446556a7': 'OSG202',
-                            'ed305e62-8cdc-49af-b7d0-290c54a6dbfb': 'CSD201',
-                            '16299387-cb9f-476c-aff1-a93fcd3d9266': 'DBI202',
-                            '75ef24fc-2915-4a76-9c26-b4ff1af07f2e': 'LAB211',
-                            '8d6297cd-98df-4ed0-9c52-cce0be2642da': 'JPD113',
-                            'c1604ae9-5ee3-457d-b7d0-186546f490ba': 'WED201C',
-                            'c61bfce2-fc50-478f-a33d-cd2031211125': 'SWE201C',
-                            '006449aa-5a7e-4d91-990a-5ffefaa6d220': 'JPD123',
-                            'bc1cedaa-4279-4bca-b5d2-60cd4705b4dc': 'IOT102',
-                            '4bbc5bf7-bfe9-4762-90cd-7825ca9bffde': 'PRJ301',
-                            'a7a8d965-8564-4ad9-ac34-2c8c76f7103b': 'MAS291',
-                            '7d6c6094-fcd2-4521-b568-09c5fb796c75': 'SWR302',
-                            'de4982a0-82aa-48b0-b824-8267edb15a55': 'SWT301',
-                            'a4b86226-5d71-4e97-a822-284ab4bca343': 'SWP391',
-                            '898e94b7-cbab-4b6d-857b-3a3a09dfbe0e': 'ITE302C',
-                            '2a56f88e-29c4-4482-92c3-23ae0de88d72': 'OJT202',
-                            '810cc767-1a1f-42ab-8510-d670aa11a69b': 'ENW492C',
-                            '9b9b36a8-5dbf-4ba3-8caf-3645716918c2': 'EXE101',
-                            '3ccd8b12-32a5-451d-9cc7-e034c3c544f0': 'PRU212',
-                            '7b8bbd5b-abdf-4203-800c-1890144a6159': 'PMG201C',
-                            'fa1f6445-3fc7-4284-b8ac-0338148cd10a': 'SWD392',
-                            'd3d0a48d-ba44-4c8a-b9b3-d6cf9e6e2166': 'MLN122',
-                            'a9030ae8-8799-4548-82ab-6df7e5fd0fef': 'MLN111',
-                            '0773bda7-4280-4dbe-aed2-40bbc6ecf324': 'EXE201',
-                            '6c8111e7-0bb2-45a4-b0c3-13ebc34bb621': 'WDU203C',
-                            '9119e3a2-1471-4521-99bc-d28e981c2bfd': 'PRM392',
-                            'df536a34-ad72-423d-b398-bf8727287d12': 'MLN131',
-                            '5e0350ac-c664-4818-93f0-8b3b1eb244df': 'VNR202',
-                            '15f5dda4-68b9-4b97-81d5-800a250e0a4e': 'HCM202',
-                            '7f0174b9-2a64-480e-9be5-df87092c9f70': 'SEP490',
-                            '888a4c89-ea86-4653-aea7-9c8d87139928': 'PRN212',
-                            '2857f69c-c1c7-4d87-a365-79a59af754fb': 'PRN222',
-                            'b48cb061-4bc6-4eb7-a5b7-856e01d9c283': 'PRN232',
-                        };
-                        
-                        cleanData.subjectCode = subjectCodeMap[cleanData.subjectId] || 'PRF192';
+                    }
+                    
+                    // SubjectCode should be provided by the form (set when subject is selected)
+                    if (data.subjectCode !== undefined && data.subjectCode !== null && data.subjectCode !== '') {
+                        cleanData.subjectCode = String(data.subjectCode);
                     }
                     
                     // Convert level from string to number if provided

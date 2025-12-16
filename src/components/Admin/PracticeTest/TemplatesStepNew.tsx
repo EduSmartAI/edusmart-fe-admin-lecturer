@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Form, Input, Button, Select, Empty, Alert, Space, Spin, Tag, Modal, message } from "antd";
+import { Form, Button, Select, Empty, Alert, Space, Spin, Tag, Modal, message, Input } from "antd";
 import {
   PlusOutlined,
   ArrowLeftOutlined,
@@ -17,11 +17,27 @@ import {
   CodeTemplate,
 } from "EduSmart/types/practice-test";
 import { practiceTestAdminApi } from "EduSmart/api/api-practice-test-service";
-
-const { TextArea } = Input;
+import CodeEditor from "EduSmart/components/Common/CodeEditor";
 
 // Placeholder marker that users will use to indicate where their code goes
 const USER_CODE_PLACEHOLDER = '{{USER_CODE}}';
+
+const getMonacoLanguage = (name: string): string => {
+  const lower = name.toLowerCase();
+  if (lower.includes('typescript')) return 'typescript';
+  if (lower.includes('javascript') || lower.includes('node')) return 'javascript';
+  if (lower.includes('python')) return 'python';
+  if (lower.includes('java') && !lower.includes('javascript')) return 'java';
+  if (lower.includes('c#') || lower.includes('csharp')) return 'csharp';
+  if (lower.includes('c++') || lower.includes('cpp')) return 'cpp';
+  if (lower === 'c' || lower.startsWith('c ')) return 'c';
+  if (lower.includes('go')) return 'go';
+  if (lower.includes('php')) return 'php';
+  if (lower.includes('ruby')) return 'ruby';
+  if (lower.includes('swift')) return 'swift';
+  if (lower.includes('kotlin')) return 'kotlin';
+  return 'plaintext';
+};
 
 // Language icon mapping
 const getLanguageIcon = (name: string): string => {
@@ -455,12 +471,19 @@ export default function TemplatesStepNew({ initialData, onNext, onBack }: Templa
                         ]}
                         tooltip={`Nhập toàn bộ code template. Dùng ${USER_CODE_PLACEHOLDER} để chỉ vị trí user viết code.`}
                       >
-                        <TextArea
-                          placeholder={currentLanguage ? getExampleTemplate(currentLanguage.name) : `Nhập code template...\n\nVí dụ:\n#include <iostream>\nusing namespace std;\n\n${USER_CODE_PLACEHOLDER}\n\nint main() {\n    return 0;\n}`}
-                          rows={16}
-                          className="font-mono text-sm border-gray-300 bg-gray-50"
-                          style={{ resize: 'vertical' }}
-                        />
+                        <Form.Item
+                          noStyle
+                          name={[name, "fullTemplate"]}
+                          valuePropName="value"
+                          trigger="onChange"
+                          getValueFromEvent={(v) => v}
+                        >
+                          <CodeEditor
+                            language={currentLanguage ? getMonacoLanguage(currentLanguage.name) : 'plaintext'}
+                            height={360}
+                            className="bg-white"
+                          />
+                        </Form.Item>
                       </Form.Item>
                     </div>
                   </div>
@@ -531,9 +554,13 @@ export default function TemplatesStepNew({ initialData, onNext, onBack }: Templa
         ]}
         width={800}
       >
-        <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto max-h-96 text-sm font-mono">
-          {previewModal.code}
-        </pre>
+        <CodeEditor
+          value={previewModal.code}
+          onChange={() => {}}
+          readOnly
+          language={getMonacoLanguage(previewModal.language || 'plaintext')}
+          height={420}
+        />
       </Modal>
 
       {/* Custom styles */}

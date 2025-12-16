@@ -10,6 +10,7 @@
  */
 
 import axios, { AxiosInstance } from 'axios';
+import Cookies from 'js-cookie';
 import { useAuthStore } from 'EduSmart/stores/Auth/AuthStore';
 import {
   CreatePracticeTestDto,
@@ -22,6 +23,8 @@ import {
   PaginationParams,
   ApiResponse,
 } from 'EduSmart/types/practice-test';
+
+let isRedirectingToLogin = false;
 
 class PracticeTestAdminApi {
   private client: AxiosInstance;
@@ -55,9 +58,13 @@ class PracticeTestAdminApi {
       (response) => response,
       (error) => {
         if (error.response?.status === 401) {
-          // Handle unauthorized - redirect to login
           if (typeof window !== 'undefined') {
-            window.location.href = '/Login';
+            const pathname = window.location.pathname || '';
+            const isOnLoginPage = pathname.toLowerCase() === '/login';
+            if (!isOnLoginPage && !isRedirectingToLogin) {
+              isRedirectingToLogin = true;
+              window.location.href = '/Login';
+            }
           }
         }
         return Promise.reject(error);
@@ -70,12 +77,30 @@ class PracticeTestAdminApi {
     try {
       const token = useAuthStore.getState().token;
       if (token) return token;
-      
-      // Fallback: Try to read from localStorage
+
+      // Fallback: AuthStore persists to cookies (js-cookie) under the same key.
+      const authCookie = Cookies.get('auth-storage');
+      if (authCookie) {
+        try {
+          const parsed = JSON.parse(authCookie);
+          const cookieToken = parsed?.state?.token;
+          if (cookieToken) return cookieToken;
+        } catch {
+          try {
+            const parsed = JSON.parse(decodeURIComponent(authCookie));
+            const cookieToken = parsed?.state?.token;
+            if (cookieToken) return cookieToken;
+          } catch {
+            // ignore cookie parse errors
+          }
+        }
+      }
+
+      // Legacy fallback: some environments may still store auth in localStorage.
       const authStorage = localStorage.getItem('auth-storage');
       if (authStorage) {
         const parsed = JSON.parse(authStorage);
-        return parsed.state?.token || null;
+        return parsed?.state?.token || null;
       }
       
       return null;
@@ -91,18 +116,12 @@ class PracticeTestAdminApi {
    */
   async createPracticeTest(dto: CreatePracticeTestDto): Promise<ApiResponse<PracticeTest>> {
     try {
-      console.log('🚀 [API] Creating practice test with payload:', JSON.stringify(dto, null, 2));
-      
       const response = await this.client.post<ApiResponse<PracticeTest>>(
         '/api/v1/Admin/InsertPracticeTest',
         dto
       );
-      
-      console.log('✅ [API] Practice test created successfully:', response.data);
       return response.data;
     } catch (error: unknown) {
-      console.error('❌ [API] Failed to create practice test:', error);
-      
       const axiosError = error as { 
         response?: { 
           data?: { 
@@ -112,12 +131,6 @@ class PracticeTestAdminApi {
           status?: number;
         } 
       };
-      
-      console.error('❌ [API] Error details:', {
-        status: axiosError.response?.status,
-        message: axiosError.response?.data?.message,
-        detailErrors: axiosError.response?.data?.detailErrors,
-      });
       
       return {
         response: {} as PracticeTest,
@@ -284,16 +297,6 @@ class PracticeTestAdminApi {
           },
         }
       );
-      
-      console.log('🔍 [API] Practice Test Detail Response:', {
-        success: response.data.success,
-        hasResponse: !!response.data.response,
-        templates: response.data.response?.templates,
-        testCases: response.data.response?.testCases,
-        examples: response.data.response?.examples,
-        fullResponse: response.data
-      });
-      
       return response.data;
     } catch (error: unknown) {
       const axiosError = error as { 
@@ -324,18 +327,12 @@ class PracticeTestAdminApi {
    */
   async updatePracticeTest(dto: UpdatePracticeTestDto): Promise<ApiResponse<PracticeTest>> {
     try {
-      console.log('🚀 [API] Updating practice test:', JSON.stringify(dto, null, 2));
-      
       const response = await this.client.put<ApiResponse<PracticeTest>>(
         '/api/v1/Admin/UpdatePracticeTest',
         dto
       );
-      
-      console.log('✅ [API] Practice test updated successfully:', response.data);
       return response.data;
     } catch (error: unknown) {
-      console.error('❌ [API] Failed to update practice test:', error);
-      
       const axiosError = error as { 
         response?: { 
           data?: { 
@@ -345,12 +342,6 @@ class PracticeTestAdminApi {
           status?: number;
         } 
       };
-      
-      console.error('❌ [API] Error details:', {
-        status: axiosError.response?.status,
-        message: axiosError.response?.data?.message,
-        detailErrors: axiosError.response?.data?.detailErrors,
-      });
       
       return {
         response: {} as PracticeTest,

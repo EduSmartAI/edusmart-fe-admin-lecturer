@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Form, Input, Button, Select, Empty, Alert, Space, Spin, Tag, message } from "antd";
+import { Form, Button, Select, Empty, Alert, Space, Spin, Tag, message } from "antd";
 import {
   PlusOutlined,
   ArrowLeftOutlined,
@@ -12,8 +12,24 @@ import {
 } from "@ant-design/icons";
 import { PracticeSolution } from "EduSmart/types/practice-test";
 import { practiceTestAdminApi } from "EduSmart/api/api-practice-test-service";
+import CodeEditor from "EduSmart/components/Common/CodeEditor";
 
-const { TextArea } = Input;
+const getMonacoLanguage = (name: string): string => {
+  const lower = name.toLowerCase();
+  if (lower.includes('typescript')) return 'typescript';
+  if (lower.includes('javascript') || lower.includes('node')) return 'javascript';
+  if (lower.includes('python')) return 'python';
+  if (lower.includes('java') && !lower.includes('javascript')) return 'java';
+  if (lower.includes('c#') || lower.includes('csharp')) return 'csharp';
+  if (lower.includes('c++') || lower.includes('cpp')) return 'cpp';
+  if (lower === 'c' || lower.startsWith('c ')) return 'c';
+  if (lower.includes('go')) return 'go';
+  if (lower.includes('php')) return 'php';
+  if (lower.includes('ruby')) return 'ruby';
+  if (lower.includes('swift')) return 'swift';
+  if (lower.includes('kotlin')) return 'kotlin';
+  return 'plaintext';
+};
 
 // Language icon mapping
 const getLanguageIcon = (name: string): string => {
@@ -249,12 +265,19 @@ export default function SolutionsStep({ initialData, onNext, onBack }: Solutions
                           { min: 10, message: "Solution code quá ngắn" },
                         ]}
                       >
-                        <TextArea
-                          placeholder="Nhập lời giải hoàn chỉnh cho bài toán..."
-                          rows={14}
-                          className="font-mono text-sm border-gray-300 bg-gray-50"
-                          style={{ resize: 'vertical' }}
-                        />
+                        <Form.Item
+                          noStyle
+                          name={[name, "solutionCode"]}
+                          valuePropName="value"
+                          trigger="onChange"
+                          getValueFromEvent={(v) => v}
+                        >
+                          <CodeEditor
+                            language={getMonacoLanguage(currentLanguage?.name || 'plaintext')}
+                            height={360}
+                            className="bg-white"
+                          />
+                        </Form.Item>
                       </Form.Item>
                     </div>
                   </div>
