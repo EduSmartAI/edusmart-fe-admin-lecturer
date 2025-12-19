@@ -28,6 +28,7 @@ export interface Course {
   description: string;
   status: 'draft' | 'published' | 'archived';
   price: number;
+  dealPrice?: number;
   currency: string;
   studentCount: number;
   category: string;

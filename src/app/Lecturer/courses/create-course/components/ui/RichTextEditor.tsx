@@ -1,9 +1,14 @@
 'use client';
-import { FC, useCallback, useState } from 'react';
-import { CKEditor } from '@ckeditor/ckeditor5-react';
-import ClassicEditor from '@ckeditor/ckeditor5-build-classic';
+import { FC, useCallback, useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { useRealTimeValidation } from '../../hooks/useRealTimeValidation';
 import ValidationFeedback from './ValidationFeedback';
+
+// Dynamically import CKEditor to avoid chunk loading issues
+const CKEditor = dynamic(
+  () => import('@ckeditor/ckeditor5-react').then(mod => ({ default: mod.CKEditor })),
+  { ssr: false, loading: () => <div>Loading editor...</div> }
+);
 
 interface RichTextEditorProps {
   name: string;
@@ -35,6 +40,15 @@ const RichTextEditor: FC<RichTextEditorProps> = ({
   const { validateField, getValidation } = useRealTimeValidation();
   const [isFocused, setIsFocused] = useState(false);
   const [editorData, setEditorData] = useState(value);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [ClassicEditor, setClassicEditor] = useState<any>(null);
+
+  // Load ClassicEditor dynamically on client side
+  useEffect(() => {
+    import('@ckeditor/ckeditor5-build-classic').then(module => {
+      setClassicEditor(module.default);
+    });
+  }, []);
 
   const validation = getValidation(name);
 
@@ -67,17 +81,21 @@ const RichTextEditor: FC<RichTextEditorProps> = ({
         </span>
       </label>
       <div className="ck-editor-container" style={{ minHeight: `${minHeight}px` }}>
-        <CKEditor
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          editor={ClassicEditor as any}
-          config={{
-            placeholder: placeholder,
-          }}
-          data={value}
-          onChange={handleContentChange}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
-        />
+        {ClassicEditor ? (
+          <CKEditor
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            editor={ClassicEditor as any}
+            config={{
+              placeholder: placeholder,
+            }}
+            data={value}
+            onChange={handleContentChange}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+          />
+        ) : (
+          <div>Loading editor...</div>
+        )}
       </div>
       {showValidationFeedback && validation && (isFocused || validation.level === 'error') && (
         <div className="mt-2">

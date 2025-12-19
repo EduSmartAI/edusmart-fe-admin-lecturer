@@ -559,7 +559,9 @@ const CourseInformation: FC = () => {
                         <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200">Thông tin khóa học</h2>
                         <p className="text-gray-500 dark:text-gray-400 mt-1">Tạo ấn tượng đầu tiên tuyệt vời cho khóa học của bạn.</p>
                     </div>
-                    <AutoSaveStatus />
+                    <div className="flex flex-col items-end gap-3">
+                        <AutoSaveStatus />
+                    </div>
                 </div>
 
                 <BasicInfoSection />
