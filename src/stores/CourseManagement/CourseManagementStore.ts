@@ -57,7 +57,7 @@ const initialState = {
     search: '',
     subjectCode: '',
     isActive: undefined,
-    sortBy: CourseSortBy.UpdatedAt,
+    sortBy: CourseSortBy.CreatedAt,
   },
 };
 

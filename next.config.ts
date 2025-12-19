@@ -35,6 +35,21 @@ const nextConfig: NextConfig = {
         }
       };
     }
+    
+    // Fix CKEditor chunking issues
+    config.optimization.splitChunks = {
+      ...config.optimization.splitChunks,
+      cacheGroups: {
+        ...config.optimization.splitChunks?.cacheGroups,
+        ckeditor: {
+          test: /[\\/]node_modules[\\/]@ckeditor[\\/]/,
+          name: 'ckeditor-vendors',
+          priority: 30,
+          reuseExistingChunk: true,
+        },
+      },
+    };
+    
     return config;
   },
   async redirects() {

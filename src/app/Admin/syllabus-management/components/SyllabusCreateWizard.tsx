@@ -82,7 +82,14 @@ export default function SyllabusCreateWizard({ open, onClose }: SyllabusCreateWi
   }, [selectedMajor?.majorName]);
 
   const visibleSemesters = useMemo(() => {
-    if (isFoundationMajor) return semesters;
+    if (isFoundationMajor) {
+      // Foundation majors: only show semesters 1-4
+      return semesters.filter(s => {
+        const semNum = s.semesterNumber ?? 0;
+        return semNum >= 1 && semNum <= 4;
+      });
+    }
+    // Regular majors: show semesters 5 and above
     return semesters.filter(s => (s.semesterNumber ?? 0) >= 5);
   }, [isFoundationMajor, semesters]);
 

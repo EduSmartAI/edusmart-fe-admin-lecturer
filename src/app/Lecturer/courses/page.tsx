@@ -38,6 +38,7 @@ import type { TableColumnsType } from 'antd';
 import { useCourseManagementStore } from 'EduSmart/stores/CourseManagement/CourseManagementStore';
 import { useCreateCourseStore } from 'EduSmart/stores/CreateCourse/CreateCourseStore';
 import { useUserProfileStore } from 'EduSmart/stores/User/UserProfileStore';
+import { CourseSortBy } from 'EduSmart/api/api-course-service';
 import BaseControlTable from 'EduSmart/components/Table/BaseControlTable';
 import { Course, CourseDto } from 'EduSmart/types/course';
 import { FadeInUp } from 'EduSmart/components/Animation/FadeInUp';
@@ -67,6 +68,7 @@ const CourseManagementPage: React.FC = () => {
   const [searchText, setSearchText] = useState('');
   const [selectedLevel, setSelectedLevel] = useState<string>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<CourseSortBy>(CourseSortBy.CreatedAt);
   
   // Load user profile on mount
   useEffect(() => {
@@ -78,6 +80,11 @@ const CourseManagementPage: React.FC = () => {
   useEffect(() => {
     fetchCoursesByLecturer();
   }, []); // Remove fetchCoursesByLecturer from dependencies to prevent infinite loop
+
+  // Fetch courses when sort changes
+  useEffect(() => {
+    fetchCoursesByLecturer({ sortBy });
+  }, [sortBy]);
 
   // Handle error display
   useEffect(() => {
@@ -128,6 +135,7 @@ const CourseManagementPage: React.FC = () => {
     description: course.description || '',
     status: course.isActive ? 'published' : 'draft',
     price: course.price,
+    dealPrice: course.dealPrice,
     currency: 'VND',
     studentCount: course.learnerCount || 0,
     category: course.subjectCode || 'General',
@@ -304,9 +312,22 @@ const CourseManagementPage: React.FC = () => {
               )}
               <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
                 <DollarOutlined className="text-xs flex-shrink-0" />
-                <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                  {course.price.toLocaleString()} {course.currency}
-                </span>
+                <div className="flex items-center gap-2">
+                  {course.dealPrice && course.dealPrice < course.price ? (
+                    <>
+                      <span className="line-through text-sm text-gray-500">
+                        {course.price.toLocaleString()} {course.currency}
+                      </span>
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400 text-lg">
+                        {course.dealPrice.toLocaleString()} {course.currency}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                      {course.price.toLocaleString()} {course.currency}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -353,8 +374,21 @@ const CourseManagementPage: React.FC = () => {
       title: 'Giá',
       dataIndex: 'price',
       key: 'price',
-      render: (price, record) =>
-        `${price.toLocaleString()} ${record.currency}`,
+      render: (price, record) => {
+        if (record.dealPrice && record.dealPrice < price) {
+          return (
+            <div className="space-y-1">
+              <div className="line-through text-gray-500 text-sm">
+                {price.toLocaleString()} {record.currency}
+              </div>
+              <div className="font-bold text-emerald-600">
+                {record.dealPrice.toLocaleString()} {record.currency}
+              </div>
+            </div>
+          );
+        }
+        return `${price.toLocaleString()} ${record.currency}`;
+      },
     },
     {
       title: 'Số học viên',
@@ -478,6 +512,17 @@ const CourseManagementPage: React.FC = () => {
                     className="max-w-sm"
                     allowClear
                   />
+                  <Select
+                    placeholder="Sắp xếp"
+                    value={sortBy}
+                    onChange={setSortBy}
+                    className="min-w-[140px]"
+                  >
+                    <Select.Option value={CourseSortBy.CreatedAt}>Mới nhất tạo</Select.Option>
+                    <Select.Option value={CourseSortBy.UpdatedAt}>Mới nhất cập nhật</Select.Option>
+                    <Select.Option value={CourseSortBy.Title}>Tên khóa học</Select.Option>
+                    <Select.Option value={CourseSortBy.Price}>Giá</Select.Option>
+                  </Select>
                   <Select
                     placeholder="Cấp độ"
                     value={selectedLevel}
