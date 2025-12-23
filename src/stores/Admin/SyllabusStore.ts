@@ -144,7 +144,7 @@ export interface SyllabusState {
   cloneModalState: CloneModalState;
 
   // Major Actions
-  fetchMajors: (page?: number, pageSize?: number) => Promise<void>;
+  fetchMajors: (page?: number, pageSize?: number, search?: string) => Promise<void>;
   fetchAllMajors: () => Promise<void>;
   getMajorDetail: (majorId: string) => Promise<Major | null>;
   createMajor: (payload: MajorCreatePayload) => Promise<Major | null>;
@@ -154,7 +154,7 @@ export interface SyllabusState {
   clearSelectedMajor: () => void;
 
   // Subject Actions
-  fetchSubjects: (page?: number, pageSize?: number) => Promise<void>;
+  fetchSubjects: (page?: number, pageSize?: number, search?: string) => Promise<void>;
   fetchAllSubjects: () => Promise<void>;
   getSubjectDetail: (subjectId: string) => Promise<Subject | null>;
   createSubject: (payload: SubjectCreatePayload) => Promise<Subject | null>;
@@ -236,16 +236,23 @@ export const useSyllabusStore = create<SyllabusState>((set, get) => ({
   cloneModalState: initialCloneModalState,
 
   // ========== Major Actions ==========
-  fetchMajors: async (page = 1, pageSize = 10) => {
+  fetchMajors: async (page = 1, pageSize = 10, search?: string) => {
     set({ majorsLoading: true, majorsError: null });
     try {
+      const params: Record<string, string | number> = {
+        page: page,
+        size: pageSize,
+      };
+      
+      // Add search parameter if provided
+      if (search && search.trim()) {
+        params.search = search.trim();
+      }
+
       const response = await axios.get<ApiResponse<PaginatedResponse<Major>>>(
         `${API_BASE_URL}/course/api/Syllabus/GetMajors`,
         {
-          params: {
-            page: page,
-            size: pageSize,
-          },
+          params,
           headers: getHeaders(),
         }
       );
@@ -407,16 +414,23 @@ export const useSyllabusStore = create<SyllabusState>((set, get) => ({
   clearSelectedMajor: () => set({ selectedMajor: null }),
 
   // ========== Subject Actions ==========
-  fetchSubjects: async (page = 1, pageSize = 10) => {
+  fetchSubjects: async (page = 1, pageSize = 10, search?: string) => {
     set({ subjectsLoading: true, subjectsError: null });
     try {
+      const params: Record<string, string | number> = {
+        page: page,
+        size: pageSize,
+      };
+      
+      // Add search parameter if provided
+      if (search && search.trim()) {
+        params.search = search.trim();
+      }
+
       const response = await axios.get<ApiResponse<PaginatedResponse<Subject>>>(
         `${API_BASE_URL}/course/api/Syllabus/GetSubjects`,
         {
-          params: {
-            page: page,
-            size: pageSize,
-          },
+          params,
           headers: getHeaders(),
         }
       );

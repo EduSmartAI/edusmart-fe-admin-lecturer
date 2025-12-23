@@ -71,7 +71,6 @@ export interface CourseStats {
   publishedCourses: number;
   draftCourses: number;
   totalStudents: number;
-  totalRevenue: number;
 }
 
 // Course status enum for UI

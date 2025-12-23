@@ -27,7 +27,6 @@ interface SubjectDetailModalProps {
   onClose: () => void;
   onEdit?: (subject: SubjectDto) => void;
   onDelete?: () => void;
-  allSubjects?: SubjectDto[]; // For displaying prerequisite names
 }
 
 const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({ 
@@ -37,7 +36,6 @@ const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
   onClose,
   onEdit,
   onDelete,
-  allSubjects = [],
 }) => {
   const [loading, setLoading] = useState(false);
   const [subject, setSubject] = useState<SubjectDto | null>(null);
@@ -81,21 +79,10 @@ const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
     onClose();
   };
 
-  // Get prerequisite subject names
-  const getPrerequisiteNames = (ids: string[] = []) => {
-    return ids.map(id => {
-      const found = allSubjects.find(s => s.subjectId === id);
-      return found ? `${found.subjectCode} - ${found.subjectName}` : id;
-    });
-  };
-
   // Get prerequisite subjects from the subject's data
   const getPrerequisiteInfo = () => {
-    if (subject?.prerequisiteSubjects && subject.prerequisiteSubjects.length > 0) {
-      return subject.prerequisiteSubjects.map(s => `${s.subjectCode} - ${s.subjectName}`);
-    }
-    if (subject?.prerequisiteSubjectIds && subject.prerequisiteSubjectIds.length > 0) {
-      return getPrerequisiteNames(subject.prerequisiteSubjectIds);
+    if (subject?.prerequisites && subject.prerequisites.length > 0) {
+      return subject.prerequisites.map(s => `${s.subjectCode} - ${s.subjectName}`);
     }
     return [];
   };
@@ -187,11 +174,6 @@ const SubjectDetailModal: React.FC<SubjectDetailModalProps> = ({
               ) : (
                 <span className="text-gray-400 italic">Không có môn tiên quyết</span>
               )}
-            </Descriptions.Item>
-            <Descriptions.Item label="ID">
-              <code className="text-xs bg-gray-100 px-2 py-1 rounded">
-                {subject.subjectId}
-              </code>
             </Descriptions.Item>
           </Descriptions>
         ) : (

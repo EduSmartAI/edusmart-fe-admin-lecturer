@@ -57,22 +57,19 @@ export default function MajorsClient() {
     clearMajorError,
   } = useSyllabusStore();
 
-  // Load majors on mount and when search/page changes
+  // Load majors on mount and when page or search changes
   useEffect(() => {
-    fetchMajors(currentPage, majorsPageSize);
+    // Always use server-side search with pagination
+    fetchMajors(currentPage, majorsPageSize, debouncedSearch || undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage]);
+  }, [currentPage, debouncedSearch]);
 
-  // Filter majors by search (client-side since API doesn't have search param)
-  const filteredMajors = majors.filter((major) => {
-    if (!debouncedSearch) return true;
-    const search = debouncedSearch.toLowerCase();
-    return (
-      major.majorCode.toLowerCase().includes(search) ||
-      major.majorName.toLowerCase().includes(search) ||
-      (major.description?.toLowerCase().includes(search) ?? false)
-    );
-  });
+  // Reset to first page when search changes
+  useEffect(() => {
+    if (debouncedSearch !== undefined) {
+      setCurrentPage(1);
+    }
+  }, [debouncedSearch]);
 
   // Open modal for create
   const handleCreate = () => {
@@ -297,7 +294,11 @@ export default function MajorsClient() {
                 <Button
                   icon={<ReloadOutlined />}
                   loading={majorsLoading}
-                  onClick={() => fetchMajors(currentPage, majorsPageSize)}
+                  onClick={() => {
+                    setSearchValue("");
+                    setCurrentPage(1);
+                    fetchMajors(1, majorsPageSize, undefined);
+                  }}
                 />
               </Tooltip>
               <Button
@@ -321,24 +322,26 @@ export default function MajorsClient() {
                 <div className="p-12" />
               </Spin>
             </div>
-          ) : filteredMajors.length === 0 ? (
+          ) : majors.length === 0 ? (
             <Empty
-              description="Chưa có chuyên ngành nào"
+              description={debouncedSearch ? "Không tìm thấy chuyên ngành nào" : "Chưa có chuyên ngành nào"}
               style={{ paddingTop: 48, paddingBottom: 48 }}
             >
-              <Button
-                type="primary"
-                onClick={handleCreate}
-                icon={<PlusOutlined />}
-                className="bg-blue-600 hover:bg-blue-700 border-0"
-              >
-                Tạo chuyên ngành đầu tiên
-              </Button>
+              {!debouncedSearch && (
+                <Button
+                  type="primary"
+                  onClick={handleCreate}
+                  icon={<PlusOutlined />}
+                  className="bg-blue-600 hover:bg-blue-700 border-0"
+                >
+                  Tạo chuyên ngành đầu tiên
+                </Button>
+              )}
             </Empty>
           ) : (
             <Table
               columns={columns}
-              dataSource={filteredMajors}
+              dataSource={majors}
               rowKey="majorId"
               loading={majorsLoading}
               pagination={{
@@ -348,7 +351,7 @@ export default function MajorsClient() {
                 onChange: setCurrentPage,
                 showSizeChanger: false,
                 showTotal: (total, range) =>
-                  `${range[0]} đến ${range[1]} trong tổng ${total} chuyên ngành`,
+                  `${range[0]} đến ${range[1]} trong tổng ${total} chuyên ngành${debouncedSearch ? ' (đang tìm kiếm)' : ''}`,
               }}
               bordered
             />

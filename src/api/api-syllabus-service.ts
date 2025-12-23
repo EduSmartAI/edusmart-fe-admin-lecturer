@@ -20,13 +20,18 @@ export interface CreateMajorDto {
   requiredCredits?: number;
 }
 
+export interface PrerequisiteSubject {
+  subjectId: string;
+  subjectCode: string;
+  subjectName: string;
+}
+
 export interface SubjectDto {
   subjectId: string;
   subjectCode: string;
   subjectName: string;
   subjectDescription?: string | null;
-  prerequisiteSubjectIds?: string[];
-  prerequisiteSubjects?: { subjectId: string; subjectCode: string; subjectName: string }[];
+  prerequisites: PrerequisiteSubject[];
 }
 
 export interface CreateSubjectDto {
@@ -124,6 +129,23 @@ export const syllabusServiceAPI = {
       url += `&search=${encodeURIComponent(search)}`;
     }
     const response = await syllabusApiClient.get<ApiResponse<PaginatedResponse<MajorDto>>>(url);
+    return response.data;
+  },
+
+  /**
+   * Update major description
+   * PUT /api/Syllabus/major/{majorId}
+   */
+  updateMajorDescription: async (majorId: string, description: string): Promise<ApiResponse<boolean>> => {
+    const response = await syllabusApiClient.put<ApiResponse<boolean>>(
+      `/api/Syllabus/major/${majorId}`,
+      JSON.stringify(description),
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    );
     return response.data;
   },
 
@@ -237,5 +259,10 @@ export const deleteSubject = async (subjectId: string): Promise<boolean> => {
 
 export const updateSyllabus = async (data: UpdateSyllabusDto): Promise<boolean> => {
   const response = await syllabusServiceAPI.updateSyllabus(data);
+  return response.success;
+};
+
+export const updateMajorDescription = async (majorId: string, description: string): Promise<boolean> => {
+  const response = await syllabusServiceAPI.updateMajorDescription(majorId, description);
   return response.success;
 };
