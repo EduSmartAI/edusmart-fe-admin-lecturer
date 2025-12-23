@@ -2,12 +2,10 @@
 
 import React, { useEffect, useState } from "react";
 import { Card, Row, Col, Button, List, Tag, Empty, Space, Divider, Progress } from "antd";
-import { 
-  BookOutlined, 
-  UserOutlined, 
-  PlayCircleOutlined, 
+import {
+  BookOutlined,
+  UserOutlined,
   ClockCircleOutlined,
-  DollarOutlined,
   RiseOutlined,
   PlusOutlined,
   EyeOutlined,
@@ -24,13 +22,11 @@ import Image from "next/image";
 
 const LecturerDashboard: React.FC = () => {
   const router = useRouter();
-  const { courses, isLoading, fetchCoursesByLecturer } = useCourseManagementStore();
+  const { courses, isLoading, pagination, fetchCoursesByLecturer } = useCourseManagementStore();
   const { profile, loadProfile } = useUserProfileStore();
   const [stats, setStats] = useState({
     totalCourses: 0,
     totalStudents: 0,
-    totalVideos: 0,
-    totalRevenue: 0,
     publishedCourses: 0,
     draftCourses: 0,
     avgRating: 4.5,
@@ -43,31 +39,49 @@ const LecturerDashboard: React.FC = () => {
     }
   }, [profile, loadProfile]);
 
+  // Fetch all courses for dashboard statistics
   useEffect(() => {
-    fetchCoursesByLecturer();
+    // Fetch with large pageSize to get ALL courses for accurate stats
+    // Using 1000 to ensure we get all courses (assuming no lecturer has more than 1000 courses)
+    console.log('📊 Dashboard: Fetching all courses for statistics...');
+    fetchCoursesByLecturer({ pageIndex: 0, pageSize: 1000 });
   }, [fetchCoursesByLecturer]);
 
   useEffect(() => {
-    if (courses.length > 0) {
+    // Use pagination.totalCount for accurate total courses count from API
+    const totalCourses = pagination.totalCount || 0;
+
+    console.log('📊 Dashboard Stats Calculation:', {
+      totalCoursesFromAPI: pagination.totalCount,
+      coursesInArray: courses.length,
+      pageSize: pagination.pageSize
+    });
+
+    if (totalCourses > 0 && courses.length > 0) {
+      // Calculate stats from ALL fetched courses
       const totalStudents = courses.reduce((sum, course) => sum + (course.learnerCount || 0), 0);
-      const totalVideos = courses.length * 5;
-      const totalRevenue = courses.reduce((sum, course) => sum + (course.price * (course.learnerCount || 0)), 0);
+
       const publishedCourses = courses.filter(c => c.isActive).length;
       const draftCourses = courses.filter(c => !c.isActive).length;
-      const completionRate = publishedCourses > 0 ? Math.round((publishedCourses / courses.length) * 100) : 0;
+      const completionRate = totalCourses > 0 ? Math.round((publishedCourses / totalCourses) * 100) : 0;
+
+      console.log('✅ Dashboard Stats:', {
+        totalCourses,
+        totalStudents,
+        publishedCourses,
+        draftCourses
+      });
 
       setStats({
-        totalCourses: courses.length,
+        totalCourses,
         totalStudents,
-        totalVideos,
-        totalRevenue,
         publishedCourses,
         draftCourses,
         avgRating: 4.5,
         completionRate
       });
     }
-  }, [courses]);
+  }, [courses, pagination.totalCount, pagination.pageSize]);
 
   const recentCourses = courses.slice(0, 4);
 
@@ -83,63 +97,64 @@ const LecturerDashboard: React.FC = () => {
       <FadeInUp>
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-7xl">
           {/* Welcome Header Section */}
-          <div className="mb-8 bg-gradient-to-r from-emerald-500 to-blue-600 rounded-2xl shadow-xl p-6 sm:p-8 text-white relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32"></div>
-            <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/10 rounded-full -ml-24 -mb-24"></div>
-            
+          <div className="mb-8 bg-gradient-to-r from-emerald-500 via-emerald-600 to-blue-600 rounded-3xl shadow-2xl p-6 sm:p-10 text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-72 h-72 bg-white/10 rounded-full -mr-36 -mt-36 blur-3xl"></div>
+            <div className="absolute bottom-0 left-0 w-56 h-56 bg-white/10 rounded-full -ml-28 -mb-28 blur-3xl"></div>
+            <div className="absolute top-1/2 left-1/2 w-64 h-64 bg-blue-400/20 rounded-full -translate-x-1/2 -translate-y-1/2 blur-3xl"></div>
+
             <div className="relative z-10">
               <Row gutter={[24, 24]} align="middle">
-                <Col xs={24} lg={18}>
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-2xl sm:text-3xl flex-shrink-0">
+                <Col xs={24} lg={16}>
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center text-3xl sm:text-4xl flex-shrink-0 shadow-lg">
                       👋
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-1 truncate">
+                      <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-2 truncate">
                         {getGreeting()}, {profile?.name || 'Giảng viên'}!
                       </h1>
-                      <p className="text-white/90 text-sm sm:text-base">
+                      <p className="text-white/90 text-base sm:text-lg">
                         Chào mừng bạn quay trở lại với bảng điều khiển giảng viên
                       </p>
                     </div>
                   </div>
-                  
+
                   <div className="flex flex-wrap gap-3">
-                    <Button 
+                    <Button
                       type="primary"
                       size="large"
                       icon={<PlusOutlined />}
                       onClick={() => router.push('/Lecturer/courses/create-course')}
-                      className="bg-white text-emerald-600 border-0 hover:bg-white/90 shadow-lg font-semibold"
+                      className="bg-white text-emerald-600 border-0 hover:bg-white/95 shadow-lg font-semibold px-6 h-12"
                     >
                       Tạo khóa học mới
                     </Button>
-                    <Button 
+                    <Button
                       size="large"
                       icon={<BookOutlined />}
                       onClick={() => router.push('/Lecturer/courses')}
-                      className="bg-white/20 backdrop-blur-sm text-white border-0 hover:bg-white/30"
+                      className="bg-white/20 backdrop-blur-sm text-white border-0 hover:bg-white/30 px-6 h-12"
                     >
                       Xem tất cả
                     </Button>
                   </div>
                 </Col>
-                
-                <Col xs={24} lg={6}>
-                  <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 sm:p-6 border border-white/20">
+
+                <Col xs={24} lg={8}>
+                  <div className="bg-white/15 backdrop-blur-lg rounded-2xl p-6 border border-white/30 shadow-xl">
                     <div className="text-center">
-                      <div className="text-4xl sm:text-5xl font-bold mb-1">{stats.totalCourses}</div>
-                      <div className="text-white/80 text-sm sm:text-base mb-3">Tổng khóa học</div>
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-xs sm:text-sm">
-                          <span className="text-white/70">Đã xuất bản</span>
-                          <span className="font-semibold">{stats.publishedCourses}</span>
+                      <div className="text-5xl sm:text-6xl font-bold mb-2">{stats.totalCourses}</div>
+                      <div className="text-white/90 text-base sm:text-lg mb-4 font-medium">Tổng khóa học</div>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center text-sm sm:text-base">
+                          <span className="text-white/80">Đã xuất bản</span>
+                          <span className="font-bold text-lg">{stats.publishedCourses}</span>
                         </div>
-                        <Progress 
-                          percent={stats.completionRate} 
+                        <Progress
+                          percent={stats.completionRate}
                           strokeColor="#fff"
-                          trailColor="rgba(255,255,255,0.2)"
-                          size="small"
+                          trailColor="rgba(255,255,255,0.3)"
+                          strokeWidth={8}
                           showInfo={false}
                         />
                       </div>
@@ -156,91 +171,48 @@ const LecturerDashboard: React.FC = () => {
               <BarChartOutlined className="text-emerald-600" />
               Thống kê tổng quan
             </h2>
-            
+
             <Row gutter={[16, 16]}>
-              <Col xs={24} sm={12} lg={6}>
-                <Card 
+              <Col xs={24} sm={12}>
+                <Card
                   className="shadow-md hover:shadow-xl transition-all duration-300 border-0 rounded-xl overflow-hidden"
-                  styles={{ body: { padding: '20px' } }}
+                  styles={{ body: { padding: '24px' } }}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="text-gray-500 dark:text-gray-400 text-sm mb-1">Học viên</div>
-                      <div className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-1">
+                      <div className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-2">
                         {stats.totalStudents}
                       </div>
-                      <div className="flex items-center gap-1 text-green-600 text-sm">
+                      <div className="flex items-center gap-1 text-green-600 text-sm font-medium">
                         <ArrowUpOutlined />
                         <span>+12% tháng này</span>
                       </div>
                     </div>
-                    <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
-                      <UserOutlined className="text-white text-xl" />
+                    <div className="w-14 h-14 bg-gradient-to-br from-green-400 to-green-600 rounded-2xl flex items-center justify-center shadow-lg">
+                      <UserOutlined className="text-white text-2xl" />
                     </div>
                   </div>
                 </Card>
               </Col>
 
-              <Col xs={24} sm={12} lg={6}>
-                <Card 
+              <Col xs={24} sm={12}>
+                <Card
                   className="shadow-md hover:shadow-xl transition-all duration-300 border-0 rounded-xl overflow-hidden"
-                  styles={{ body: { padding: '20px' } }}
+                  styles={{ body: { padding: '24px' } }}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="text-gray-500 dark:text-gray-400 text-sm mb-1">Khóa học</div>
-                      <div className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-1">
+                      <div className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-2">
                         {stats.publishedCourses}
                       </div>
-                      <div className="text-gray-500 text-sm">
+                      <div className="text-gray-500 dark:text-gray-400 text-sm font-medium">
                         {stats.draftCourses} bản nháp
                       </div>
                     </div>
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
-                      <BookOutlined className="text-white text-xl" />
-                    </div>
-                  </div>
-                </Card>
-              </Col>
-
-              <Col xs={24} sm={12} lg={6}>
-                <Card 
-                  className="shadow-md hover:shadow-xl transition-all duration-300 border-0 rounded-xl overflow-hidden"
-                  styles={{ body: { padding: '20px' } }}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="text-gray-500 dark:text-gray-400 text-sm mb-1">Video bài học</div>
-                      <div className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-1">
-                        {stats.totalVideos}
-                      </div>
-                      <div className="flex items-center gap-1 text-purple-600 text-sm">
-                        <PlayCircleOutlined />
-                        <span>Đã tải lên</span>
-                      </div>
-                    </div>
-                    <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
-                      <PlayCircleOutlined className="text-white text-xl" />
-                    </div>
-                  </div>
-                </Card>
-              </Col>
-
-              <Col xs={24} sm={12} lg={6}>
-                <Card 
-                  className="shadow-md hover:shadow-xl transition-all duration-300 border-0 rounded-xl overflow-hidden"
-                  styles={{ body: { padding: '20px' } }}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="text-gray-500 dark:text-gray-400 text-sm mb-1">Doanh thu</div>
-                      <div className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-1">
-                        {(stats.totalRevenue / 1000000).toFixed(1)}M
-                      </div>
-                      <div className="text-gray-500 text-sm">VND</div>
-                    </div>
-                    <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-orange-600 rounded-xl flex items-center justify-center shadow-lg">
-                      <DollarOutlined className="text-white text-xl" />
+                    <div className="w-14 h-14 bg-gradient-to-br from-blue-400 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
+                      <BookOutlined className="text-white text-2xl" />
                     </div>
                   </div>
                 </Card>
@@ -251,24 +223,26 @@ const LecturerDashboard: React.FC = () => {
           <Row gutter={[16, 16]}>
             {/* Recent Courses */}
             <Col xs={24} lg={16}>
-              <Card 
-                className="shadow-md border-0 rounded-xl h-full"
+              <Card
+                className="shadow-lg border-0 rounded-2xl h-full hover:shadow-xl transition-shadow duration-300"
                 title={
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <FireOutlined className="text-orange-500" />
-                      <span className="font-semibold">Khóa học gần đây</span>
+                      <div className="w-8 h-8 bg-gradient-to-br from-orange-400 to-orange-600 rounded-lg flex items-center justify-center">
+                        <FireOutlined className="text-white" />
+                      </div>
+                      <span className="font-bold text-lg">Khóa học gần đây</span>
                     </div>
-                    <Button 
-                      type="link" 
+                    <Button
+                      type="link"
                       onClick={() => router.push('/Lecturer/courses')}
-                      className="text-emerald-600"
+                      className="text-emerald-600 font-semibold hover:text-emerald-700"
                     >
                       Xem tất cả →
                     </Button>
                   </div>
                 }
-                styles={{ body: { padding: '16px' } }}
+                styles={{ body: { padding: '20px' } }}
               >
                 {isLoading ? (
                   <div className="flex justify-center items-center py-12">
@@ -280,14 +254,14 @@ const LecturerDashboard: React.FC = () => {
                     dataSource={recentCourses}
                     renderItem={(course) => (
                       <List.Item
-                        className="hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg px-4 transition-all duration-200"
+                        className="hover:bg-gradient-to-r hover:from-gray-50 hover:to-emerald-50/30 dark:hover:from-gray-800 dark:hover:to-emerald-900/10 rounded-xl px-4 py-3 transition-all duration-300 border border-transparent hover:border-emerald-200 dark:hover:border-emerald-800"
                         actions={[
-                          <Button 
-                            key="view" 
+                          <Button
+                            key="view"
                             type="primary"
                             icon={<EyeOutlined />}
                             onClick={() => router.push(`/Lecturer/courses/${course.courseId}`)}
-                            className="bg-emerald-600 border-emerald-600"
+                            className="bg-gradient-to-r from-emerald-500 to-emerald-600 border-0 hover:from-emerald-600 hover:to-emerald-700 shadow-md h-10"
                           >
                             Xem
                           </Button>
@@ -295,17 +269,17 @@ const LecturerDashboard: React.FC = () => {
                       >
                         <List.Item.Meta
                           avatar={
-                            <div className="relative w-20 h-20 rounded-xl overflow-hidden shadow-md bg-gradient-to-br from-emerald-400 to-blue-500 flex items-center justify-center flex-shrink-0">
-                              {course.courseImageUrl && 
-                               course.courseImageUrl.trim() !== '' && 
-                               !course.courseImageUrl.includes('example.com') ? (
+                            <div className="relative w-24 h-24 rounded-2xl overflow-hidden shadow-lg bg-gradient-to-br from-emerald-400 to-blue-500 flex items-center justify-center flex-shrink-0 border-2 border-white dark:border-gray-700">
+                              {course.courseImageUrl &&
+                                course.courseImageUrl.trim() !== '' &&
+                                !course.courseImageUrl.includes('example.com') ? (
                                 <Image
                                   src={course.courseImageUrl}
                                   alt={course.title || 'Course'}
                                   fill
                                   className="object-cover"
                                   quality={75}
-                                  sizes="80px"
+                                  sizes="96px"
                                   priority={false}
                                   onError={(e) => {
                                     const target = e.target as HTMLImageElement;
@@ -314,32 +288,32 @@ const LecturerDashboard: React.FC = () => {
                                   }}
                                 />
                               ) : (
-                                <BookOutlined className="text-3xl text-white" />
+                                <BookOutlined className="text-4xl text-white" />
                               )}
-                              <div className="absolute top-1 right-1 z-10">
-                                <Tag color={course.isActive ? 'success' : 'warning'} className="text-xs m-0">
+                              <div className="absolute top-2 right-2 z-10">
+                                <Tag color={course.isActive ? 'success' : 'warning'} className="text-xs m-0 font-semibold shadow-md">
                                   {course.isActive ? 'Đã XB' : 'Nháp'}
                                 </Tag>
                               </div>
                             </div>
                           }
                           title={
-                            <div className="font-semibold text-gray-900 dark:text-gray-100 text-base mb-1">
+                            <div className="font-bold text-gray-900 dark:text-gray-100 text-lg mb-2">
                               {course.title || 'Untitled Course'}
                             </div>
                           }
                           description={
-                            <div className="space-y-1">
+                            <div className="space-y-2">
                               <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
-                                <span className="flex items-center gap-1">
-                                  <UserOutlined /> {course.learnerCount || 0} HV
+                                <span className="flex items-center gap-1.5 font-medium">
+                                  <UserOutlined className="text-base" /> {course.learnerCount || 0} HV
                                 </span>
-                                <span className="flex items-center gap-1">
-                                  <ClockCircleOutlined /> {course.durationHours || 0}h
+                                <span className="flex items-center gap-1.5 font-medium">
+                                  <ClockCircleOutlined className="text-base" /> {course.durationHours || 0}h
                                 </span>
-                                <span className="flex items-center gap-1 font-semibold text-emerald-600">
-                                  {(course.price || 0).toLocaleString()} VND
-                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5 font-bold text-lg text-emerald-600">
+                                {(course.price || 0).toLocaleString()} VND
                               </div>
                             </div>
                           }
@@ -348,7 +322,7 @@ const LecturerDashboard: React.FC = () => {
                     )}
                   />
                 ) : (
-                  <Empty 
+                  <Empty
                     description={
                       <div className="py-8">
                         <div className="text-gray-400 text-lg mb-2">Chưa có khóa học nào</div>
@@ -359,8 +333,8 @@ const LecturerDashboard: React.FC = () => {
                     }
                     image={Empty.PRESENTED_IMAGE_SIMPLE}
                   >
-                    <Button 
-                      type="primary" 
+                    <Button
+                      type="primary"
                       size="large"
                       icon={<PlusOutlined />}
                       onClick={() => router.push('/Lecturer/courses/create-course')}
@@ -377,7 +351,7 @@ const LecturerDashboard: React.FC = () => {
             <Col xs={24} lg={8}>
               <Space direction="vertical" size={16} className="w-full">
                 {/* Quick Actions Card */}
-                <Card 
+                <Card
                   title={
                     <div className="flex items-center gap-2">
                       <RiseOutlined className="text-emerald-600" />
@@ -388,75 +362,78 @@ const LecturerDashboard: React.FC = () => {
                   styles={{ body: { padding: '16px' } }}
                 >
                   <Space direction="vertical" size={12} className="w-full">
-                    <Button 
-                      block 
+                    <Button
+                      block
                       size="large"
                       icon={<BookOutlined />}
                       onClick={() => router.push('/Lecturer/courses')}
-                      className="h-auto py-4 text-left bg-gradient-to-r from-blue-500 to-blue-600 text-white border-0 hover:from-blue-600 hover:to-blue-700"
+                      className="h-auto py-4 text-left bg-gradient-to-r from-emerald-500 to-emerald-600 text-white border-0 hover:from-emerald-600 hover:to-emerald-700 shadow-md"
                     >
                       <div className="flex items-center justify-between w-full">
                         <div>
                           <div className="font-semibold text-base">Quản lý khóa học</div>
                         </div>
-                        <BookOutlined className="text-xl" />
+                        <BookOutlined className="text-2xl" />
                       </div>
                     </Button>
-                    
-                    <Button 
-                      block 
+
+                    <Button
+                      block
                       size="large"
-                      icon={<BarChartOutlined />}
-                      onClick={() => router.push('/Lecturer/courses/analytics')}
-                      className="h-auto py-4 text-left bg-gradient-to-r from-purple-500 to-purple-600 text-white border-0 hover:from-purple-600 hover:to-purple-700"
+                      icon={<PlusOutlined />}
+                      onClick={() => router.push('/Lecturer/courses/create-course')}
+                      className="h-auto py-4 text-left bg-gradient-to-r from-blue-500 to-blue-600 text-white border-0 hover:from-blue-600 hover:to-blue-700 shadow-md"
                     >
                       <div className="flex items-center justify-between w-full">
                         <div>
-                          <div className="font-semibold text-base">Thống kê & Phân tích</div>
+                          <div className="font-semibold text-base">Tạo khóa học mới</div>
                         </div>
-                        <BarChartOutlined className="text-xl" />
+                        <PlusOutlined className="text-2xl" />
                       </div>
                     </Button>
                   </Space>
                 </Card>
 
                 {/* Performance Card */}
-                <Card 
+                <Card
                   title={
                     <div className="flex items-center gap-2">
-                      <TrophyOutlined className="text-yellow-500" />
-                      <span className="font-semibold">Hiệu suất</span>
+                      <div className="w-8 h-8 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-lg flex items-center justify-center">
+                        <TrophyOutlined className="text-white" />
+                      </div>
+                      <span className="font-bold">Hiệu suất</span>
                     </div>
                   }
-                  className="shadow-md border-0 rounded-xl"
-                  styles={{ body: { padding: '16px' } }}
+                  className="shadow-lg border-0 rounded-2xl hover:shadow-xl transition-shadow duration-300"
+                  styles={{ body: { padding: '20px' } }}
                 >
-                  <Space direction="vertical" size={16} className="w-full">
+                  <Space direction="vertical" size={20} className="w-full">
                     <div>
-                      <div className="flex justify-between mb-2">
-                        <span className="text-gray-600 dark:text-gray-400 text-sm">Tỷ lệ hoàn thành</span>
-                        <span className="font-semibold text-emerald-600">{stats.completionRate}%</span>
+                      <div className="flex justify-between items-center mb-3">
+                        <span className="text-gray-600 dark:text-gray-400 text-sm font-medium">Tỷ lệ hoàn thành</span>
+                        <span className="font-bold text-lg text-emerald-600">{stats.completionRate}%</span>
                       </div>
-                      <Progress 
-                        percent={stats.completionRate} 
+                      <Progress
+                        percent={stats.completionRate}
                         strokeColor={{
                           '0%': '#10b981',
                           '100%': '#059669',
                         }}
-                        size="small"
+                        strokeWidth={10}
+                        className="font-semibold"
                       />
                     </div>
-                    
-                    <Divider className="my-2" />
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                        <div className="text-2xl font-bold text-blue-600">{stats.publishedCourses}</div>
-                        <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">Đã xuất bản</div>
+
+                    <Divider className="my-1" />
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-xl border border-blue-200 dark:border-blue-800">
+                        <div className="text-3xl font-bold text-blue-600 mb-1">{stats.publishedCourses}</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400 font-medium">Đã xuất bản</div>
                       </div>
-                      <div className="text-center p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
-                        <div className="text-2xl font-bold text-orange-600">{stats.draftCourses}</div>
-                        <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">Bản nháp</div>
+                      <div className="text-center p-4 bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 rounded-xl border border-orange-200 dark:border-orange-800">
+                        <div className="text-3xl font-bold text-orange-600 mb-1">{stats.draftCourses}</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400 font-medium">Bản nháp</div>
                       </div>
                     </div>
                   </Space>

@@ -5,10 +5,6 @@ import Image from "next/image";
 import { Lobster } from "next/font/google";
 import {
   DashboardOutlined,
-  TeamOutlined,
-  BarChartOutlined,
-  BellOutlined,
-  SettingOutlined,
   LogoutOutlined,
   PlusCircleOutlined,
   EyeOutlined,
@@ -73,13 +69,6 @@ const navItems: NavMenuItem[] = [
         "/Lecturer",
       ),
       getItem(
-        "Audience",
-        "audience",
-        <TeamOutlined />,
-        undefined,
-        "/Lecturer/audience",
-      ),
-      getItem(
         "Bình luận",
         "comments",
         <CommentOutlined />,
@@ -110,38 +99,6 @@ const navItems: NavMenuItem[] = [
         <PlusCircleOutlined />,
         undefined,
         "/Lecturer/courses/create-course",
-      ),
-      getItem(
-        "Thống kê & Phân tích",
-        "analytics",
-        <BarChartOutlined />,
-        undefined,
-        "/Lecturer/courses/analytics",
-      ),
-    ],
-    undefined,
-    "group",
-  ),
-
-  // ========== SYSTEM ==========
-  getItem(
-    "Hệ thống",
-    "system-group",
-    null,
-    [
-      getItem(
-        "Notification",
-        "notification",
-        <BellOutlined />,
-        undefined,
-        "/Lecturer/notification",
-      ),
-      getItem(
-        "Settings",
-        "settings",
-        <SettingOutlined />,
-        undefined,
-        "/Lecturer/settings",
       ),
     ],
     undefined,

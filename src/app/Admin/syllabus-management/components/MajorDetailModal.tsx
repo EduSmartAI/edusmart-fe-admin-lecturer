@@ -9,14 +9,20 @@ import {
   Empty,
   Button,
   Popconfirm,
+  Input,
+  message,
 } from 'antd';
 import { 
   BookOutlined, 
   EditOutlined,
   DeleteOutlined,
   InfoCircleOutlined,
+  SaveOutlined,
+  CloseOutlined,
 } from '@ant-design/icons';
 import { syllabusServiceAPI, MajorDto } from 'EduSmart/api/api-syllabus-service';
+
+const { TextArea } = Input;
 
 interface MajorDetailModalProps {
   open: boolean;
@@ -38,14 +44,21 @@ const MajorDetailModal: React.FC<MajorDetailModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [major, setMajor] = useState<MajorDto | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editedDescription, setEditedDescription] = useState('');
 
   useEffect(() => {
     if (open) {
       if (majorProp) {
         setMajor(majorProp);
+        setEditedDescription(majorProp.description || '');
       } else if (majorId) {
         fetchMajorDetail();
       }
+    } else {
+      // Reset edit mode when modal closes
+      setIsEditMode(false);
+      setEditedDescription('');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, majorId, majorProp?.majorId]); // Use majorProp?.majorId to avoid infinite loop
@@ -60,6 +73,7 @@ const MajorDetailModal: React.FC<MajorDetailModalProps> = ({
       
       if (response.success && response.response) {
         setMajor(response.response);
+        setEditedDescription(response.response.description || '');
       } else {
         setError(response.message || 'Không thể tải thông tin chuyên ngành');
       }
@@ -74,7 +88,53 @@ const MajorDetailModal: React.FC<MajorDetailModalProps> = ({
   const handleClose = () => {
     setMajor(null);
     setError(null);
+    setIsEditMode(false);
+    setEditedDescription('');
     onClose();
+  };
+
+  const handleStartEdit = () => {
+    if (major) {
+      setIsEditMode(true);
+      setEditedDescription(major.description || '');
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditMode(false);
+    setEditedDescription(major?.description || '');
+  };
+
+  const handleSaveDescription = async () => {
+    if (!major) return;
+
+    setLoading(true);
+    try {
+      const response = await syllabusServiceAPI.updateMajorDescription(
+        major.majorId,
+        editedDescription.trim()
+      );
+
+      if (response.success) {
+        message.success('Cập nhật mô tả chuyên ngành thành công!');
+        // Update local state
+        const updatedMajor = { ...major, description: editedDescription.trim() };
+        setMajor(updatedMajor);
+        setIsEditMode(false);
+        
+        // Call onEdit callback if provided
+        if (onEdit) {
+          onEdit(updatedMajor);
+        }
+      } else {
+        message.error(response.message || 'Cập nhật mô tả thất bại');
+      }
+    } catch (err) {
+      console.error('Error updating major description:', err);
+      message.error('Đã xảy ra lỗi khi cập nhật mô tả');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -91,7 +151,7 @@ const MajorDetailModal: React.FC<MajorDetailModalProps> = ({
         major ? (
           <div className="flex justify-between">
             <div>
-              {onDelete && (
+              {!isEditMode && onDelete && (
                 <Popconfirm
                   title="Xóa chuyên ngành"
                   description="Bạn có chắc chắn muốn xóa chuyên ngành này?"
@@ -107,15 +167,31 @@ const MajorDetailModal: React.FC<MajorDetailModalProps> = ({
               )}
             </div>
             <div className="flex gap-2">
-              <Button onClick={handleClose}>Đóng</Button>
-              {onEdit && (
-                <Button 
-                  type="primary" 
-                  icon={<EditOutlined />}
-                  onClick={() => onEdit(major)}
-                >
-                  Chỉnh sửa
-                </Button>
+              {isEditMode ? (
+                <>
+                  <Button onClick={handleCancelEdit} icon={<CloseOutlined />}>
+                    Hủy
+                  </Button>
+                  <Button 
+                    type="primary" 
+                    icon={<SaveOutlined />}
+                    onClick={handleSaveDescription}
+                    loading={loading}
+                  >
+                    Lưu
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button onClick={handleClose}>Đóng</Button>
+                  <Button 
+                    type="primary" 
+                    icon={<EditOutlined />}
+                    onClick={handleStartEdit}
+                  >
+                    Chỉnh sửa
+                  </Button>
+                </>
               )}
             </div>
           </div>
@@ -145,8 +221,19 @@ const MajorDetailModal: React.FC<MajorDetailModalProps> = ({
               <span className="font-medium">{major.majorName}</span>
             </Descriptions.Item>
             <Descriptions.Item label="Mô tả">
-              {major.description || (
-                <span className="text-gray-400 italic">Chưa có mô tả</span>
+              {isEditMode ? (
+                <TextArea
+                  value={editedDescription}
+                  onChange={(e) => setEditedDescription(e.target.value)}
+                  placeholder="Nhập mô tả chuyên ngành..."
+                  autoSize={{ minRows: 3, maxRows: 6 }}
+                  maxLength={500}
+                  showCount
+                />
+              ) : (
+                major.description || (
+                  <span className="text-gray-400 italic">Chưa có mô tả</span>
+                )
               )}
             </Descriptions.Item>
             <Descriptions.Item label="Số tín chỉ yêu cầu">
@@ -155,11 +242,6 @@ const MajorDetailModal: React.FC<MajorDetailModalProps> = ({
               ) : (
                 <span className="text-gray-400 italic">Chưa cấu hình</span>
               )}
-            </Descriptions.Item>
-            <Descriptions.Item label="ID">
-              <code className="text-xs bg-gray-100 px-2 py-1 rounded">
-                {major.majorId}
-              </code>
             </Descriptions.Item>
           </Descriptions>
         ) : (

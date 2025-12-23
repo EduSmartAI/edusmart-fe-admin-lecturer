@@ -46,8 +46,8 @@ const initialState = {
   isLoading: false,
   error: null,
   pagination: {
-    pageIndex: 1,
-    pageSize: 10,
+    pageIndex: 0,
+    pageSize: 12,
     totalCount: 0,
     totalPages: 0,
     hasPreviousPage: false,
@@ -88,7 +88,7 @@ export const useCourseManagementStore = create<CourseManagementState>()(
             set({
               courses: data || [],
               pagination: {
-                pageIndex: paginationData.pageIndex || 1,
+                pageIndex: (paginationData.pageIndex ?? 0) + 1, // Convert API's 0-based to UI's 1-based
                 pageSize: paginationData.pageSize || 10,
                 totalCount: paginationData.totalCount,
                 totalPages: paginationData.totalPages,
@@ -250,7 +250,7 @@ export const useCourseManagementStore = create<CourseManagementState>()(
             pageSize: query?.pageSize || state.pagination.pageSize,
             search: query?.search ?? state.filters.search,
             subjectCode: query?.subjectCode ?? state.filters.subjectCode,
-            isActive: query?.isActive ?? state.filters.isActive ?? true,
+            isActive: query?.isActive ?? state.filters.isActive, // Don't default to true - get ALL courses
             sortBy: query?.sortBy ?? state.filters.sortBy,
           };
           
@@ -370,7 +370,7 @@ export const useCourseManagementStore = create<CourseManagementState>()(
             set({
               courses: data || [],
               pagination: {
-                pageIndex: paginationData.pageIndex || 1,
+                pageIndex: (paginationData.pageIndex ?? 0) + 1, // Convert API's 0-based to UI's 1-based
                 pageSize: paginationData.pageSize || 10,
                 totalCount: paginationData.totalCount,
                 totalPages: paginationData.totalPages,

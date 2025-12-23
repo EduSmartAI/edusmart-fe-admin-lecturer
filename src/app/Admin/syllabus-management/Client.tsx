@@ -33,6 +33,7 @@ import {
   AppstoreOutlined,
 } from "@ant-design/icons";
 import { useSyllabusStore } from "EduSmart/stores/Admin";
+import { useDebouncedSearch } from "EduSmart/hooks/useDebounce";
 import SyllabusCreateWizard from "./components/SyllabusCreateWizard";
 import SyllabusDetailModal from "./components/SyllabusDetailModal";
 import SyllabusEditModal from "./components/SyllabusEditModal";
@@ -74,6 +75,7 @@ export default function SyllabusManagementClient() {
   // Major management state
   const [majorsData, setMajorsData] = useState<MajorDto[]>([]);
   const [majorsLoading, setMajorsLoading] = useState(false);
+  const [majorSearchValue, setMajorSearchValue, debouncedMajorSearch] = useDebouncedSearch("", 500);
   const [isCreateMajorOpen, setIsCreateMajorOpen] = useState(false);
   const [selectedMajorDetail, setSelectedMajorDetail] = useState<MajorDto | null>(null);
   const [isMajorDetailOpen, setIsMajorDetailOpen] = useState(false);
@@ -81,6 +83,7 @@ export default function SyllabusManagementClient() {
   // Subject management state
   const [subjectsData, setSubjectsData] = useState<SubjectDto[]>([]);
   const [subjectsLoading, setSubjectsLoading] = useState(false);
+  const [subjectSearchValue, setSubjectSearchValue, debouncedSubjectSearch] = useDebouncedSearch("", 500);
   const [isCreateSubjectOpen, setIsCreateSubjectOpen] = useState(false);
   const [selectedSubjectDetail, setSelectedSubjectDetail] = useState<SubjectDto | null>(null);
   const [isSubjectDetailOpen, setIsSubjectDetailOpen] = useState(false);
@@ -107,11 +110,11 @@ export default function SyllabusManagementClient() {
     fetchAllSubjects();
   }, [fetchAllMajors, fetchSemesters, fetchAllSubjects]);
 
-  // Load majors and subjects data from API
-  const loadMajorsData = useCallback(async () => {
+  // Load majors and subjects data from API with search support
+  const loadMajorsData = useCallback(async (search?: string) => {
     setMajorsLoading(true);
     try {
-      const data = await getAllMajors();
+      const data = await getAllMajors(1, 100, search);
       setMajorsData(data);
     } catch (error) {
       console.error("Error loading majors:", error);
@@ -121,10 +124,10 @@ export default function SyllabusManagementClient() {
     }
   }, []);
 
-  const loadSubjectsData = useCallback(async () => {
+  const loadSubjectsData = useCallback(async (search?: string) => {
     setSubjectsLoading(true);
     try {
-      const data = await getAllSubjects();
+      const data = await getAllSubjects(1, 100, search);
       setSubjectsData(data);
     } catch (error) {
       console.error("Error loading subjects:", error);
@@ -134,14 +137,14 @@ export default function SyllabusManagementClient() {
     }
   }, []);
 
-  // Load data when switching to management tabs
+  // Load data when switching to management tabs or when debounced search changes
   useEffect(() => {
     if (activeTab === "major-management") {
-      loadMajorsData();
+      loadMajorsData(debouncedMajorSearch || undefined);
     } else if (activeTab === "subject-management") {
-      loadSubjectsData();
+      loadSubjectsData(debouncedSubjectSearch || undefined);
     }
-  }, [activeTab, loadMajorsData, loadSubjectsData]);
+  }, [activeTab, debouncedMajorSearch, debouncedSubjectSearch, loadMajorsData, loadSubjectsData]);
 
   // Handle view major detail
   const handleViewMajorDetail = useCallback(async (majorId: string) => {
@@ -351,19 +354,17 @@ export default function SyllabusManagementClient() {
                 value={selectedMajorCode}
                 onChange={(value: string) => setSelectedMajorCode(value)}
                 showSearch
-                optionFilterProp="children"
                 className="w-full"
                 allowClear
-                filterOption={(input, option) =>
-                  (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
-                }
-              >
-                {allMajors.map(major => (
-                  <Option key={major.majorCode} value={major.majorCode}>
-                    {major.majorCode} - {major.majorName}
-                  </Option>
-                ))}
-              </Select>
+                filterOption={(input, option) => {
+                  const label = `${option?.value || ''} ${option?.label || ''}`.toLowerCase();
+                  return label.includes(input.toLowerCase());
+                }}
+                options={allMajors.map(major => ({
+                  label: `${major.majorCode} - ${major.majorName}`,
+                  value: major.majorCode,
+                }))}
+              />
             </div>
             
             <div className="w-full md:w-40">
@@ -454,6 +455,8 @@ export default function SyllabusManagementClient() {
               <MajorManagement
                 majors={majorsData}
                 loading={majorsLoading}
+                searchText={majorSearchValue}
+                onSearchChange={setMajorSearchValue}
                 onCreateNew={() => setIsCreateMajorOpen(true)}
                 onViewDetail={handleViewMajorDetail}
                 onDelete={handleDeleteMajor}
@@ -472,6 +475,8 @@ export default function SyllabusManagementClient() {
               <SubjectManagement
                 subjects={subjectsData}
                 loading={subjectsLoading}
+                searchText={subjectSearchValue}
+                onSearchChange={setSubjectSearchValue}
                 onCreateNew={() => setIsCreateSubjectOpen(true)}
                 onViewDetail={handleViewSubjectDetail}
                 onDelete={handleDeleteSubject}
@@ -554,9 +559,13 @@ export default function SyllabusManagementClient() {
             setIsMajorDetailOpen(false);
             setSelectedMajorDetail(null);
           }}
-          onEdit={() => {
-            // TODO: Implement edit functionality
-            message.info("Chức năng chỉnh sửa đang được phát triển");
+          onEdit={(updatedMajor) => {
+            // Refresh the majors list after edit
+            if (activeTab === "major-management") {
+              loadMajorsData(debouncedMajorSearch || undefined);
+            }
+            // Update the selected major detail
+            setSelectedMajorDetail(updatedMajor);
           }}
           onDelete={() => {
             if (selectedMajorDetail) {
@@ -570,7 +579,6 @@ export default function SyllabusManagementClient() {
         <SubjectDetailModal
           open={isSubjectDetailOpen}
           subject={selectedSubjectDetail}
-          allSubjects={subjectsData}
           onClose={() => {
             setIsSubjectDetailOpen(false);
             setSelectedSubjectDetail(null);
@@ -801,26 +809,21 @@ function MajorsList({
 function MajorManagement({
   majors,
   loading,
+  searchText,
+  onSearchChange,
   onCreateNew,
   onViewDetail,
   onDelete,
 }: {
   majors: MajorDto[];
   loading: boolean;
+  searchText: string;
+  onSearchChange: (text: string) => void;
   onCreateNew: () => void;
   onViewDetail: (majorId: string) => void;
   onDelete: (majorId: string) => void;
 }) {
-  const [searchText, setSearchText] = useState("");
-
-  const filteredMajors = majors.filter((m) => {
-    if (!searchText) return true;
-    const search = searchText.toLowerCase();
-    return (
-      m.majorCode.toLowerCase().includes(search) ||
-      m.majorName.toLowerCase().includes(search)
-    );
-  });
+  // No need to filter here - data is already filtered from API
 
   const columns = [
     {
@@ -892,7 +895,7 @@ function MajorManagement({
             placeholder="Tìm kiếm..."
             prefix={<SearchOutlined />}
             value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
+            onChange={(e) => onSearchChange(e.target.value)}
             allowClear
             className="w-64"
           />
@@ -905,14 +908,14 @@ function MajorManagement({
       <Spin spinning={loading}>
         <Table
           columns={columns}
-          dataSource={filteredMajors}
+          dataSource={majors}
           rowKey="majorId"
           pagination={{
             pageSize: 10,
             showSizeChanger: true,
-            showTotal: (total) => `Tổng ${total} chuyên ngành`,
+            showTotal: (total) => `Tổng ${total} chuyên ngành${searchText ? ' (đang tìm kiếm)' : ''}`,
           }}
-          locale={{ emptyText: <Empty description="Chưa có chuyên ngành nào" /> }}
+          locale={{ emptyText: <Empty description={searchText ? "Không tìm thấy chuyên ngành nào" : "Chưa có chuyên ngành nào"} /> }}
         />
       </Spin>
     </div>
@@ -923,26 +926,21 @@ function MajorManagement({
 function SubjectManagement({
   subjects,
   loading,
+  searchText,
+  onSearchChange,
   onCreateNew,
   onViewDetail,
   onDelete,
 }: {
   subjects: SubjectDto[];
   loading: boolean;
+  searchText: string;
+  onSearchChange: (text: string) => void;
   onCreateNew: () => void;
   onViewDetail: (subjectId: string) => void;
   onDelete: (subjectId: string) => void;
 }) {
-  const [searchText, setSearchText] = useState("");
-
-  const filteredSubjects = subjects.filter((s) => {
-    if (!searchText) return true;
-    const search = searchText.toLowerCase();
-    return (
-      s.subjectCode.toLowerCase().includes(search) ||
-      s.subjectName.toLowerCase().includes(search)
-    );
-  });
+  // No need to filter here - data is already filtered from API
 
   const columns = [
     {
@@ -967,11 +965,11 @@ function SubjectManagement({
     },
     {
       title: "Số môn tiên quyết",
-      dataIndex: "prerequisiteSubjects",
-      key: "prerequisiteSubjects",
+      dataIndex: "prerequisites",
+      key: "prerequisites",
       width: 150,
       align: "center" as const,
-      render: (prerequisites: SubjectDto["prerequisiteSubjects"]) => 
+      render: (prerequisites: SubjectDto["prerequisites"]) => 
         prerequisites?.length || 0,
     },
     {
@@ -1015,7 +1013,7 @@ function SubjectManagement({
             placeholder="Tìm kiếm..."
             prefix={<SearchOutlined />}
             value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
+            onChange={(e) => onSearchChange(e.target.value)}
             allowClear
             className="w-64"
           />
@@ -1028,14 +1026,14 @@ function SubjectManagement({
       <Spin spinning={loading}>
         <Table
           columns={columns}
-          dataSource={filteredSubjects}
+          dataSource={subjects}
           rowKey="subjectId"
           pagination={{
             pageSize: 10,
             showSizeChanger: true,
-            showTotal: (total) => `Tổng ${total} môn học`,
+            showTotal: (total) => `Tổng ${total} môn học${searchText ? ' (đang tìm kiếm)' : ''}`,
           }}
-          locale={{ emptyText: <Empty description="Chưa có môn học nào" /> }}
+          locale={{ emptyText: <Empty description={searchText ? "Không tìm thấy môn học nào" : "Chưa có môn học nào"} /> }}
         />
       </Spin>
     </div>

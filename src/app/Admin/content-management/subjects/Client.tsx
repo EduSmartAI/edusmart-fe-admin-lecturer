@@ -58,21 +58,19 @@ export default function SubjectsClient() {
     clearSubjectError,
   } = useSyllabusStore();
 
-  // Load subjects on mount and when page changes
+  // Load subjects on mount and when page or search changes
   useEffect(() => {
-    fetchSubjects(currentPage, subjectsPageSize);
+    // Always use server-side search with pagination
+    fetchSubjects(currentPage, subjectsPageSize, debouncedSearch || undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage]);
+  }, [currentPage, debouncedSearch]);
 
-  // Filter subjects by search (client-side since API doesn't have search param)
-  const filteredSubjects = subjects.filter((subject) => {
-    if (!debouncedSearch) return true;
-    const search = debouncedSearch.toLowerCase();
-    return (
-      subject.subjectCode.toLowerCase().includes(search) ||
-      subject.subjectName.toLowerCase().includes(search)
-    );
-  });
+  // Reset to first page when search changes
+  useEffect(() => {
+    if (debouncedSearch !== undefined) {
+      setCurrentPage(1);
+    }
+  }, [debouncedSearch]);
 
   // Get subject options for prerequisite selection (exclude current subject if editing)
   const getPrerequisiteOptions = () => {
@@ -328,7 +326,11 @@ export default function SubjectsClient() {
                 <Button
                   icon={<ReloadOutlined />}
                   loading={subjectsLoading}
-                  onClick={() => fetchSubjects(currentPage, subjectsPageSize)}
+                  onClick={() => {
+                    setSearchValue("");
+                    setCurrentPage(1);
+                    fetchSubjects(1, subjectsPageSize, undefined);
+                  }}
                 />
               </Tooltip>
               <Button
@@ -352,24 +354,26 @@ export default function SubjectsClient() {
                 <div className="p-12" />
               </Spin>
             </div>
-          ) : filteredSubjects.length === 0 ? (
+          ) : subjects.length === 0 ? (
             <Empty
-              description="Chưa có môn học nào"
+              description={debouncedSearch ? "Không tìm thấy môn học nào" : "Chưa có môn học nào"}
               style={{ paddingTop: 48, paddingBottom: 48 }}
             >
-              <Button
-                type="primary"
-                onClick={handleCreate}
-                icon={<PlusOutlined />}
-                className="bg-green-600 hover:bg-green-700 border-0"
-              >
-                Tạo môn học đầu tiên
-              </Button>
+              {!debouncedSearch && (
+                <Button
+                  type="primary"
+                  onClick={handleCreate}
+                  icon={<PlusOutlined />}
+                  className="bg-green-600 hover:bg-green-700 border-0"
+                >
+                  Tạo môn học đầu tiên
+                </Button>
+              )}
             </Empty>
           ) : (
             <Table
               columns={columns}
-              dataSource={filteredSubjects}
+              dataSource={subjects}
               rowKey="subjectId"
               loading={subjectsLoading}
               pagination={{
@@ -379,7 +383,7 @@ export default function SubjectsClient() {
                 onChange: setCurrentPage,
                 showSizeChanger: false,
                 showTotal: (total, range) =>
-                  `${range[0]} đến ${range[1]} trong tổng ${total} môn học`,
+                  `${range[0]} đến ${range[1]} trong tổng ${total} môn học${debouncedSearch ? ' (đang tìm kiếm)' : ''}`,
               }}
               bordered
             />

@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { 
   Button, 
   Tag, 
@@ -15,7 +15,8 @@ import {
   Radio,
   Statistic,
   Empty,
-  App
+  App,
+  Pagination
 } from 'antd';
 import { 
   EditOutlined, 
@@ -28,11 +29,10 @@ import {
   DeleteOutlined,
   UserOutlined,
   BookOutlined,
-  DollarOutlined,
   ClockCircleOutlined,
   StarOutlined,
-  BarChartOutlined,
-  ExclamationCircleFilled
+  ExclamationCircleFilled,
+  DollarOutlined
 } from '@ant-design/icons';
 import type { TableColumnsType } from 'antd';
 import { useCourseManagementStore } from 'EduSmart/stores/CourseManagement/CourseManagementStore';
@@ -54,6 +54,7 @@ const CourseManagementPage: React.FC = () => {
     courses,
     isLoading,
     error,
+    pagination,
     fetchCoursesByLecturer,
     deleteCourse,
     clearError,
@@ -69,6 +70,7 @@ const CourseManagementPage: React.FC = () => {
   const [selectedLevel, setSelectedLevel] = useState<string>('all');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [sortBy, setSortBy] = useState<CourseSortBy>(CourseSortBy.CreatedAt);
+  const [currentPage, setCurrentPage] = useState(1); // Client-side pagination state
   
   // Load user profile on mount
   useEffect(() => {
@@ -77,14 +79,23 @@ const CourseManagementPage: React.FC = () => {
     }
   }, [profile, loadProfile]);
 
+  // Fetch ALL courses for accurate statistics on course management page
   useEffect(() => {
-    fetchCoursesByLecturer();
+    // Fetch with large pageSize to get all courses for stats
+    // The pagination component will handle display properly
+    fetchCoursesByLecturer({ pageIndex: 0, pageSize: 1000 });
   }, []); // Remove fetchCoursesByLecturer from dependencies to prevent infinite loop
 
-  // Fetch courses when sort changes
+  // Fetch courses when sort changes (with ALL courses)
   useEffect(() => {
-    fetchCoursesByLecturer({ sortBy });
+    fetchCoursesByLecturer({ sortBy, pageIndex: 0, pageSize: 1000 });
+    setCurrentPage(1); // Reset to page 1 when sort changes
   }, [sortBy]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchText, selectedLevel, selectedCategory]);
 
   // Handle error display
   useEffect(() => {
@@ -151,7 +162,7 @@ const CourseManagementPage: React.FC = () => {
   });
 
   // Filter courses based on active filters
-  const filteredCourses = courses.map(mapCourseForUI).filter(course => {
+  const allFilteredCourses = courses.map(mapCourseForUI).filter(course => {
     const matchesTab = activeTab === 'all' || course.status === activeTab;
     const matchesSearch = course.title.toLowerCase().includes(searchText.toLowerCase()) ||
                          course.category.toLowerCase().includes(searchText.toLowerCase());
@@ -161,16 +172,31 @@ const CourseManagementPage: React.FC = () => {
     return matchesTab && matchesSearch && matchesLevel && matchesCategory;
   });
 
-  // Calculate statistics
+  // Paginate filtered courses for display (12 per page)
+  const pageSize = 12;
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const paginatedCourses = allFilteredCourses.slice(startIndex, endIndex);
+
+  // Calculate statistics from ALL courses
   const mappedCourses = courses.map(mapCourseForUI);
   const stats = {
-    total: mappedCourses.length,
+    total: pagination.totalCount || mappedCourses.length, // Total from API
     published: mappedCourses.filter(c => c.status === 'published').length,
     draft: mappedCourses.filter(c => c.status === 'draft').length,
     archived: mappedCourses.filter(c => c.status === 'archived').length,
-    totalStudents: mappedCourses.reduce((sum, c) => sum + (c.studentCount || 0), 0),
-    totalRevenue: mappedCourses.reduce((sum, c) => c.status === 'published' ? sum + (c.price * (c.studentCount || 0)) : sum, 0)
+    totalStudents: mappedCourses.reduce((sum, c) => sum + (c.studentCount || 0), 0)
   };
+
+  // Debug stats
+  console.log('📊 Course Stats:', {
+    coursesInArray: courses.length,
+    totalFromAPI: pagination.totalCount,
+    published: stats.published,
+    totalStudents: stats.totalStudents,
+    currentPage,
+    paginatedCoursesCount: paginatedCourses.length
+  });
 
   // Course card component
   const CourseCard: React.FC<{ course: Course }> = ({ course }) => {
@@ -431,29 +457,19 @@ const CourseManagementPage: React.FC = () => {
                   Quản lý và theo dõi tất cả khóa học của bạn
                 </p>
               </div>
-              <Space>
-                <Link href="/Lecturer/courses/analytics">
-                  <Button 
-                    icon={<BarChartOutlined />} 
-                    size="large"
-                  >
-                    Thống kê
-                  </Button>
-                </Link>
-                <Button 
-                  type="primary" 
-                  icon={<PlusOutlined />} 
-                  size="large"
-                  className="bg-emerald-600 hover:bg-emerald-700 border-emerald-600"
-                  onClick={handleCreateCourse}
-                >
-                  Tạo khóa học mới
-                </Button>
-              </Space>
+              <Button 
+                type="primary" 
+                icon={<PlusOutlined />} 
+                size="large"
+                className="bg-emerald-600 hover:bg-emerald-700 border-emerald-600"
+                onClick={handleCreateCourse}
+              >
+                Tạo khóa học mới
+              </Button>
             </div>
 
             {/* Statistics Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
               <Card className="border-l-4 border-l-blue-500">
                 <Statistic
                   title="Tổng khóa học"
@@ -473,14 +489,6 @@ const CourseManagementPage: React.FC = () => {
                   title="Tổng học viên"
                   value={stats.totalStudents}
                   prefix={<UserOutlined className="text-orange-500" />}
-                />
-              </Card>
-              <Card className="border-l-4 border-l-emerald-500">
-                <Statistic
-                  title="Doanh thu"
-                  value={stats.totalRevenue}
-                  prefix={<DollarOutlined className="text-emerald-500" />}
-                  formatter={(value) => `${Number(value).toLocaleString()} VND`}
                 />
               </Card>
             </div>
@@ -577,7 +585,7 @@ const CourseManagementPage: React.FC = () => {
                   <p className="text-gray-600 dark:text-gray-400">Đang tải khóa học...</p>
                 </div>
               </div>
-            ) : filteredCourses.length === 0 ? (
+            ) : allFilteredCourses.length === 0 ? (
               <Empty
                 description="Không tìm thấy khóa học nào"
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -587,23 +595,46 @@ const CourseManagementPage: React.FC = () => {
                 </Button>
               </Empty>
             ) : viewMode === 'card' ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6">
-                {filteredCourses.map((course) => (
-                  <div key={course.id} className="h-full">
-                    <CourseCard course={course} />
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6">
+                  {paginatedCourses.map((course) => (
+                    <div key={course.id} className="h-full">
+                      <CourseCard course={course} />
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Pagination Controls */}
+                {allFilteredCourses.length > pageSize && (
+                  <div className="mt-8 flex flex-col items-center border-t pt-6 gap-4">
+                    <Pagination
+                      current={currentPage}
+                      total={allFilteredCourses.length}
+                      pageSize={pageSize}
+                      onChange={(page) => {
+                        setCurrentPage(page);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      showSizeChanger={false}
+                      showTotal={(total, range) => 
+                        `${range[0]}-${range[1]} của ${total} khóa học`
+                      }
+                      disabled={isLoading}
+                      className="text-center"
+                    />
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             ) : (
               <BaseControlTable
                 columns={columns}
-                data={filteredCourses.map(c => ({...c, key: c.id}))}
+                data={allFilteredCourses.map(c => ({...c, key: c.id}))}
                 loading={isLoading}
-                total={filteredCourses.length}
+                total={allFilteredCourses.length}
                 pagination={{
                   pageSize: 10,
                   showSizeChanger: true,
-                  total: filteredCourses.length,
+                  total: allFilteredCourses.length,
                 }}
               />
             )}
