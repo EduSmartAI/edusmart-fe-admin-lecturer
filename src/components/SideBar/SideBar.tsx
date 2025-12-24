@@ -14,6 +14,7 @@ import {
   CodeOutlined,
   FileSearchOutlined,
   ScheduleOutlined,
+  DollarOutlined,
 } from "@ant-design/icons";
 import type { MenuProps } from "antd";
 import { Menu, Layout, theme } from "antd";
@@ -59,9 +60,10 @@ const getItem = (
 /**
  * Navigation items organized by functional groups:
  * 1. Dashboard - Overview & Analytics
- * 2. Academic Management - Majors & Subjects (Syllabus)
- * 3. Assessment - Tests & Surveys
- * 4. Content - Learning Goals & Technologies
+ * 2. Revenue - Financial & Payment Management
+ * 3. Academic Management - Majors & Subjects (Syllabus)
+ * 4. Assessment - Tests & Surveys
+ * 5. Content - Learning Goals & Technologies
  */
 const navItems: NavMenuItem[] = [
   // ========== DASHBOARD ==========
@@ -76,6 +78,24 @@ const navItems: NavMenuItem[] = [
         <DashboardOutlined />,
         undefined,
         "/Admin",
+      ),
+    ],
+    undefined,
+    "group",
+  ),
+  
+  // ========== REVENUE ==========
+  getItem(
+    "Quản lý Tài chính",
+    "revenue-group",
+    null,
+    [
+      getItem(
+        "Tổng hợp Doanh thu",
+        "revenue",
+        <DollarOutlined />,
+        undefined,
+        "/Admin/revenue",
       ),
     ],
     undefined,
